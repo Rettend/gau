@@ -1,4 +1,3 @@
-import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryAdapter } from '../../../src/adapters'
 import { CSRF_COOKIE_NAME, LINKING_TOKEN_COOKIE_NAME, PKCE_COOKIE_NAME } from '../../../src/core/cookies'
@@ -9,8 +8,8 @@ import { mockProvider } from '../../handler'
 describe('callback linking options', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    void (mockProvider.validateCallback as Mock).mockResolvedValue({
-      user: { id: 'provider-user-id', name: 'Provider User', email: 'user@provider.com', emailVerified: true, avatar: 'https://avatar.url' },
+    mockProvider.validateCallback.mockResolvedValue({
+      user: { id: 'provider-user-id', name: 'Provider User', email: 'user@provider.com', emailVerified: true, avatar: 'https://avatar.url', raw: {} },
       tokens: {
         data: {},
         accessToken: () => 'access-token',
@@ -39,8 +38,8 @@ describe('callback linking options', () => {
     const sessionToken = await auth.createSession(existing.id)
 
     // provider returns different email
-    void (mockProvider.validateCallback as Mock).mockResolvedValueOnce({
-      user: { id: 'provider-user-id', name: 'Provider User', email: 'other@provider.com', emailVerified: true, avatar: 'https://avatar.url' },
+    mockProvider.validateCallback.mockResolvedValueOnce({
+      user: { id: 'provider-user-id', name: 'Provider User', email: 'other@provider.com', emailVerified: true, avatar: 'https://avatar.url', raw: {} },
       tokens: {
         data: {},
         accessToken: () => 'access-token',
@@ -77,8 +76,8 @@ describe('callback linking options', () => {
     const existing = await auth.createUser({ email: 'primary@site.com' })
     const sessionToken = await auth.createSession(existing.id)
 
-    void (mockProvider.validateCallback as Mock).mockResolvedValueOnce({
-      user: { id: 'provider-user-id', name: 'Provider User', email: 'other@provider.com', emailVerified: true, avatar: 'https://avatar.url' },
+    mockProvider.validateCallback.mockResolvedValueOnce({
+      user: { id: 'provider-user-id', name: 'Provider User', email: 'other@provider.com', emailVerified: true, avatar: 'https://avatar.url', raw: {} },
       tokens: {
         data: {},
         accessToken: () => 'access-token',

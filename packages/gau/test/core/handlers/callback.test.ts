@@ -101,6 +101,129 @@ describe('callback handler', () => {
     expect(body.error).toBe('Failed to link account')
   })
 
+  it('returns 409 when autoLink=false and verified email already exists', async () => {
+    auth.autoLink = false
+    await auth.createUser({ email: 'user@provider.com', name: 'Existing', emailVerified: true })
+
+    const state = 'state-conflict'
+    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect(response.status).toBe(409)
+    const body = await response.json()
+    expect(body.error).toMatch(/already exists/i)
+  })
+
+  it('stores null email when provider email is unverified to avoid unique collisions', async () => {
+    const state = 'state-unverified'
+    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
+
+    mockProvider.validateCallback.mockResolvedValueOnce({
+      user: { id: 'provider-user-id', name: 'Provider User', email: 'unverified@example.com', emailVerified: false, avatar: 'https://avatar.url', raw: {} },
+      tokens: {
+        data: {},
+        accessToken: () => 'access-token',
+        refreshToken: () => 'refresh-token',
+        idToken: () => 'id-token',
+        accessTokenExpiresAt: () => new Date(Date.now() + 3600 * 1000),
+        accessTokenExpiresInSeconds: () => 3600,
+        scopes: () => ['read'],
+        hasScopes: () => true,
+        hasRefreshToken: () => true,
+        tokenType: () => 'Bearer',
+      },
+    })
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect([200, 302]).toContain(response.status)
+
+    const linked = await auth.getUserByAccount('mock', 'provider-user-id')
+    expect(linked).not.toBeNull()
+    const stored = await auth.getUser(linked!.id)
+    expect(stored?.email ?? null).toBeNull()
+  })
+
+  it('creates and links when autoLink=false, verified email, and no existing user', async () => {
+    auth.autoLink = false
+    const state = 'state-create'
+    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect([200, 302]).toContain(response.status)
+
+    const linked = await auth.getUserByAccount('mock', 'provider-user-id')
+    expect(linked).not.toBeNull()
+    expect(linked?.email).toBe('user@provider.com')
+    expect(linked?.emailVerified).toBe(true)
+  })
+
+  it('links by email when autoLink=always even if provider email is unverified/null', async () => {
+    auth.autoLink = 'always'
+    const existing = await auth.createUser({ email: 'user@provider.com', name: 'Exists', emailVerified: false })
+
+    mockProvider.validateCallback.mockResolvedValueOnce({
+      user: { id: 'provider-user-id', name: 'Provider User', email: 'user@provider.com', emailVerified: null, avatar: 'https://avatar.url', raw: {} },
+      tokens: {
+        data: {},
+        accessToken: () => 'access-token',
+        refreshToken: () => 'refresh-token',
+        idToken: () => 'id-token',
+        accessTokenExpiresAt: () => new Date(Date.now() + 3600 * 1000),
+        accessTokenExpiresInSeconds: () => 3600,
+        scopes: () => ['read'],
+        hasScopes: () => true,
+        hasRefreshToken: () => true,
+        tokenType: () => 'Bearer',
+      },
+    })
+
+    const state = 'state-always'
+    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect([200, 302]).toContain(response.status)
+
+    const linked = await auth.getUserByAccount('mock', 'provider-user-id')
+    expect(linked?.id).toBe(existing.id)
+  })
+
+  it('does not auto-link when autoLink=verifiedEmail and provider email is unverified/null', async () => {
+    auth.autoLink = 'verifiedEmail'
+    const existing = await auth.createUser({ email: 'user@provider.com', name: 'Exists', emailVerified: false })
+
+    mockProvider.validateCallback.mockResolvedValueOnce({
+      user: { id: 'provider-user-id', name: 'Provider User', email: 'user@provider.com', emailVerified: null, avatar: 'https://avatar.url', raw: {} },
+      tokens: {
+        data: {},
+        accessToken: () => 'access-token',
+        refreshToken: () => 'refresh-token',
+        idToken: () => 'id-token',
+        accessTokenExpiresAt: () => new Date(Date.now() + 3600 * 1000),
+        accessTokenExpiresInSeconds: () => 3600,
+        scopes: () => ['read'],
+        hasScopes: () => true,
+        hasRefreshToken: () => true,
+        tokenType: () => 'Bearer',
+      },
+    })
+
+    const state = 'state-verifiedEmail'
+    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect([200, 302]).toContain(response.status)
+
+    const linked = await auth.getUserByAccount('mock', 'provider-user-id')
+    expect(linked).not.toBeNull()
+    expect(linked!.id).not.toBe(existing.id)
+    expect(linked!.email ?? null).toBeNull()
+  })
+
   it('should return 400 if provider is not found during callback', async () => {
     const request = new Request('http://localhost/api/auth/unknown-provider/callback?code=c&state=s')
     const response = await handleCallback(request, auth, 'unknown-provider')
@@ -179,6 +302,31 @@ describe('callback handler', () => {
     expect(body.user.email).toBe('user@provider.com')
   })
 
+  it('clears temporary cookies and linking token on early return when invalid linking token', async () => {
+    const state = 'state123'
+    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    request.headers.set('Cookie', [
+      `${CSRF_COOKIE_NAME}=${state}`,
+      `${PKCE_COOKIE_NAME}=pkce`,
+      `${CALLBACK_URI_COOKIE_NAME}=uri`,
+      `__gau-linking-token=stale-token`,
+      `__gau-provider-options=${btoa(JSON.stringify({ params: {}, overrides: {} }))}`,
+    ].join('; '))
+
+    const spy = vi.spyOn(auth, 'validateSession').mockResolvedValueOnce(null)
+
+    const response = await handleCallback(request, auth, 'mock')
+    spy.mockRestore()
+
+    expect([200, 302]).toContain(response.status)
+    const cookies = response.headers.getSetCookie()
+    expect(cookies.some(c => c.startsWith('__gau-csrf-token=') && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-pkce-code-verifier=') && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-callback-uri=') && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-provider-options=') && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-linking-token=') && c.includes('Max-Age=0'))).toBe(true)
+  })
+
   it('passes callbackUri from cookie to provider.validateCallback', async () => {
     const state = 'state123'
     const code = 'code123'
@@ -186,8 +334,8 @@ describe('callback handler', () => {
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=app://custom-callback`)
 
     await handleCallback(request, auth, 'mock')
-    const validateArgs = (mockProvider.validateCallback as any).mock.calls.at(-1)
-    expect(validateArgs[2]).toBe('app://custom-callback')
+    const validateArgs = mockProvider.validateCallback.mock.calls.at(-1)
+    expect(validateArgs?.[2]).toBe('app://custom-callback')
   })
 
   it('passes overrides from provider-options cookie to provider.validateCallback', async () => {
@@ -204,9 +352,9 @@ describe('callback handler', () => {
     ].join('; '))
 
     await handleCallback(request, auth, 'mock')
-    const validateArgs = (mockProvider.validateCallback as any).mock.calls.at(-1)
-    expect(validateArgs[2]).toBe('app://cb')
-    expect(validateArgs[3]).toMatchObject({ tenant: 'organizations', prompt: 'login' })
+    const validateArgs = mockProvider.validateCallback.mock.calls.at(-1)
+    expect(validateArgs?.[2]).toBe('app://cb')
+    expect(validateArgs?.[3]).toMatchObject({ tenant: 'organizations', prompt: 'login' })
   })
 
   describe('session strategy', () => {

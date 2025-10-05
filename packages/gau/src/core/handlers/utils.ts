@@ -143,8 +143,15 @@ export async function prepareOAuthRedirect(
 
   cookies.set(CSRF_COOKIE_NAME, originalState, temporaryCookieOptions)
   cookies.set(PKCE_COOKIE_NAME, codeVerifier, temporaryCookieOptions)
-  if (linkingToken)
+  if (linkingToken) {
     cookies.set(LINKING_TOKEN_COOKIE_NAME, linkingToken, temporaryCookieOptions)
+  }
+  else {
+    cookies.delete(LINKING_TOKEN_COOKIE_NAME, {
+      sameSite: auth.development ? 'lax' : 'none',
+      secure: !auth.development,
+    })
+  }
 
   if (callbackUri)
     cookies.set(CALLBACK_URI_COOKIE_NAME, callbackUri, temporaryCookieOptions)

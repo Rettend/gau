@@ -34,11 +34,20 @@ describe('login handlers', () => {
       expect(cookies.some(c => c.startsWith(CALLBACK_URI_COOKIE_NAME))).toBe(true)
     })
 
+    it('clears stale linking cookie during normal sign-in', async () => {
+      const request = new Request('http://localhost/api/auth/mock')
+      request.headers.set('Cookie', `__gau-linking-token=stale`)
+      const response = await handleSignIn(request, auth, 'mock')
+
+      const cookies = response.headers.getSetCookie()
+      expect(cookies.some(c => c.startsWith('__gau-linking-token=') && c.includes('Max-Age=0'))).toBe(true)
+    })
+
     it('should handle redirectTo parameter', async () => {
       const request = new Request('http://localhost/api/auth/mock?redirectTo=/dashboard')
       await handleSignIn(request, auth, 'mock')
 
-      const state = (mockProvider.getAuthorizationUrl as any).mock.calls[0][0]
+      const state = mockProvider.getAuthorizationUrl.mock.calls[0][0]
       const decodedRedirect = atob(state.split('.')[1])
       expect(decodedRedirect).toBe('/dashboard')
     })
@@ -47,8 +56,8 @@ describe('login handlers', () => {
       const request = new Request('http://localhost/api/auth/mock?callbackUri=app://callback')
       await handleSignIn(request, auth, 'mock')
 
-      const options = (mockProvider.getAuthorizationUrl as any).mock.calls[0][2]
-      expect(options.redirectUri).toBe('app://callback')
+      const options = mockProvider.getAuthorizationUrl.mock.calls[0][2]
+      expect(options?.redirectUri).toBe('app://callback')
     })
 
     it('should return JSON with auth URL if redirect=false', async () => {
@@ -62,7 +71,7 @@ describe('login handlers', () => {
     })
 
     it('should return 500 if auth URL cannot be created', async () => {
-      (mockProvider.getAuthorizationUrl as any).mockResolvedValueOnce(null)
+      mockProvider.getAuthorizationUrl.mockRejectedValueOnce(new Error('failed to create URL'))
       const request = new Request('http://localhost/api/auth/mock')
       const response = await handleSignIn(request, auth, 'mock')
       expect(response.status).toBe(500)
@@ -123,13 +132,13 @@ describe('login handlers', () => {
 
       const req1 = new Request('http://localhost/api/auth/mock?profile=lite')
       await handleSignIn(req1, auth, 'mock')
-      const call1Options = (mockProvider.getAuthorizationUrl as any).mock.calls.at(-1)[2]
-      expect(call1Options.scopes).toEqual(['read:litescope', 'email'])
+      const call1Options = mockProvider.getAuthorizationUrl.mock.calls.at(-1)?.[2]
+      expect(call1Options?.scopes).toEqual(['read:litescope', 'email'])
 
       const req2 = new Request('http://localhost/api/auth/mock?profile=mobile')
       await handleSignIn(req2, auth, 'mock')
-      const call2Options = (mockProvider.getAuthorizationUrl as any).mock.calls.at(-1)[2]
-      expect(call2Options.redirectUri).toBe('app://mobile-callback')
+      const call2Options = mockProvider.getAuthorizationUrl.mock.calls.at(-1)?.[2]
+      expect(call2Options?.redirectUri).toBe('app://mobile-callback')
     })
 
     it('should return 400 for unknown profile name', async () => {
@@ -168,8 +177,8 @@ describe('login handlers', () => {
       const response = await handleSignIn(request, auth, 'mock')
 
       expect(response.status).toBe(200)
-      const options = (mockProvider.getAuthorizationUrl as any).mock.calls.at(-1)[2]
-      expect(options.params).toMatchObject({ a: '1', b: '2', prompt: 'login' })
+      const options = mockProvider.getAuthorizationUrl.mock.calls.at(-1)?.[2]
+      expect(options?.params).toMatchObject({ a: '1', b: '2', prompt: 'login' })
 
       const cookies = response.headers.getSetCookie()
       // Should include provider options cookie
@@ -221,6 +230,19 @@ describe('login handlers', () => {
       expect(cookieHeader).toContain('Max-Age=0')
       expect(cookieHeader).toContain('SameSite=Lax')
       expect(cookieHeader).not.toContain('Secure')
+    })
+
+    it('should also clear the linking cookie', async () => {
+      const request = new Request('http://localhost/api/auth/signout', {
+        method: 'POST',
+      })
+      request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=some-token; __gau-linking-token=leftover`)
+
+      const response = await handleSignOut(request, auth)
+
+      const cookieHeader = response.headers.get('Set-Cookie')!
+      expect(cookieHeader).toContain('__gau-linking-token=;')
+      expect(cookieHeader).toContain('Max-Age=0')
     })
 
     it('should sign out even with no session', async () => {

@@ -1,5 +1,5 @@
 import type { Auth } from '../createAuth'
-import { Cookies, parseCookies, SESSION_COOKIE_NAME } from '../cookies'
+import { Cookies, LINKING_TOKEN_COOKIE_NAME, parseCookies, SESSION_COOKIE_NAME } from '../cookies'
 
 import { json } from '../index'
 import { prepareOAuthRedirect } from './utils'
@@ -12,6 +12,10 @@ export async function handleSignOut(request: Request, auth: Auth): Promise<Respo
   const requestCookies = parseCookies(request.headers.get('Cookie'))
   const cookies = new Cookies(requestCookies, auth.cookieOptions)
   cookies.delete(SESSION_COOKIE_NAME, {
+    sameSite: auth.development ? 'lax' : 'none',
+    secure: !auth.development,
+  })
+  cookies.delete(LINKING_TOKEN_COOKIE_NAME, {
     sameSite: auth.development ? 'lax' : 'none',
     secure: !auth.development,
   })

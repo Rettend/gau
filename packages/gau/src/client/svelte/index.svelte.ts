@@ -27,6 +27,17 @@ export function createSvelteAuth<const TAuth = unknown>({
   type CurrentSession = GauSession<ProviderIds<TAuth>>
   let session = $state<CurrentSession>({ ...NULL_SESSION, providers: [] })
 
+  async function replaceUrlSafe(url: string) {
+    let replaceUrl: (url: string) => void = u => window.history.replaceState(null, '', u)
+    try {
+      const navPath = '$' + 'app/navigation'
+      const { replaceState } = await import(/* @vite-ignore */ navPath)
+      replaceUrl = u => replaceState(u, {})
+    }
+    catch {}
+    replaceUrl(url)
+  }
+
   async function fetchSession() {
     if (!BROWSER) {
       session = { ...NULL_SESSION, providers: [] }
@@ -134,6 +145,9 @@ export function createSvelteAuth<const TAuth = unknown>({
   }
 
   if (BROWSER) {
+    if (window.location.hash === '#_=_')
+      void replaceUrlSafe(window.location.pathname + window.location.search)
+
     const hash = new URL(window.location.href).hash.substring(1)
     const params = new URLSearchParams(hash)
     const tokenFromUrl = params.get('token')
@@ -141,15 +155,7 @@ export function createSvelteAuth<const TAuth = unknown>({
     if (tokenFromUrl) {
       storeSessionToken(tokenFromUrl)
       void (async () => {
-        let replaceUrl: (url: string) => void = url => window.history.replaceState(null, '', url)
-        try {
-          const navPath = '$' + 'app/navigation'
-          const { replaceState } = await import(navPath)
-          replaceUrl = url => replaceState(url, {})
-        }
-        catch {}
-
-        replaceUrl(window.location.pathname + window.location.search)
+        await replaceUrlSafe(window.location.pathname + window.location.search)
         await fetchSession()
       })()
     }

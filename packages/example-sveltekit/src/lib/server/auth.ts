@@ -1,7 +1,7 @@
 import * as env from '$env/static/private'
 import { createAuth } from '@rttnd/gau'
 import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
-import { GitHub, Google, Microsoft } from '@rttnd/gau/oauth'
+import { Facebook, GitHub, Google, Microsoft } from '@rttnd/gau/oauth'
 import { db } from './db'
 import { Accounts, Users } from './db/schema'
 
@@ -20,11 +20,16 @@ export const auth = createAuth({
       clientId: env.AUTH_MICROSOFT_ID,
       clientSecret: env.AUTH_MICROSOFT_SECRET,
     }),
+    Facebook({
+      clientId: env.AUTH_FACEBOOK_ID,
+      clientSecret: env.AUTH_FACEBOOK_SECRET,
+    }),
   ],
   jwt: {
     secret: env.AUTH_SECRET,
   },
   trustHosts: 'all',
+  // autoLink: 'always',
 })
 
 export type Auth = typeof auth

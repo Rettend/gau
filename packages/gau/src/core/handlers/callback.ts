@@ -230,6 +230,12 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     }
     if (!user) {
       try {
+        if (providerUser.email && providerUser.emailVerified === true && auth.autoLink === false) {
+          const existingWithSameEmail = await auth.getUserByEmail(providerUser.email)
+          if (existingWithSameEmail)
+            return json({ error: 'An account with this email already exists. Sign in with the existing method or link the provider.' }, { status: 409 })
+        }
+
         let resolvedRole: string | undefined
         try {
           resolvedRole = auth.roles.resolveOnCreate?.({ providerId, profile: providerUser, request: request as unknown as Request })
@@ -238,9 +244,11 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
           console.error('roles.resolveOnCreate threw:', e)
         }
 
+        const emailToStore = providerUser.emailVerified === true ? providerUser.email : null
+
         user = await auth.createUser({
           name: providerUser.name,
-          email: providerUser.email,
+          email: emailToStore,
           image: providerUser.avatar,
           emailVerified: providerUser.emailVerified,
           role: resolvedRole ?? auth.roles.defaultRole,
@@ -261,10 +269,10 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     const update: Partial<User> & { id: string } = { id: user.id }
     let needsUpdate = false
 
-    // user has no primary email. promote the provider's email.
-    if (!currentEmail) {
+    // user has no primary email. promote the provider's email but only if it's verified.
+    if (!currentEmail && providerEmailVerified === true) {
       update.email = providerEmail
-      update.emailVerified = providerEmailVerified ?? false
+      update.emailVerified = true
       needsUpdate = true
     }
     // user has an unverified primary email, and the provider confirms this same email is verified.
@@ -330,6 +338,14 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     }
 
     try {
+      let scope: string | null
+      try {
+        scope = tokens.scopes()?.join(' ') ?? null
+      }
+      catch {
+        scope = null
+      }
+
       await auth.linkAccount({
         userId: user.id,
         provider: providerId,
@@ -338,7 +354,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
         refreshToken,
         expiresAt,
         tokenType: tokens.tokenType?.() ?? null,
-        scope: tokens.scopes()?.join(' ') ?? null,
+        scope,
         idToken,
       })
       await runOnAfterLinkAccount(auth, {
@@ -388,6 +404,14 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
           idToken = existing.idToken ?? null
         }
 
+        let scope: string | null
+        try {
+          scope = tokens.scopes()?.join(' ') ?? existing.scope ?? null
+        }
+        catch {
+          scope = existing.scope ?? null
+        }
+
         await auth.updateAccount({
           userId: user!.id,
           provider: providerId,
@@ -396,7 +420,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
           refreshToken,
           expiresAt: expiresAt ?? existing.expiresAt ?? undefined,
           tokenType: tokens.tokenType?.() ?? existing.tokenType ?? null,
-          scope: tokens.scopes()?.join(' ') ?? existing.scope ?? null,
+          scope,
           idToken,
         })
         await runOnAfterLinkAccount(auth, {

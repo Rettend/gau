@@ -14,8 +14,6 @@
 - [ ] ssr
 - [x] sveltekit tauri dev/build
 - [ ] sveltekit tauri android dev/build
-- [ ] solidstart tauri dev/build
-- [ ] tauri tests failing with timeout
 
 ## v0.4.0
 

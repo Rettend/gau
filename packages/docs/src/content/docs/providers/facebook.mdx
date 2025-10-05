@@ -1,0 +1,65 @@
+---
+title: Facebook
+description: How to set up Facebook as an OAuth provider with gau.
+---
+
+import Aside from 'starlight-plugin-icons/components/Aside.astro'
+
+### Resources
+
+- [Arctic Facebook Provider](https://arcticjs.dev/providers/facebook)
+- [Meta for Developers - Apps](https://developers.facebook.com/apps)
+
+### Environment variables
+
+```txt title=".env"
+FACEBOOK_CLIENT_ID=
+FACEBOOK_CLIENT_SECRET=
+```
+
+### Callback URL
+
+Add the callback URL in your Facebook App under "Facebook Login" → "Settings" → "Valid OAuth Redirect URIs". Localhost URLs are automatically allowed.
+
+```
+/api/auth/facebook/callback
+```
+
+### Config
+
+The `email` and `public_profile` scopes are requested by default.
+
+<Aside type="note">
+  Make sure to request the `email` scope!
+</Aside>
+
+```ts title="auth.ts"
+import process from 'node:process'
+import { createAuth } from '@rttnd/gau/core'
+import { Facebook } from '@rttnd/gau/oauth'
+
+export const auth = createAuth({
+  providers: [
+    Facebook({
+      clientId: process.env.FACEBOOK_CLIENT_ID,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+    }),
+  ],
+})
+```
+
+<Aside type="caution">
+  It's unclear if the email returned by Facebook can be trusted, use `autoLink: 'always'` to enable automatic account linking.
+</Aside>
+
+### Provider params
+
+#### params
+
+> Type: `Record<string, string>`
+>
+> Default: —
+
+Extra query params appended to the authorization URL.
+
+

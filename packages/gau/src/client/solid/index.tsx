@@ -122,6 +122,9 @@ export function AuthProvider<const TAuth = unknown>(props: ParentProps & { auth?
 
   onMount(() => {
     if (!isTauri()) {
+      if (window.location.hash === '#_=_')
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
       const hash = new URL(window.location.href).hash.substring(1)
       const params = new URLSearchParams(hash)
       const tokenParam = params.get('token')

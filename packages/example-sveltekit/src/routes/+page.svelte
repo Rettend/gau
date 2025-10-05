@@ -4,6 +4,14 @@
 
   const auth = useAuth()
 
+  type ProvidersMeta = Record<Provider, { label: string, icon: string }>
+  const providers: ProvidersMeta = {
+    github: { label: 'GitHub', icon: 'i-ph:github-logo' },
+    google: { label: 'Google', icon: 'i-ph:google-logo-bold' },
+    microsoft: { label: 'Microsoft', icon: 'i-mdi:microsoft' },
+    facebook: { label: 'Facebook', icon: 'i-ph:facebook-logo-bold' },
+  }
+
   const { linkedProviders, unlinkedProviders } = $derived.by(() => {
     if (auth.session?.user) {
       const linkedProviders = (auth.session.accounts?.map(a => a.provider) ?? []) as Provider[]
@@ -45,8 +53,8 @@
           <div class='flex gap-4'>
             {#each linkedProviders as provider}
               <div class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 items-center justify-center'>
-                <div class:i-ph:github-logo={provider === 'github'} class:i-ph:google-logo-bold={provider === 'google'} class:i-mdi:microsoft={provider === 'microsoft'} class='size-5'></div>
-                <p class='capitalize'>{provider}</p>
+                <div class={`${providers[provider]?.icon} size-5`}></div>
+                <p>{providers[provider]?.label ?? provider}</p>
                 <button
                   class='i-ph:x-bold transition-colors hover:text-red-500'
                   aria-label='Unlink account'
@@ -66,8 +74,8 @@
                   class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
                   onclick={() => auth.linkAccount(provider)}
                 >
-                  <div class:i-ph:github-logo={provider === 'github'} class:i-ph:google-logo-bold={provider === 'google'} class:i-mdi:microsoft={provider === 'microsoft'} class='size-5'></div>
-                  <p class='capitalize'>{provider}</p>
+                  <div class={`${providers[provider]?.icon} size-5`}></div>
+                  <p>{providers[provider]?.label ?? provider}</p>
                 </button>
               {/each}
             </div>
@@ -78,27 +86,15 @@
       <div class='flex flex-col gap-4 items-center'>
         <span class='text-lg tracking-wider'>Sign In</span>
         <div class='flex gap-4 justify-center'>
-          <button
-            class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
-            onclick={() => auth.signIn('github')}
-          >
-            <div class='i-ph:github-logo size-5'></div>
-            <p>GitHub</p>
-          </button>
-          <button
-            class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
-            onclick={() => auth.signIn('google')}
-          >
-            <div class='i-ph:google-logo-bold size-5'></div>
-            <p>Google</p>
-          </button>
-          <button
-            class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
-            onclick={() => auth.signIn('microsoft')}
-          >
-            <div class='i-mdi:microsoft size-5'></div>
-            <p>Microsoft</p>
-          </button>
+          {#each unlinkedProviders as provider}
+            <button
+              class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
+              onclick={() => auth.signIn(provider)}
+            >
+              <div class={`${providers[provider]?.icon} size-5`}></div>
+              <p>{providers[provider]?.label ?? provider}</p>
+            </button>
+          {/each}
         </div>
       </div>
     {/if}

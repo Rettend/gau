@@ -18,6 +18,9 @@ const commonConfig = {
     mangle: {
       reserved: ['$'],
     },
+    format: {
+      comments: /@vite-ignore/,
+    },
   },
 } satisfies Options
 
@@ -79,6 +82,7 @@ export default defineConfig(async () => {
     {
       ...commonConfig,
       splitting: false,
+      minify: 'terser',
       entry: toEntryObject(svelteTsEntries),
       tsconfig: 'src/client/svelte/tsconfig.json',
       outExtension() {
