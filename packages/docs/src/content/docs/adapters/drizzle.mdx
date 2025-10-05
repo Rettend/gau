@@ -5,53 +5,91 @@ description: How to set up the Drizzle adapter for gau.
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
-`gau` currently only supports the Drizzle ORM adapter and SQLite. The examples use Turso as the database provider.
+`gau` has a Drizzle ORM adapter for SQLite and PostgreSQL. The SQLite examples use Turso as the database provider.
 
 <br />
 
 <Steps>
 1. ##### Install Dependencies
 
-    <Tabs syncKey="pkg">
-      <TabItem label="npm">
-        ```sh
-        npm i drizzle-orm @libsql/client
-        npm i -D drizzle-kit
-        ```
+    <Tabs syncKey="db">
+      <TabItem label="SQLite">
+        <Tabs syncKey="pkg">
+          <TabItem label="npm">
+            ```sh
+            npm i drizzle-orm @libsql/client
+            npm i -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="pnpm">
+            ```sh
+            pnpm add drizzle-orm @libsql/client
+            pnpm add -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="yarn">
+            ```sh
+            yarn add drizzle-orm @libsql/client
+            yarn add -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="bun">
+            ```sh
+            bun add drizzle-orm @libsql/client
+            bun add -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="ni">
+            ```sh
+            ni drizzle-orm @libsql/client
+            ni -D drizzle-kit
+            ```
+          </TabItem>
+        </Tabs>
       </TabItem>
-      <TabItem label="pnpm">
-        ```sh
-        pnpm add drizzle-orm @libsql/client
-        pnpm add -D drizzle-kit
-        ```
-      </TabItem>
-      <TabItem label="yarn">
-        ```sh
-        yarn add drizzle-orm @libsql/client
-        yarn add -D drizzle-kit
-        ```
-      </TabItem>
-      <TabItem label="bun">
-        ```sh
-        bun add drizzle-orm @libsql/client
-        bun add -D drizzle-kit
-        ```
-      </TabItem>
-      <TabItem label="ni">
-        ```sh
-        ni drizzle-orm @libsql/client
-        ni -D drizzle-kit
-        ```
+      <TabItem label="PostgreSQL">
+        <Tabs syncKey="pkg">
+          <TabItem label="npm">
+            ```sh
+            npm i drizzle-orm pg
+            npm i -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="pnpm">
+            ```sh
+            pnpm add drizzle-orm pg
+            pnpm add -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="yarn">
+            ```sh
+            yarn add drizzle-orm pg
+            yarn add -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="bun">
+            ```sh
+            bun add drizzle-orm pg
+            bun add -D drizzle-kit
+            ```
+          </TabItem>
+          <TabItem label="ni">
+            ```sh
+            ni drizzle-orm pg
+            ni -D drizzle-kit
+            ```
+          </TabItem>
+        </Tabs>
       </TabItem>
     </Tabs>
 
 2. ##### Define the Database Schema
 
-   This is the complete schema for `gau`, depending on your OAuth provider you may be able to omit some of the columns, each provider lists its required columns.
+   This is the complete schema for `gau`. Depending on your OAuth provider you may be able to omit some columns.
 
-    <Tabs syncKey="framework">
-      <TabItem label="SvelteKit">
-        ```ts title="src/lib/server/db/schema.ts"
+    <Tabs syncKey="db">
+      <TabItem label="SQLite">
+        ```ts title="schema.ts"
         import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
         export const Users = sqliteTable('users', {
@@ -96,41 +134,45 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         export type InsertAccount = typeof Accounts.$inferInsert
         ```
       </TabItem>
-      <TabItem label="SolidStart">
-        ```ts title="src/server/db/schema.ts"
-        import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+      <TabItem label="PostgreSQL">
+        ```ts title="schema.ts"
+        import { boolean, integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 
-        export const Users = sqliteTable('users', {
-          id: text().primaryKey().$defaultFn(() => crypto.randomUUID()),
+        export const Users = pgTable('users', {
+          id: text().primaryKey(),
           name: text(),
           email: text().unique(),
-          emailVerified: integer({ mode: 'boolean' }),
+          emailVerified: boolean('email_verified'),
           image: text(),
-          createdAt: integer({ mode: 'timestamp' }).$defaultFn(() => new Date()),
-          updatedAt: integer({ mode: 'timestamp' }).$defaultFn(() => new Date()),
+          createdAt: timestamp('created_at').defaultNow(),
+          updatedAt: timestamp('updated_at').defaultNow(),
         })
 
         export type SelectUser = typeof Users.$inferSelect
         export type InsertUser = typeof Users.$inferInsert
 
-        export const Accounts = sqliteTable('accounts', {
-          userId: text().notNull().references(() => Users.id, { onDelete: 'cascade' }),
-          type: text().notNull(),
-          provider: text().notNull(),
-          providerAccountId: text().notNull(),
-          refreshToken: text(),
-          accessToken: text(),
-          expiresAt: integer(),
-          tokenType: text(),
-          scope: text(),
-          idToken: text(),
-          sessionState: text(),
-          createdAt: integer({ mode: 'timestamp' }).$defaultFn(() => new Date()),
-        }, account => [
-          primaryKey({
-            columns: [account.provider, account.providerAccountId],
-          }),
-        ])
+        export const Accounts = pgTable(
+          'accounts',
+          {
+            userId: text().notNull().references(() => Users.id, { onDelete: 'cascade' }),
+            type: text().notNull(),
+            provider: text().notNull(),
+            providerAccountId: text().notNull(),
+            refreshToken: text(),
+            accessToken: text(),
+            expiresAt: integer('expires_at'),
+            tokenType: text(),
+            scope: text(),
+            idToken: text(),
+            sessionState: text('session_state'),
+            createdAt: timestamp('created_at').defaultNow(),
+          },
+          account => [
+            primaryKey({
+              columns: [account.provider, account.providerAccountId],
+            }),
+          ],
+        )
 
         export type SelectAccount = typeof Accounts.$inferSelect
         export type InsertAccount = typeof Accounts.$inferInsert
@@ -142,13 +184,13 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
    Configure the schema path and database credentials for migrations.
 
-    <Tabs syncKey="framework">
-      <TabItem label="SvelteKit">
+    <Tabs syncKey="db">
+      <TabItem label="SQLite">
         ```ts title="drizzle.config.ts"
         import { defineConfig } from 'drizzle-kit'
 
         export default defineConfig({
-          schema: './src/lib/server/db/schema.ts',
+          schema: './schema.ts',
           dialect: 'turso',
           dbCredentials: {
             authToken: process.env.TURSO_AUTH_TOKEN!,
@@ -157,16 +199,15 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         })
         ```
       </TabItem>
-      <TabItem label="SolidStart">
+      <TabItem label="PostgreSQL">
         ```ts title="drizzle.config.ts"
         import { defineConfig } from 'drizzle-kit'
 
         export default defineConfig({
-          schema: './src/server/db/schema.ts',
-          dialect: 'turso',
+          schema: './schema.ts',
+          dialect: 'postgresql',
           dbCredentials: {
-            authToken: process.env.TURSO_AUTH_TOKEN!,
-            url: process.env.TURSO_DB_URL!,
+            url: process.env.DATABASE_URL!,
           },
         })
         ```
@@ -179,35 +220,32 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
    Initialize the Drizzle client with your database connection.
 
-    <Tabs syncKey="framework">
-      <TabItem label="SvelteKit">
-        ```ts title="src/lib/server/db/index.ts"
-        import { env } from '$env/dynamic/private'
+    <Tabs syncKey="db">
+      <TabItem label="SQLite">
+        ```ts title="db.ts"
         import { createClient } from '@libsql/client'
         import { drizzle } from 'drizzle-orm/libsql'
         import * as schema from './schema'
 
         const client = createClient({
-          url: env.TURSO_DB_URL!,
-          authToken: env.TURSO_AUTH_TOKEN!,
+          url: process.env.TURSO_DB_URL!,
+          authToken: process.env.TURSO_AUTH_TOKEN!,
         })
 
         export const db = drizzle(client, { schema, casing: 'snake_case' })
         ```
       </TabItem>
-      <TabItem label="SolidStart">
-        ```ts title="src/server/db/index.ts"
-        import process from 'node:process'
-        import { createClient } from '@libsql/client'
-        import { drizzle } from 'drizzle-orm/libsql'
+      <TabItem label="PostgreSQL">
+        ```ts title="db.ts"
+        import { drizzle } from 'drizzle-orm/node-postgres'
+        import { Pool } from 'pg'
         import * as schema from './schema'
- 
-        const client = createClient({
-          url: process.env.TURSO_DB_URL!,
-          authToken: process.env.TURSO_AUTH_TOKEN!,
+
+        const pool = new Pool({
+          connectionString: process.env.DATABASE_URL!,
         })
- 
-        export const db = drizzle(client, { schema, casing: 'snake_case' })
+
+        export const db = drizzle(pool, { schema })
         ```
       </TabItem>
     </Tabs>
@@ -216,57 +254,27 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
    Finally, pass the Drizzle client and schema tables to the `DrizzleAdapter` in your `createAuth` configuration.
 
-    <Tabs syncKey="framework">
-      <TabItem label="SvelteKit">
-        ```ts title="src/lib/server/auth.ts"
-        import { env } from '$env/dynamic/private'
-        import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
-        import { createAuth } from '@rttnd/gau/core'
-        import { GitHub } from '@rttnd/gau/oauth'
-        import { db } from './db'
-        import { Accounts, Users } from './db/schema'
+    ```ts title="auth.ts"
+    import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
+    import { createAuth } from '@rttnd/gau/core'
+    import { GitHub } from '@rttnd/gau/oauth'
+    import { db } from './db'
+    import { Accounts, Users } from './schema'
 
-        export const auth = createAuth({
-          adapter: DrizzleAdapter(db, Users, Accounts),
-          providers: [
-            GitHub({
-              clientId: env.GITHUB_CLIENT_ID!,
-              clientSecret: env.GITHUB_CLIENT_SECRET!,
-            }),
-          ],
-          jwt: {
-            secret: env.AUTH_SECRET,
-          },
-        })
+    export const auth = createAuth({
+      adapter: DrizzleAdapter(db, Users, Accounts),
+      providers: [
+        GitHub({
+          clientId: process.env.GITHUB_CLIENT_ID!,
+          clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        }),
+      ],
+      jwt: {
+        secret: process.env.AUTH_SECRET!,
+      },
+    })
 
-        export type Auth = typeof auth
-        ```
-      </TabItem>
-      <TabItem label="SolidStart">
-        ```ts title="src/server/auth.ts"
-        import process from 'node:process'
-        import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
-        import { createAuth } from '@rttnd/gau'
-        import { GitHub } from '@rttnd/gau/oauth'
-        import { db } from './db'
-        import { Accounts, Users } from './db/schema'
- 
-        export const auth = createAuth({
-          adapter: DrizzleAdapter(db, Users, Accounts),
-          providers: [
-            GitHub({
-              clientId: process.env.GITHUB_CLIENT_ID!,
-              clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-            }),
-          ],
-          jwt: {
-            secret: process.env.AUTH_SECRET!,
-          },
-        })
- 
-        export type Auth = typeof auth
-        ```
-      </TabItem>
-    </Tabs>
+    export type Auth = typeof auth
+    ```
 
 </Steps>

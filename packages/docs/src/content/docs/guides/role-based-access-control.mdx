@@ -15,14 +15,28 @@ This guide shows how to add roles to your `gau` setup.
 
 Add a `role` column. You can constrain values if you want.
 
-```ts title="schema.ts" ins={5}
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+<Tabs syncKey="db">
+  <TabItem label="SQLite">
+    ```ts title="schema.ts" ins={5}
+    import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-export const Users = sqliteTable('users', {
-  // ...
-  role: text('role').$type<'admin' | 'user'>().default('user'),
-})
-```
+    export const Users = sqliteTable('users', {
+      // ...
+      role: text().$type<'admin' | 'user'>().default('user'),
+    })
+    ```
+  </TabItem>
+  <TabItem label="PostgreSQL">
+    ```ts title="schema.ts" ins={5}
+    import { pgTable, text } from 'drizzle-orm/pg-core'
+
+    export const Users = pgTable('users', {
+      // ...
+      role: text().$type<'admin' | 'user'>().default('user'),
+    })
+    ```
+  </TabItem>
+</Tabs>
 
 ## Configuration
 
@@ -53,7 +67,7 @@ On first sign-in, `resolveOnCreate` is called. If it returns a role, it's used; 
 
 Authorize in your route handlers/middleware using `session.user?.role`.
 
-<Tabs>
+<Tabs syncKey="framework">
   <TabItem label="SvelteKit">
     ###### Remote functions
 

@@ -7,14 +7,21 @@ import { Steps } from '@astrojs/starlight/components'
 import FileTree from 'starlight-plugin-icons/components/FileTree.astro'
 import Aside from 'starlight-plugin-icons/components/Aside.astro'
 
-This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite) and GitHub as examples.
+This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite or PostgreSQL) and GitHub as examples.
 
 <br />
 
 <Steps>
 1. ##### Follow the basic setup
 
-    Complete the [Getting Started](/guides/getting-started) guide for installation, environment variables, and the auth configuration with the database setup.
+    Complete the [Getting Started](/guides/getting-started) guide.
+
+    Complete the [Drizzle](/adapters/drizzle) guide:
+
+      1. Set up your schema in `src/lib/server/db/schema.ts`
+      2. Set up your database in `src/lib/server/db/index.ts`
+
+    <br />
 
 2. ##### Set up API Route
 

@@ -3,7 +3,7 @@ title: JWT
 description: How to work with JSON Web Tokens in gau.
 ---
 
-import { Steps } from '@astrojs/starlight/components'
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
 `gau` uses JSON Web Tokens (JWTs) for session management. By default, it creates a session JWT when a user signs in and stores it in a cookie or passes it to the client for token-based authentication. JWTs are stateless, so there's no need to store them in a database.
 
@@ -62,14 +62,28 @@ Here's and example implementation.
 
     We need a way to prevent tokens from being redeemed multiple times. Let's store them in a database.
 
-    ```ts title="db/schema.ts" ins={3-6}
-    // ... existing Users and Accounts tables
+    <Tabs syncKey="db">
+      <TabItem label="SQLite">
+        ```ts title="db/schema.ts" ins={3-6}
+        // ... existing Users and Accounts tables
 
-    export const UsedInviteTokens = sqliteTable('used_invite_tokens', {
-      jti: text('jti').primaryKey(),
-      usedAt: integer('used_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-    });
-    ```
+        export const UsedInviteTokens = sqliteTable('used_invite_tokens', {
+          jti: text().primaryKey(),
+          usedAt: integer({ mode: 'timestamp' }).$defaultFn(() => new Date()),
+        });
+        ```
+      </TabItem>
+      <TabItem label="PostgreSQL">
+        ```ts title="db/schema.ts" ins={3-6}
+        // ... existing Users and Accounts tables
+
+        export const UsedInviteTokens = pgTable('used_invite_tokens', {
+          jti: text().primaryKey(),
+          usedAt: timestamp().defaultNow(),
+        });
+        ```
+      </TabItem>
+    </Tabs>
 
 3. ##### Verify Invite Tokens
 
