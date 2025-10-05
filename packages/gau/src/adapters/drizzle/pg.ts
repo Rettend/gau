@@ -1,31 +1,31 @@
-import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import type { AnyPgColumn, PgDatabase, PgTable } from 'drizzle-orm/pg-core'
+import type { AnyColumn, InferInsertModel, InferSelectModel, Table } from 'drizzle-orm'
+import type { PgDatabase, PgTable } from 'drizzle-orm/pg-core'
 import type { Account, Adapter, NewAccount, NewUser, User } from '../../core'
 import { and, eq } from 'drizzle-orm'
 
-export type UsersTable = PgTable & {
-  id: AnyPgColumn
-  name: AnyPgColumn
-  email: AnyPgColumn
-  image: AnyPgColumn
-  emailVerified: AnyPgColumn
-  role?: AnyPgColumn
-  createdAt: AnyPgColumn
-  updatedAt: AnyPgColumn
+export type UsersTable = Table & {
+  id: AnyColumn
+  name: AnyColumn
+  email: AnyColumn
+  image: AnyColumn
+  emailVerified: AnyColumn
+  role?: AnyColumn
+  createdAt: AnyColumn
+  updatedAt: AnyColumn
 }
 
-export type AccountsTable = PgTable & {
-  userId: AnyPgColumn
-  type: AnyPgColumn
-  provider: AnyPgColumn
-  providerAccountId: AnyPgColumn
-  refreshToken: AnyPgColumn
-  accessToken: AnyPgColumn
-  expiresAt: AnyPgColumn
-  tokenType: AnyPgColumn
-  scope: AnyPgColumn
-  idToken: AnyPgColumn
-  sessionState: AnyPgColumn
+export type AccountsTable = Table & {
+  userId: AnyColumn
+  type: AnyColumn
+  provider: AnyColumn
+  providerAccountId: AnyColumn
+  refreshToken: AnyColumn
+  accessToken: AnyColumn
+  expiresAt: AnyColumn
+  tokenType: AnyColumn
+  scope: AnyColumn
+  idToken: AnyColumn
+  sessionState: AnyColumn
 }
 
 export function PostgresDrizzleAdapter<

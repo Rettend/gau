@@ -17,8 +17,16 @@ export type UsersTable = Table & {
 
 export type AccountsTable = Table & {
   userId: AnyColumn
+  type: AnyColumn
   provider: AnyColumn
   providerAccountId: AnyColumn
+  refreshToken: AnyColumn
+  accessToken: AnyColumn
+  expiresAt: AnyColumn
+  tokenType: AnyColumn
+  scope: AnyColumn
+  idToken: AnyColumn
+  sessionState: AnyColumn
 }
 
 export function SQLiteDrizzleAdapter<
