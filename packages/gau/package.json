@@ -1,7 +1,7 @@
 {
   "name": "@rttnd/gau",
   "type": "module",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "packageManager": "bun@1.2.23",
   "description": "gau is a delightful auth library",
   "license": "MIT",
