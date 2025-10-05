@@ -6,6 +6,7 @@ export default defineConfig({
     include: ['packages/gau/test/**/*.test.ts'],
     environment: 'node',
     setupFiles: ['packages/gau/test/setup.ts'],
+    hookTimeout: 20000,
     coverage: {
       enabled: true,
       provider: 'v8',

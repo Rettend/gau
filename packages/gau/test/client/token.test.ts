@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as tokenHelpers from '../../src/client/token'
 
 vi.mock('esm-env', () => ({ BROWSER: true }))
 
@@ -19,13 +20,9 @@ Object.defineProperty(globalThis, 'document', {
 })
 
 describe('token helpers', () => {
-  let tokenHelpers: typeof import('../../src/client/token')
-
-  beforeEach(async () => {
+  beforeEach(() => {
     localStorageMock.clear()
     document.cookie = ''
-    vi.resetModules()
-    tokenHelpers = await import('../../src/client/token')
   })
 
   afterEach(() => {

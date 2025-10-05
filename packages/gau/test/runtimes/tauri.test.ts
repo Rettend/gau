@@ -12,8 +12,8 @@ vi.mock('@tauri-apps/plugin-os', () => ({
 }))
 
 const mockOpen = vi.fn()
-vi.mock('@tauri-apps/plugin-shell', () => ({
-  open: mockOpen,
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openUrl: mockOpen,
 }))
 
 const localStorageMock = (() => {
@@ -31,8 +31,6 @@ Object.defineProperty(globalThis, 'document', {
   value: { cookie: '' },
   writable: true,
 })
-
-// TODO: why timeout?
 
 describe('tauri runtime helpers', () => {
   function setTauri(on: boolean) {

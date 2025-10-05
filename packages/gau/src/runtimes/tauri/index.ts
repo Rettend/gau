@@ -16,7 +16,7 @@ export async function signInWithTauri(
     return
 
   const { platform } = await import('@tauri-apps/plugin-os')
-  const { open } = await import('@tauri-apps/plugin-shell')
+  const { openUrl } = await import('@tauri-apps/plugin-opener')
 
   const currentPlatform = platform() // platform is NO LONGER an async function
   let redirectTo: string
@@ -33,7 +33,7 @@ export async function signInWithTauri(
   if (profile)
     params.set('profile', profile)
   const authUrl = `${baseUrl}/${provider}?${params.toString()}`
-  await open(authUrl)
+  await openUrl(authUrl)
 }
 
 export async function setupTauriListener(
@@ -76,7 +76,7 @@ export async function linkAccountWithTauri(
     return
 
   const { platform } = await import('@tauri-apps/plugin-os')
-  const { open } = await import('@tauri-apps/plugin-shell')
+  const { openUrl } = await import('@tauri-apps/plugin-opener')
 
   const currentPlatform = platform()
   let redirectTo: string
@@ -100,5 +100,5 @@ export async function linkAccountWithTauri(
   if (profile)
     params.set('profile', profile)
   const linkUrl = `${baseUrl}/link/${provider}?${params.toString()}`
-  await open(linkUrl)
+  await openUrl(linkUrl)
 }

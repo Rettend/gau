@@ -100,6 +100,7 @@
   "peerDependencies": {
     "@sveltejs/kit": "^2.25.1",
     "@tauri-apps/api": "^2.6.0",
+    "@tauri-apps/plugin-opener": "^2.3.0",
     "@tauri-apps/plugin-os": "^2.3.0",
     "@tauri-apps/plugin-shell": "^2.3.0",
     "drizzle-orm": "^0.44.3",
