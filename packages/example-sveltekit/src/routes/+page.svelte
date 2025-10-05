@@ -10,6 +10,7 @@
     google: { label: 'Google', icon: 'i-ph:google-logo-bold' },
     microsoft: { label: 'Microsoft', icon: 'i-mdi:microsoft' },
     facebook: { label: 'Facebook', icon: 'i-ph:facebook-logo-bold' },
+    discord: { label: 'Discord', icon: 'i-ph:discord-logo-bold' },
   }
 
   const { linkedProviders, unlinkedProviders } = $derived.by(() => {

@@ -1,5 +1,6 @@
 import type { OAuth2Tokens } from 'arctic'
 
+export { Discord } from './providers/discord'
 export { Facebook } from './providers/facebook'
 export { GitHub } from './providers/github'
 export { Google } from './providers/google'

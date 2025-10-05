@@ -1,0 +1,55 @@
+---
+title: Discord
+description: How to set up Discord as an OAuth provider with gau.
+---
+
+### Resources
+
+- [Arctic Discord Provider](https://arcticjs.dev/providers/discord)
+- [Discord Developer Portal](https://discord.com/developers/applications)
+
+### Environment variables
+
+```txt title=".env"
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+```
+
+### Callback URL
+
+Add the redirect URI in your Discord application under "OAuth2" → "General" → "Redirects".
+
+```
+/api/auth/discord/callback
+```
+
+### Config
+
+The `identify` and `email` scopes are requested by default.
+
+```ts title="auth.ts"
+import process from 'node:process'
+import { createAuth } from '@rttnd/gau/core'
+import { Discord } from '@rttnd/gau/oauth'
+
+export const auth = createAuth({
+  providers: [
+    Discord({
+      clientId: process.env.DISCORD_CLIENT_ID,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    }),
+  ],
+})
+```
+
+### Provider params
+
+#### params
+
+> Type: `Record<string, string>`
+>
+> Default: —
+
+Extra query params appended to the authorization URL.
+
+

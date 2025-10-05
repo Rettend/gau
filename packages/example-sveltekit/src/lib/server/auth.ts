@@ -1,7 +1,7 @@
 import * as env from '$env/static/private'
 import { createAuth } from '@rttnd/gau'
 import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
-import { Facebook, GitHub, Google, Microsoft } from '@rttnd/gau/oauth'
+import { Discord, Facebook, GitHub, Google, Microsoft } from '@rttnd/gau/oauth'
 import { db } from './db'
 import { Accounts, Users } from './db/schema'
 
@@ -23,6 +23,10 @@ export const auth = createAuth({
     Facebook({
       clientId: env.AUTH_FACEBOOK_ID,
       clientSecret: env.AUTH_FACEBOOK_SECRET,
+    }),
+    Discord({
+      clientId: env.AUTH_DISCORD_ID,
+      clientSecret: env.AUTH_DISCORD_SECRET,
     }),
   ],
   jwt: {
