@@ -9,16 +9,16 @@ export const auth = createAuth({
   adapter: DrizzleAdapter(db, Users, Accounts),
   providers: [
     GitHub({
-      clientId: serverEnv.AUTH_GITHUB_ID,
-      clientSecret: serverEnv.AUTH_GITHUB_SECRET,
+      clientId: serverEnv.AUTH_GITHUB_ID!,
+      clientSecret: serverEnv.AUTH_GITHUB_SECRET!,
     }),
     Google({
-      clientId: serverEnv.AUTH_GOOGLE_ID,
-      clientSecret: serverEnv.AUTH_GOOGLE_SECRET,
+      clientId: serverEnv.AUTH_GOOGLE_ID!,
+      clientSecret: serverEnv.AUTH_GOOGLE_SECRET!,
     }),
     Microsoft({
-      clientId: serverEnv.AUTH_MICROSOFT_ID,
-      clientSecret: serverEnv.AUTH_MICROSOFT_SECRET,
+      clientId: serverEnv.AUTH_MICROSOFT_ID!,
+      clientSecret: serverEnv.AUTH_MICROSOFT_SECRET!,
     }),
   ],
   jwt: {

@@ -1,10 +1,26 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile-capability",
-  "windows": ["main"],
-  "platforms": ["iOS", "android"],
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "iOS",
+    "android"
+  ],
   "permissions": [
     "core:event:default",
-    "deep-link:default"
+    "deep-link:default",
+    "os:default",
+    "shell:default",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "*"
+        }
+      ]
+    }
   ]
 }
