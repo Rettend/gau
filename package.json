@@ -12,7 +12,7 @@
     "check": "cd packages/gau && tsgo --noEmit --skipLibCheck",
     "test": "vitest && bun run lint:test",
     "test:ui": "vitest --ui",
-    "update:deps": "taze latest -wr",
+    "update": "taze latest -wr",
     "release": "bumpp packages/gau/package.json packages/gau/jsr.json && bun run build && npm publish --workspace @rttnd/gau --access public"
   },
   "devDependencies": {
