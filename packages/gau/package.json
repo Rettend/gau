@@ -146,6 +146,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.4.1",
+    "@electric-sql/pglite": "^0.3.10",
     "@libsql/client": "^0.15.15",
     "@types/better-sqlite3": "^7.6.13",
     "@types/bun": "^1.2.23",

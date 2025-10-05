@@ -8,7 +8,7 @@
     "build": "bun --bun --cwd packages/gau tsup",
     "dev": "bun --bun --cwd packages/gau tsup --watch",
     "lint": "bun --bun eslint . --fix",
-    "lint:test": "bun --bun eslint coverage.json --fix",
+    "lint:test": "eslint coverage.json --fix",
     "check": "cd packages/gau && tsgo --noEmit --skipLibCheck",
     "test": "vitest && bun run lint:test",
     "test:ui": "vitest --ui",

@@ -21,12 +21,6 @@ export type AccountsTable = Table & {
   providerAccountId: AnyColumn
 }
 
-/**
- * SQLite-specific Drizzle adapter.
- *
- * Pass concrete `users` and `accounts` `Table` objects
- * with the columns we access (`id`, `email`, `userId`, `provider`, `providerAccountId`).
- */
 export function SQLiteDrizzleAdapter<
   DB extends BaseSQLiteDatabase<'sync' | 'async', any, any>,
   U extends UsersTable,

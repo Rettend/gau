@@ -1,26 +1,22 @@
 import type { Adapter } from '../../../src/core'
-import { createClient } from '@libsql/client'
-import Database from 'better-sqlite3'
-import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { PGlite } from '@electric-sql/pglite'
+import { boolean, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core'
+import { drizzle } from 'drizzle-orm/pglite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SQLiteDrizzleAdapter } from '../../../src/adapters/drizzle/sqlite'
-import { transaction } from '../../../src/adapters/drizzle/transaction'
+import { PostgresDrizzleAdapter } from '../../../src/adapters/drizzle/pg'
 
-const usersTable = sqliteTable('users', {
-  id: text().primaryKey(),
+const usersTable = pgTable('users', {
+  id: uuid().primaryKey(),
   name: text(),
   email: text().unique(),
   image: text(),
-  emailVerified: integer({ mode: 'boolean' }),
-  createdAt: integer({ mode: 'timestamp' }).notNull(),
-  updatedAt: integer({ mode: 'timestamp' }).notNull(),
+  emailVerified: boolean(),
+  createdAt: text(),
+  updatedAt: text(),
 })
 
-const accountsTable = sqliteTable('accounts', {
-  userId: text().notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
+const accountsTable = pgTable('accounts', {
+  userId: uuid().notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
   provider: text().notNull(),
   providerAccountId: text().notNull(),
   type: text(),
@@ -30,30 +26,32 @@ const accountsTable = sqliteTable('accounts', {
   tokenType: text(),
   scope: text(),
   idToken: text(),
+  sessionState: text(),
 })
 
-describe('sqlite drizzle adapter with better-sqlite3', () => {
+describe('postgres drizzle adapter', () => {
   let db: ReturnType<typeof drizzle>
   let adapter: Adapter
-  let client: Database.Database
+  let client: PGlite
 
   beforeEach(async () => {
-    client = new Database(':memory:')
+    client = new PGlite()
     db = drizzle(client, { casing: 'snake_case' })
-    db.run(sql`
-      CREATE TABLE "users" (
-        "id" text PRIMARY KEY NOT NULL,
+
+    await client.exec(`
+      CREATE TABLE IF NOT EXISTS "users" (
+        "id" uuid PRIMARY KEY,
         "name" text,
-        "email" text,
+        "email" text UNIQUE,
         "image" text,
-        "email_verified" integer,
-        "created_at" integer NOT NULL,
-        "updated_at" integer NOT NULL
+        "email_verified" boolean,
+        "created_at" timestamp NOT NULL,
+        "updated_at" timestamp NOT NULL
       );
     `)
-    db.run(sql`
-      CREATE TABLE "accounts" (
-        "user_id" text NOT NULL,
+    await client.exec(`
+      CREATE TABLE IF NOT EXISTS "accounts" (
+        "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
         "provider" text NOT NULL,
         "provider_account_id" text NOT NULL,
         "type" text,
@@ -63,17 +61,18 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
         "token_type" text,
         "scope" text,
         "id_token" text,
-        FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade
+        "session_state" text,
+        PRIMARY KEY ("provider", "provider_account_id")
       );
     `)
 
-    adapter = SQLiteDrizzleAdapter(db, usersTable, accountsTable)
+    adapter = PostgresDrizzleAdapter(db, usersTable, accountsTable)
   })
 
   afterEach(async () => {
-    db.run(sql`DROP TABLE IF EXISTS "accounts"`)
-    db.run(sql`DROP TABLE IF EXISTS "users"`)
-    client.close()
+    await client.exec('DROP TABLE IF EXISTS "accounts"')
+    await client.exec('DROP TABLE IF EXISTS "users"')
+    await client.close()
   })
 
   it('createUser: should create a new user with all fields', async () => {
@@ -106,7 +105,7 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
   })
 
   it('getUser: should return null for a non-existent user', async () => {
-    const user = await adapter.getUser('non-existent-id')
+    const user = await adapter.getUser(crypto.randomUUID())
     expect(user).toBeNull()
   })
 
@@ -214,7 +213,7 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
   })
 
   it('getAccounts: should return an empty array for a non-existent user', async () => {
-    const accounts = await adapter.getAccounts('non-existent-user-id')
+    const accounts = await adapter.getAccounts(crypto.randomUUID())
     expect(accounts).toEqual([])
   })
 
@@ -242,7 +241,7 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
   })
 
   it('getUserAndAccounts: should return null for non-existent user', async () => {
-    const result = await adapter.getUserAndAccounts('non-existent-user-id')
+    const result = await adapter.getUserAndAccounts(crypto.randomUUID())
     expect(result).toBeNull()
   })
 
@@ -284,162 +283,5 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
 
   it('unlinkAccount: unlinking a non-existent account should not throw', async () => {
     await expect(adapter.unlinkAccount('noop', 'noop')).resolves.toBeUndefined()
-  })
-})
-
-describe('sqlite drizzle adapter with libsql', () => {
-  let db: ReturnType<typeof drizzleLibsql>
-  let adapter: Adapter
-  let client: ReturnType<typeof createClient>
-
-  beforeEach(async () => {
-    client = createClient({ url: ':memory:' })
-    db = drizzleLibsql(client, { casing: 'snake_case' })
-    await db.run(sql`
-      CREATE TABLE "users" (
-        "id" text PRIMARY KEY NOT NULL,
-        "name" text,
-        "email" text,
-        "image" text,
-        "email_verified" integer,
-        "created_at" integer NOT NULL,
-        "updated_at" integer NOT NULL
-      );
-    `)
-    await db.run(sql`
-      CREATE TABLE "accounts" (
-        "user_id" text NOT NULL,
-        "provider" text NOT NULL,
-        "provider_account_id" text NOT NULL,
-        "type" text,
-        "refresh_token" text,
-        "access_token" text,
-        "expires_at" integer,
-        "token_type" text,
-        "scope" text,
-        "id_token" text,
-        FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade
-      );
-    `)
-
-    adapter = SQLiteDrizzleAdapter(db, usersTable, accountsTable)
-  })
-
-  afterEach(async () => {
-    await db.run(sql`DROP TABLE IF EXISTS "accounts"`)
-    await db.run(sql`DROP TABLE IF EXISTS "users"`)
-    client.close()
-  })
-
-  it('should create and retrieve a user', async () => {
-    const user = await adapter.createUser({
-      name: 'LibSQL User',
-      email: 'libsql@example.com',
-    })
-    expect(user).toBeDefined()
-    const fetchedUser = await adapter.getUser(user.id)
-    expect(fetchedUser).toEqual(user)
-  })
-
-  it('getAccounts: should return accounts for a user with libsql', async () => {
-    const user = await adapter.createUser({ email: 'libsql-accounts@example.com' })
-    await adapter.linkAccount({ userId: user.id, provider: 'github', providerAccountId: 'gh1' })
-    const accounts = await adapter.getAccounts(user.id)
-    expect(accounts).toHaveLength(1)
-    expect(accounts[0]?.provider).toBe('github')
-  })
-
-  it('getUserAndAccounts: should return user and accounts with libsql', async () => {
-    const user = await adapter.createUser({ email: 'libsql-userandaccounts@example.com' })
-    await adapter.linkAccount({ userId: user.id, provider: 'github', providerAccountId: 'gh1' })
-    const result = await adapter.getUserAndAccounts(user.id)
-    expect(result).not.toBeNull()
-    expect(result!.user).toEqual(user)
-    expect(result!.accounts).toHaveLength(1)
-    expect(result!.accounts[0]?.provider).toBe('github')
-  })
-
-  it('updateAccount: should update token fields for an account with libsql', async () => {
-    const user = await adapter.createUser({ email: 'libsql-tokens@example.com' })
-    await adapter.linkAccount({ userId: user.id, provider: 'github', providerAccountId: 'gh1' })
-
-    await adapter.updateAccount!({
-      userId: user.id,
-      provider: 'github',
-      providerAccountId: 'gh1',
-      accessToken: 'libsql-access',
-      refreshToken: 'libsql-refresh',
-      expiresAt: 654321,
-      idToken: 'libsql-id',
-      tokenType: 'Bearer',
-      scope: 'email',
-    })
-
-    const accounts = await adapter.getAccounts(user.id)
-    const acc = accounts.find(a => a.provider === 'github' && a.providerAccountId === 'gh1')!
-    expect(acc.accessToken).toBe('libsql-access')
-    expect(acc.refreshToken).toBe('libsql-refresh')
-    expect(acc.expiresAt).toBe(654321)
-    expect(acc.idToken).toBe('libsql-id')
-    expect(acc.tokenType).toBe('Bearer')
-    expect(acc.scope).toBe('email')
-  })
-
-  it('unlinkAccount: should unlink an account with libsql', async () => {
-    const user = await adapter.createUser({ email: 'libsql-unlink@example.com' })
-    await adapter.linkAccount({ userId: user.id, provider: 'github', providerAccountId: 'gh1' })
-
-    let accounts = await adapter.getAccounts(user.id)
-    expect(accounts).toHaveLength(1)
-
-    await adapter.unlinkAccount('github', 'gh1')
-
-    accounts = await adapter.getAccounts(user.id)
-    expect(accounts).toHaveLength(0)
-  })
-})
-
-describe('transaction helper', () => {
-  it('should commit a successful transaction with better-sqlite3', async () => {
-    const client = new Database(':memory:')
-    const db = drizzle(client, { casing: 'snake_case' })
-    db.run(sql`CREATE TABLE "users" ("id" text, "name" text);`)
-
-    await transaction(db, async (tx) => {
-      await tx.run(sql`INSERT INTO "users" VALUES ('1', 'test')`)
-    })
-
-    const result = db.get<{ id: string, name: string }>(sql`SELECT * FROM "users"`)
-    expect(result?.name).toBe('test')
-    client.close()
-  })
-
-  it('should rollback a failed transaction with better-sqlite3', async () => {
-    const client = new Database(':memory:')
-    const db = drizzle(client, { casing: 'snake_case' })
-    db.run(sql`CREATE TABLE "users" ("id" text, "name" text);`)
-
-    await expect(transaction(db, async (tx) => {
-      await tx.run(sql`INSERT INTO "users" VALUES ('1', 'test')`)
-      throw new Error('Transaction failed')
-    })).rejects.toThrow('Transaction failed')
-
-    const result = db.get(sql`SELECT * FROM "users"`)
-    expect(result).toBeUndefined()
-    client.close()
-  })
-
-  it('should handle async transactions with libsql', async () => {
-    const client = createClient({ url: ':memory:' })
-    const db = drizzleLibsql(client, { casing: 'snake_case' })
-    await db.run(sql`CREATE TABLE "users" ("id" text, "name" text);`)
-
-    await transaction(db, async (tx) => {
-      await tx.run(sql`INSERT INTO "users" VALUES ('1', 'test-async')`)
-    })
-
-    const result = await db.get<{ id: string, name: string }>(sql`SELECT * FROM "users"`)
-    expect(result?.name).toBe('test-async')
-    client.close()
   })
 })

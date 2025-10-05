@@ -28,7 +28,6 @@ export function DrizzleAdapter<
     return MySqlDrizzleAdapter(db, users, accounts)
 
   if (is(db, PgDatabase))
-    // @ts-expect-error Not implemented
     return PostgresDrizzleAdapter(db, users, accounts)
 
   throw new Error(
