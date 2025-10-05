@@ -1,5 +1,5 @@
-import { uuidV7Base64url } from '$lib/index'
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { uuidV7Base64url } from '../../index'
 
 export const Users = sqliteTable('users', {
   id: text().primaryKey().$defaultFn(() => uuidV7Base64url()),

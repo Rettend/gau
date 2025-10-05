@@ -114,6 +114,9 @@
     "@tauri-apps/api": {
       "optional": true
     },
+    "@tauri-apps/plugin-opener": {
+      "optional": true
+    },
     "@tauri-apps/plugin-os": {
       "optional": true
     },
