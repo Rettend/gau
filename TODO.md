@@ -1,12 +1,17 @@
 # TODO
 
-- [ ] how to test svelte 5 runes man..........
+## now
+
+- [ ] email provider, send verification email?
+- [ ] FAILED (No max-age or expires): <https://formate.app/api/auth/session>
 
 ## docs
 
 - [ ] protected routes: sveltekit, solidstart
 
 ## fix
+
+- [ ] how to test svelte 5 runes man..........
 
 - [ ] add a ton of type tests, every config, method etc. that should be typed should be typed
 - [ ] better role types

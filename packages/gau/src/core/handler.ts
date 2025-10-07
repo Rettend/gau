@@ -66,6 +66,13 @@ export function createHandler(auth: Auth): (request: Request) => Promise<Respons
       response = json({ error: 'Method Not Allowed' }, { status: 405 })
     }
 
+    try {
+      response.headers.set('Cache-Control', 'no-store, private')
+      response.headers.set('Pragma', 'no-cache')
+      response.headers.set('Expires', '0')
+    }
+    catch {}
+
     return applyCors(request, response, auth)
   }
 }
