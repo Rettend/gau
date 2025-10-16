@@ -29,7 +29,7 @@ Check out the [`packages`](https://github.com/Rettend/gau/tree/main/packages) fo
 
 To use them as starter templates:
 
-`bunx degit https://github.com/Rettend/gau/tree/main/packages/example-sveltekit`
+`bunx degit Rettend/gau/packages/example-sveltekit`
 
 ## contributing
 
