@@ -27,6 +27,10 @@ Check out the [`packages`](https://github.com/Rettend/gau/tree/main/packages) fo
 - `example-bun`: Bun.serve
 - `example-elysia`: Elysia
 
+To use them as starter templates:
+
+`bunx degit https://github.com/Rettend/gau/tree/main/packages/example-sveltekit`
+
 ## contributing
 
 `gau` core is everything-agnostic, but it's missing a ton of specific integrations.
