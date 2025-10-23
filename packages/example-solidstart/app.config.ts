@@ -8,7 +8,7 @@ export default defineConfig({
   },
   middleware: 'src/middleware.ts',
   vite: {
-    plugins: [UnoCSS()],
+    plugins: [UnoCSS() as any],
     optimizeDeps: {
       exclude: ['@rttnd/gau'],
     },

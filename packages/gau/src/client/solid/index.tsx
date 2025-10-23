@@ -1,10 +1,10 @@
-import type { Accessor, JSXElement, ParentProps, VoidComponent } from 'solid-js'
+import type { Accessor, ParentProps } from 'solid-js'
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
-import { createContext, createResource, onCleanup, onMount, Show, untrack, useContext } from 'solid-js'
+import { createContext, createResource, onCleanup, onMount, untrack, useContext } from 'solid-js'
 import { isServer } from 'solid-js/web'
 import { NULL_SESSION } from '../../core'
-import { handleTauriDeepLink, isTauri, linkAccountWithTauri, setupTauriListener, signInWithTauri } from '../../runtimes/tauri'
 import { clearSessionToken, getSessionToken, storeSessionToken } from '../token'
+import { createAuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>
@@ -12,6 +12,7 @@ interface AuthContextValue<TAuth = unknown> {
   linkAccount: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
   signOut: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const AuthContext = createContext<any>()
@@ -20,19 +21,19 @@ export function AuthProvider<const TAuth = unknown>(props: ParentProps & { auth?
   const scheme = untrack(() => props.scheme ?? 'gau')
   const baseUrl = untrack(() => props.baseUrl ?? '/api/auth')
 
+  const client = createAuthClient<ProviderIds<TAuth>>({
+    baseUrl,
+    tokenStore: {
+      get: () => getSessionToken(),
+      set: t => storeSessionToken(t),
+      clear: () => clearSessionToken(),
+    },
+  })
+
   const fetchSession = async (): Promise<GauSession<ProviderIds<TAuth>>> => {
     if (isServer)
       return { ...NULL_SESSION, providers: [] }
-
-    const token = getSessionToken()
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await fetch(`${baseUrl}/session`, token ? { headers } : { credentials: 'include' })
-
-    const contentType = res.headers.get('content-type')
-    if (contentType?.includes('application/json'))
-      return res.json()
-
-    return { ...NULL_SESSION, providers: [] as ProviderIds<TAuth>[] }
+    return client.refreshSession()
   }
 
   const [session, { refetch }] = createResource<GauSession<ProviderIds<TAuth>>>(
@@ -42,26 +43,25 @@ export function AuthProvider<const TAuth = unknown>(props: ParentProps & { auth?
 
   async function signIn<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
     let finalRedirectTo = redirectTo ?? props.redirectTo
-    if (isTauri()) {
-      await signInWithTauri(provider as string, baseUrl, scheme, finalRedirectTo, profile as string | undefined)
-    }
-    else {
-      if (!finalRedirectTo && !isServer)
-        finalRedirectTo = window.location.origin
+    if (!finalRedirectTo && !isServer)
+      finalRedirectTo = window.location.origin
 
-      const params = new URLSearchParams()
-      if (finalRedirectTo)
-        params.set('redirectTo', finalRedirectTo)
-      if (profile)
-        params.set('profile', String(profile))
-      const q = params.toString()
-      const authUrl = `${baseUrl}/${provider as string}${q ? `?${q}` : ''}`
-      window.location.href = authUrl
+    const isTauriEnv = !isServer && ('__TAURI_INTERNALS__' in (globalThis as any))
+    if (isTauriEnv) {
+      const { signInWithTauri } = await import('../../runtimes/tauri')
+      await signInWithTauri(provider as string, baseUrl, scheme, finalRedirectTo, profile as string | undefined)
+      return
     }
+
+    const url = await client.signIn(provider as string, { redirectTo: finalRedirectTo, profile: profile as string | undefined })
+    if (!isServer)
+      window.location.href = url
   }
 
   async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    if (isTauri()) {
+    const isTauriEnv = !isServer && ('__TAURI_INTERNALS__' in (globalThis as any))
+    if (isTauriEnv) {
+      const { linkAccountWithTauri } = await import('../../runtimes/tauri')
       await linkAccountWithTauri(provider as string, baseUrl, scheme, redirectTo, profile as string | undefined)
       return
     }
@@ -70,58 +70,26 @@ export function AuthProvider<const TAuth = unknown>(props: ParentProps & { auth?
     if (!finalRedirectTo && !isServer)
       finalRedirectTo = window.location.href
 
-    const params = new URLSearchParams()
-    if (finalRedirectTo)
-      params.set('redirectTo', finalRedirectTo)
-    if (profile)
-      params.set('profile', String(profile))
-    params.set('redirect', 'false')
-    const linkUrl = `${baseUrl}/link/${provider as string}?${params.toString()}`
-
-    const token = getSessionToken()
-
-    const fetchOptions: RequestInit = token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : { credentials: 'include' }
-
-    const res = await fetch(linkUrl, fetchOptions)
-    if (res.redirected) {
-      window.location.href = res.url
-    }
-    else {
-      const data = await res.json()
-      if (data.url)
-        window.location.href = data.url
-    }
+    const url = await client.linkAccount(provider as string, { redirectTo: finalRedirectTo, profile: profile as any })
+    if (!isServer)
+      window.location.href = url
   }
 
   async function unlinkAccount(provider: ProviderIds<TAuth>) {
-    const token = getSessionToken()
-    const fetchOptions: RequestInit = token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : { credentials: 'include' }
-
-    const res = await fetch(`${baseUrl}/unlink/${provider as string}`, {
-      method: 'POST',
-      ...fetchOptions,
-    })
-
-    if (res.ok)
+    const ok = await client.unlinkAccount(provider as string)
+    if (ok)
       refetch()
     else
-      console.error('Failed to unlink account', await res.json())
+      console.error('Failed to unlink account')
   }
 
   const signOut = async () => {
-    clearSessionToken()
-    const token = getSessionToken()
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    await fetch(`${baseUrl}/signout`, token ? { method: 'POST', headers } : { method: 'POST', credentials: 'include' })
+    await client.signOut()
     refetch()
   }
 
   onMount(() => {
-    if (!isTauri()) {
+    if (!('__TAURI_INTERNALS__' in (globalThis as any))) {
       if (window.location.hash === '#_=_')
         window.history.replaceState(null, '', window.location.pathname + window.location.search)
 
@@ -135,28 +103,30 @@ export function AuthProvider<const TAuth = unknown>(props: ParentProps & { auth?
       }
     }
 
-    if (!isTauri())
+    if (!('__TAURI_INTERNALS__' in (globalThis as any)))
       return
 
     let disposed = false
-    setupTauriListener(async (url) => {
-      handleTauriDeepLink(url, baseUrl, scheme, (token) => {
-        storeSessionToken(token)
-        refetch()
+    void (async () => {
+      const { setupTauriListener, handleTauriDeepLink } = await import('../../runtimes/tauri')
+      const unlisten = await setupTauriListener(async (url) => {
+        handleTauriDeepLink(url, baseUrl, scheme, (token) => {
+          storeSessionToken(token)
+          refetch()
+        })
       })
-    }).then((unlisten) => {
       if (disposed)
         unlisten?.()
       else if (unlisten)
         onCleanup(() => unlisten())
-    })
+    })()
     onCleanup(() => {
       disposed = true
     })
   })
 
   return (
-    <AuthContext.Provider value={{ session, signIn, linkAccount, unlinkAccount, signOut }}>
+    <AuthContext.Provider value={{ session, signIn, linkAccount, unlinkAccount, signOut, refresh: async () => { await refetch() } }}>
       {props.children}
     </AuthContext.Provider>
   )
@@ -169,32 +139,4 @@ export function useAuth<const TAuth = unknown>(): AuthContextValue<TAuth> {
   return context as AuthContextValue<TAuth>
 }
 
-export function Protected<const TAuth = unknown>(
-  page: (session: Accessor<GauSession<ProviderIds<TAuth>>>) => JSXElement,
-  fallbackOrRedirect?: (() => JSXElement) | string,
-): VoidComponent {
-  return () => {
-    const auth = useAuth<TAuth>()
-
-    const isRedirectMode = typeof fallbackOrRedirect === 'string' || fallbackOrRedirect === undefined
-    const redirectTo = isRedirectMode ? (fallbackOrRedirect ?? '/') : undefined
-    const Fallback = !isRedirectMode ? (fallbackOrRedirect as (() => JSXElement)) : undefined
-
-    const Redirect: VoidComponent = () => {
-      onMount(() => {
-        if (!isServer && redirectTo)
-          window.location.replace(redirectTo)
-      })
-      return null
-    }
-
-    return (
-      <Show
-        when={auth.session().user}
-        fallback={isRedirectMode ? <Redirect /> : (Fallback ? <Fallback /> : null)}
-      >
-        {page(auth.session)}
-      </Show>
-    )
-  }
-}
+export { Protected } from './Protected'

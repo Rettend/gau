@@ -2,7 +2,7 @@
   "name": "@rttnd/gau",
   "type": "module",
   "version": "0.6.1",
-  "packageManager": "bun@1.2.23",
+  "packageManager": "bun@1.3.0",
   "description": "gau is a delightful auth library",
   "license": "MIT",
   "homepage": "https://github.com/Rettend/gau#readme",
@@ -40,6 +40,10 @@
       "types": "./dist/src/cli/index.d.ts",
       "import": "./dist/src/cli/index.js"
     },
+    "./client/vanilla": {
+      "types": "./dist/src/client/vanilla/index.d.ts",
+      "import": "./dist/src/client/vanilla/index.js"
+    },
     "./client/solid": {
       "solid": "./dist/src/client/solid/index.jsx",
       "types": "./dist/src/client/solid/index.d.ts"
@@ -47,6 +51,10 @@
     "./client/svelte": {
       "types": "./dist/src/client/svelte/index.svelte.d.ts",
       "import": "./dist/src/client/svelte/index.svelte.js"
+    },
+    "./client/svelte/Protected.svelte": {
+      "types": "./dist/src/client/svelte/Protected/index.svelte",
+      "import": "./dist/src/client/svelte/Protected/index.svelte"
     },
     "./client/svelte/AuthProvider.svelte": {
       "types": "./dist/src/client/svelte/AuthProvider/index.svelte",
@@ -92,13 +100,15 @@
     "prepublishOnly": "node -e \"require('fs').copyFileSync('../../README.md', 'README.md')\"",
     "postpublish": "node -e \"require('fs').unlinkSync('README.md')\"",
     "dev": "bun run --watch index.ts",
+    "build": "bun --bun tsup",
     "lint": "bun --bun eslint . --fix",
-    "check": "tsgo --noEmit --skipLibCheck",
+    "check": "tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p src/client/solid/tsconfig.json && tsgo --noEmit -p src/client/svelte/tsconfig.json",
     "update": "taze latest -wr",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
   "peerDependencies": {
+    "@solidjs/router": "^0.15.3",
     "@sveltejs/kit": "^2.25.1",
     "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.3.0",
@@ -110,6 +120,9 @@
     "typescript": "^5.8.3"
   },
   "peerDependenciesMeta": {
+    "@solidjs/router": {
+      "optional": true
+    },
     "@sveltejs/kit": {
       "optional": true
     },
@@ -145,18 +158,25 @@
     "esm-env": "^1.2.2"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^5.4.1",
-    "@electric-sql/pglite": "^0.3.10",
+    "@antfu/eslint-config": "^6.0.0",
+    "@electric-sql/pglite": "^0.3.11",
     "@libsql/client": "^0.15.15",
+    "@solidjs/router": "^0.15.3",
+    "@sveltejs/kit": "^2.47.2",
+    "@tauri-apps/api": "^2.6.0",
+    "@tauri-apps/plugin-opener": "^2.3.0",
+    "@tauri-apps/plugin-os": "^2.3.0",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/bun": "^1.2.23",
-    "@types/node": "^24.6.2",
+    "@types/bun": "^1.3.0",
+    "@types/node": "^24.9.1",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
     "better-sqlite3": "^12.4.1",
-    "bumpp": "^10.2.3",
+    "bumpp": "^10.3.1",
     "drizzle-kit": "^0.31.5",
-    "eslint": "^9.37.0",
+    "drizzle-orm": "^0.44.6",
+    "eslint": "^9.38.0",
+    "solid-js": "^1.9.9",
     "vitest": "^3.2.4"
   }
 }

@@ -50,6 +50,14 @@ export default defineConfig(async () => {
     {
       ...commonConfig,
       entry: toEntryObject(otherEntries),
+      external: [
+        '@sveltejs/kit',
+        '$app/navigation',
+        '@solidjs/router',
+        '@tauri-apps/plugin-os',
+        '@tauri-apps/plugin-opener',
+        '@tauri-apps/api/event',
+      ],
       async onSuccess() {
         console.log('⚡️ Generating .d.ts files with tsgo...')
         await Promise.all([
@@ -71,6 +79,12 @@ export default defineConfig(async () => {
       entry: toEntryObject(solidEntries),
       tsconfig: 'src/client/solid/tsconfig.json',
       splitting: false,
+      external: [
+        '@solidjs/router',
+        '@tauri-apps/plugin-os',
+        '@tauri-apps/plugin-opener',
+        '@tauri-apps/api/event',
+      ],
       esbuildOptions(options) {
         options.jsx = 'preserve'
         options.jsxImportSource = 'solid-js'
@@ -85,6 +99,13 @@ export default defineConfig(async () => {
       minify: 'terser',
       entry: toEntryObject(svelteTsEntries),
       tsconfig: 'src/client/svelte/tsconfig.json',
+      external: [
+        '@sveltejs/kit',
+        '$app/navigation',
+        '@tauri-apps/plugin-os',
+        '@tauri-apps/plugin-opener',
+        '@tauri-apps/api/event',
+      ],
       outExtension() {
         return { js: '.svelte.js' }
       },

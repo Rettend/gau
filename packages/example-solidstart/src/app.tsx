@@ -9,14 +9,14 @@ import 'virtual:uno.css'
 
 export default function App() {
   return (
-    <AuthProvider baseUrl={clientEnv.VITE_API_URL}>
-      <Router
-        root={props => (
+    <Router
+      root={props => (
+        <AuthProvider baseUrl={clientEnv.VITE_API_URL}>
           <Suspense>{props.children}</Suspense>
-        )}
-      >
-        <FileRoutes />
-      </Router>
-    </AuthProvider>
+        </AuthProvider>
+      )}
+    >
+      <FileRoutes />
+    </Router>
   )
 }

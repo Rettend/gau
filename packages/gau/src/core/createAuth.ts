@@ -228,7 +228,6 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
 
   const providerMap = new Map(providers.map(p => [p.id, p]))
 
-  // Resolve CORS configuration
   const resolvedCors: Auth['cors'] = cors === false
     ? false
     : {

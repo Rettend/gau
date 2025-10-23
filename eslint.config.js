@@ -5,6 +5,7 @@ export default antfu({
   svelte: true,
   solid: true,
   astro: true,
+  typescript: true,
   formatters: {
     html: true,
   },

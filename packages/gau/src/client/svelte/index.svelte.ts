@@ -1,16 +1,20 @@
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
+// @ts-expect-error svelte-kit
+import { replaceState } from '$app/navigation'
 import { BROWSER } from 'esm-env'
-import { getContext, setContext } from 'svelte'
+import { getContext, onMount, setContext } from 'svelte'
 import { NULL_SESSION } from '../../core'
-import { handleTauriDeepLink, isTauri, linkAccountWithTauri, setupTauriListener, signInWithTauri } from '../../runtimes/tauri'
 import { clearSessionToken, getSessionToken, storeSessionToken } from '../token'
+import { createAuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> {
   session: GauSession<ProviderIds<TAuth>>
+  isLoading: boolean
   signIn: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
   linkAccount: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
   signOut: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const AUTH_CONTEXT_KEY = Symbol('gau-auth')
@@ -25,62 +29,56 @@ export function createSvelteAuth<const TAuth = unknown>({
   redirectTo?: string
 } = {}) {
   type CurrentSession = GauSession<ProviderIds<TAuth>>
-  let session = $state<CurrentSession>({ ...NULL_SESSION, providers: [] })
 
-  async function replaceUrlSafe(url: string) {
-    let replaceUrl: (url: string) => void = u => window.history.replaceState(null, '', u)
-    try {
-      const navPath = '$' + 'app/navigation'
-      const { replaceState } = await import(/* @vite-ignore */ navPath)
-      replaceUrl = u => replaceState(u, {})
-    }
-    catch {}
-    replaceUrl(url)
+  const client = createAuthClient<ProviderIds<TAuth>>({
+    baseUrl,
+    tokenStore: {
+      get: () => getSessionToken(),
+      set: t => storeSessionToken(t),
+      clear: () => clearSessionToken(),
+    },
+  })
+
+  const fetchSession = async (): Promise<CurrentSession> => {
+    if (!BROWSER)
+      return { ...NULL_SESSION, providers: [] }
+    return client.refreshSession()
   }
 
-  async function fetchSession() {
-    if (!BROWSER) {
-      session = { ...NULL_SESSION, providers: [] }
-      return
-    }
+  let session = $state({ ...NULL_SESSION, providers: [] } as CurrentSession)
+  let isLoading = $state(true)
 
-    const token = getSessionToken()
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await fetch(`${baseUrl}/session`, token ? { headers } : { credentials: 'include' })
-
-    const contentType = res.headers.get('content-type')
-    if (contentType?.includes('application/json')) {
-      session = await res.json()
+  async function replaceUrlSafe(url: string) {
+    try {
+      replaceState(url, {})
     }
-    else {
-      session = {
-        ...NULL_SESSION,
-        providers: [] as ProviderIds<TAuth>[],
-      }
+    catch {
+      if (BROWSER)
+        window.history.replaceState(null, '', url)
     }
   }
 
   async function signIn<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
     let finalRedirectTo = redirectTo ?? defaultRedirectTo
-    if (isTauri()) {
-      await signInWithTauri(provider as string, baseUrl, scheme, finalRedirectTo, profile as string | undefined)
-    }
-    else {
-      if (!finalRedirectTo && BROWSER)
-        finalRedirectTo = window.location.origin
+    if (!finalRedirectTo && BROWSER)
+      finalRedirectTo = window.location.origin
 
-      const params = new URLSearchParams()
-      if (finalRedirectTo)
-        params.set('redirectTo', finalRedirectTo)
-      if (profile)
-        params.set('profile', String(profile))
-      const q = params.toString()
-      window.location.href = `${baseUrl}/${provider as string}${q ? `?${q}` : ''}`
+    const isTauriEnv = BROWSER && ('__TAURI_INTERNALS__' in (globalThis as any))
+    if (isTauriEnv) {
+      const { signInWithTauri } = await import('../../runtimes/tauri')
+      await signInWithTauri(provider as string, baseUrl, scheme, finalRedirectTo, profile as string | undefined)
+      return
     }
+
+    const url = await client.signIn(provider as string, { redirectTo: finalRedirectTo, profile: profile as string | undefined })
+    if (BROWSER)
+      window.location.href = url
   }
 
   async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    if (isTauri()) {
+    const isTauriEnv = BROWSER && ('__TAURI_INTERNALS__' in (globalThis as any))
+    if (isTauriEnv) {
+      const { linkAccountWithTauri } = await import('../../runtimes/tauri')
       await linkAccountWithTauri(provider as string, baseUrl, scheme, redirectTo, profile as string | undefined)
       return
     }
@@ -89,62 +87,28 @@ export function createSvelteAuth<const TAuth = unknown>({
     if (!finalRedirectTo && BROWSER)
       finalRedirectTo = window.location.href
 
-    const params = new URLSearchParams()
-    if (finalRedirectTo)
-      params.set('redirectTo', finalRedirectTo)
-    if (profile)
-      params.set('profile', String(profile))
-    params.set('redirect', 'false')
-    const linkUrl = `${baseUrl}/link/${provider as string}?${params.toString()}`
-
-    const token = getSessionToken()
-
-    const fetchOptions: RequestInit = token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : { credentials: 'include' }
-
-    const res = await fetch(linkUrl, fetchOptions)
-    if (res.redirected) {
-      window.location.href = res.url
-    }
-    else {
-      try {
-        const data = await res.json()
-        if (data.url)
-          window.location.href = data.url
-      }
-      catch (e) {
-        console.error('Failed to parse response from link endpoint', e)
-      }
-    }
+    const url = await client.linkAccount(provider as string, { redirectTo: finalRedirectTo, profile: profile as any })
+    if (BROWSER)
+      window.location.href = url
   }
 
   async function unlinkAccount(provider: ProviderIds<TAuth>) {
-    const token = getSessionToken()
-    const fetchOptions: RequestInit = token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : { credentials: 'include' }
-
-    const res = await fetch(`${baseUrl}/unlink/${provider as string}`, {
-      method: 'POST',
-      ...fetchOptions,
-    })
-
-    if (res.ok)
-      await fetchSession()
+    const ok = await client.unlinkAccount(provider as string)
+    if (ok)
+      session = await fetchSession()
     else
-      console.error('Failed to unlink account', await res.json())
+      console.error('Failed to unlink account')
   }
 
   async function signOut() {
-    clearSessionToken()
-    const token = getSessionToken()
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    await fetch(`${baseUrl}/signout`, token ? { method: 'POST', headers } : { method: 'POST', credentials: 'include' })
-    await fetchSession()
+    await client.signOut()
+    session = await fetchSession()
   }
 
-  if (BROWSER) {
+  onMount(() => {
+    if (!BROWSER)
+      return
+
     if (window.location.hash === '#_=_')
       void replaceUrlSafe(window.location.pathname + window.location.search)
 
@@ -156,32 +120,37 @@ export function createSvelteAuth<const TAuth = unknown>({
       storeSessionToken(tokenFromUrl)
       void (async () => {
         await replaceUrlSafe(window.location.pathname + window.location.search)
-        await fetchSession()
+        session = await fetchSession()
+        isLoading = false
       })()
     }
     else {
-      fetchSession()
+      void (async () => {
+        session = await fetchSession()
+        isLoading = false
+      })()
     }
-  }
-
-  $effect(() => {
-    if (!BROWSER || !isTauri())
-      return
 
     let cleanup: (() => void) | void
     let disposed = false
 
-    setupTauriListener(async (url) => {
-      handleTauriDeepLink(url, baseUrl, scheme, async (token) => {
-        storeSessionToken(token)
-        await fetchSession()
+    const isTauriEnv = ('__TAURI_INTERNALS__' in (globalThis as any))
+    if (!isTauriEnv)
+      return
+
+    void (async () => {
+      const { setupTauriListener, handleTauriDeepLink } = await import('../../runtimes/tauri')
+      const unlisten = await setupTauriListener(async (url) => {
+        handleTauriDeepLink(url, baseUrl, scheme, async (token) => {
+          storeSessionToken(token)
+          session = await fetchSession()
+        })
       })
-    }).then((unlisten) => {
       if (disposed)
         unlisten?.()
       else
         cleanup = unlisten
-    })
+    })()
 
     return () => {
       disposed = true
@@ -193,10 +162,14 @@ export function createSvelteAuth<const TAuth = unknown>({
     get session() {
       return session
     },
+    get isLoading() {
+      return isLoading
+    },
     signIn,
     linkAccount,
-    unlinkAccount: unlinkAccount as (provider: ProviderIds<TAuth>) => Promise<void>,
+    unlinkAccount,
     signOut,
+    refresh: async () => { session = await fetchSession() },
   }
 
   setContext(AUTH_CONTEXT_KEY, contextValue)
