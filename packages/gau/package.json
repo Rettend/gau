@@ -90,7 +90,7 @@
     }
   },
   "bin": {
-    "gau": "dist/cli/index.js"
+    "gau": "dist/src/cli/index.js"
   },
   "files": [
     "README.md",
