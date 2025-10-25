@@ -11,8 +11,9 @@
     "lint:test": "eslint coverage.json --fix",
     "check": "cd packages/gau && bun run check",
     "check:test": "cd packages/gau && bun run check:test",
-    "test": "vitest --project fast && bun run lint:test",
-    "test:pg": "vitest --project pg && bun run lint:test",
+    "test": "vitest --project fast",
+    "test:pg": "vitest --project pg",
+    "test:all": "vitest && bun run lint:test",
     "test:ui": "vitest --project fast --ui",
     "update": "taze latest -wr",
     "release": "bumpp packages/gau/package.json packages/gau/jsr.json && bun run build && npm publish --workspace @rttnd/gau --access public"

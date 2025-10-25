@@ -9,7 +9,7 @@ This guide shows how to add roles to your `gau` setup.
 
 - Roles are stored in the `User` table in the database.
 - On first sign-in, you can set a role via `roles.defaultRole` or compute one with `roles.resolveOnCreate`.
-- The session returned by `getSession()` includes `user.role` when your adapter returns it.
+- The session returned by `getSession()` includes `user.role` (if stored) and a derived `user.isAdmin` flag.
 
 ## Add `role` to your User table
 
@@ -63,9 +63,11 @@ export const auth = createAuth({
 
 On first sign-in, `resolveOnCreate` is called. If it returns a role, it's used; otherwise `defaultRole`.
 
+Every validated session sets `user.isAdmin` based on `roles.adminRoles` and `roles.adminUserIds`. The flag defaults to `false` when no rule matches.
+
 ## Use roles on the server
 
-Authorize in your route handlers/middleware using `session.user?.role`.
+Authorize in your route handlers/middleware using `session.user?.isAdmin`.
 
 <Tabs syncKey="framework">
   <TabItem label="SvelteKit">
@@ -80,7 +82,7 @@ Authorize in your route handlers/middleware using `session.user?.role`.
         const event = getRequestEvent()
         const session = await event.locals.getSession()
 
-        if (session.user?.role !== 'admin')
+        if (!session.user?.isAdmin)
           error(403, 'Forbidden')
 
         return session
@@ -97,7 +99,7 @@ Authorize in your route handlers/middleware using `session.user?.role`.
     export const load: PageLoad = async (event) => {
       const session = await event.locals.getSession()
 
-      if (session.user?.role !== 'admin')
+      if (!session.user?.isAdmin)
         error(403, 'Forbidden')
 
       return session
@@ -113,7 +115,7 @@ Authorize in your route handlers/middleware using `session.user?.role`.
     export const GET: RequestHandler = async (event) => {
       const session = await event.locals.getSession()
 
-      if (session.user?.role !== 'admin')
+      if (!session.user?.isAdmin)
         error(403, 'Forbidden')
 
       return session
@@ -132,7 +134,7 @@ Authorize in your route handlers/middleware using `session.user?.role`.
       const event = getRequestEvent()
       const session = await event.locals.getSession()
 
-      if (session.user?.role !== 'admin')
+      if (!session.user?.isAdmin)
         throw new Error('Forbidden')
 
       return session
@@ -147,7 +149,7 @@ Authorize in your route handlers/middleware using `session.user?.role`.
     export const GET: APIHandler = async (event) => {
       const session = await event.locals.getSession()
 
-      if (session.user?.role !== 'admin')
+      if (!session.user?.isAdmin)
         return new Response('Forbidden', { status: 403 })
 
       return session

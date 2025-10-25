@@ -102,9 +102,9 @@ export interface CreateAuthOptions<TProviders extends OAuthProvider[]> {
     defaultRole?: string
     /** Dynamically resolve the role at the moment of user creation. Return undefined to fall back to defaultRole. */
     resolveOnCreate?: (context: { providerId: string, profile: any, request: Request }) => string | undefined
-    /** Roles that are considered admin-like for helper predicates. */
+    /** Roles that are considered admin-like for helper predicates and `session.user.isAdmin`. */
     adminRoles?: string[]
-    /** Users that are always treated as admin for helper predicates. */
+    /** Users that are always treated as admin for helper predicates and `session.user.isAdmin`. */
     adminUserIds?: string[]
   }
   /**
@@ -240,6 +240,12 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
       }
 
   const resolvedProfiles = (profilesConfig ?? {}) as ResolvedProfiles<TProviders>
+  const resolvedRoles = {
+    defaultRole: rolesConfig.defaultRole ?? 'user',
+    resolveOnCreate: rolesConfig.resolveOnCreate,
+    adminRoles: rolesConfig.adminRoles ?? ['admin'],
+    adminUserIds: rolesConfig.adminUserIds ?? [],
+  }
 
   function buildSignOptions(custom: Partial<SignOptions> = {}): SignOptions {
     const base = { ttl: custom.ttl, iss: custom.iss ?? iss, aud: custom.aud ?? aud, sub: custom.sub }
@@ -296,7 +302,16 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
       return null
 
     const { user, accounts } = userAndAccounts
-    return { user, session: { id: token, ...payload }, accounts }
+    const isAdmin = Boolean(
+      user
+      && (
+        (user.role && resolvedRoles.adminRoles.includes(user.role))
+        || (resolvedRoles.adminUserIds.length > 0 && resolvedRoles.adminUserIds.includes(user.id))
+      ),
+    )
+    const sessionUser = user ? { ...user, isAdmin } : null
+
+    return { user: sessionUser, session: { id: token, ...payload }, accounts }
   }
 
   async function getAccessToken(userId: string, providerId: string) {
@@ -363,12 +378,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     updateUserInfoOnLink,
     sessionStrategy,
     development: false,
-    roles: {
-      defaultRole: rolesConfig.defaultRole ?? 'user',
-      resolveOnCreate: rolesConfig.resolveOnCreate,
-      adminRoles: rolesConfig.adminRoles ?? ['admin'],
-      adminUserIds: rolesConfig.adminUserIds ?? [],
-    },
+    roles: resolvedRoles,
     cors: resolvedCors,
   }
 }

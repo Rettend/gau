@@ -541,7 +541,11 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   let response: Response
   if (redirectParam === 'false') {
     const accounts = await auth.getAccounts(user.id)
-    response = json({ user: { ...user, accounts } })
+    const isAdmin = Boolean(
+      (user.role && auth.roles.adminRoles.includes(user.role))
+      || auth.roles.adminUserIds.includes(user.id),
+    )
+    response = json({ user: { ...user, isAdmin, accounts } })
   }
   else {
     response = redirect(redirectTo)

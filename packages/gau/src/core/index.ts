@@ -5,6 +5,7 @@ export interface User {
   emailVerified?: boolean | null
   image?: string | null
   role?: string | null
+  isAdmin?: boolean
 }
 
 export interface Session {
@@ -26,7 +27,7 @@ export const NULL_SESSION = {
   accounts: null,
 } as const
 
-export interface NewUser extends Omit<User, 'id' | 'accounts'> {
+export interface NewUser extends Omit<User, 'id' | 'accounts' | 'isAdmin'> {
   id?: string
 }
 

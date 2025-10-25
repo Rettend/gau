@@ -86,6 +86,7 @@ describe('roles', () => {
 
     const { user } = await response.json()
     expect(user.role).toBe('admin')
+    expect(user.isAdmin).toBe(true)
   })
 
   it('does not crash if adapter returns users without role (no column)', async () => {
@@ -96,5 +97,53 @@ describe('roles', () => {
 
     const fetched = await plainAuth.getUser(created.id)
     expect(fetched?.role).toBeUndefined()
+  })
+
+  it('marks session.user.isAdmin when role matches configured adminRoles', async () => {
+    auth = createAuth({
+      adapter: MemoryAdapter(),
+      providers: [],
+      jwt: { secret: 'test', algorithm: 'HS256' },
+      roles: { adminRoles: ['super'], defaultRole: 'user' },
+    })
+
+    const user = await auth.createUser({ id: 'super-user', email: 'admin@example.com', role: 'super' })
+    const token = await auth.createSession(user.id)
+    const session = await auth.validateSession(token)
+
+    expect(session?.user?.role).toBe('super')
+    expect(session?.user?.isAdmin).toBe(true)
+  })
+
+  it('marks session.user.isAdmin when id is listed in adminUserIds', async () => {
+    auth = createAuth({
+      adapter: MemoryAdapter(),
+      providers: [],
+      jwt: { secret: 'test', algorithm: 'HS256' },
+      roles: { adminRoles: [], adminUserIds: ['privileged'], defaultRole: 'user' },
+    })
+
+    const user = await auth.createUser({ id: 'privileged', email: 'vip@example.com', role: 'member' })
+    const token = await auth.createSession(user.id)
+    const session = await auth.validateSession(token)
+
+    expect(session?.user?.role).toBe('member')
+    expect(session?.user?.isAdmin).toBe(true)
+  })
+
+  it('defaults session.user.isAdmin to false when no rule matches', async () => {
+    auth = createAuth({
+      adapter: MemoryAdapter(),
+      providers: [],
+      jwt: { secret: 'test', algorithm: 'HS256' },
+      roles: { adminRoles: ['root'], adminUserIds: ['other'], defaultRole: 'user' },
+    })
+
+    const user = await auth.createUser({ id: 'plain-user', email: 'plain@example.com', role: 'user' })
+    const token = await auth.createSession(user.id)
+    const session = await auth.validateSession(token)
+
+    expect(session?.user?.role).toBe('user')
+    expect(session?.user?.isAdmin).toBe(false)
   })
 })
