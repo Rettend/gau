@@ -5,14 +5,27 @@ import { useAuth } from '~/lib/auth'
 export default function Home() {
   const auth = useAuth()
 
+  const providerMeta: Partial<Record<Provider, { label: string, icon: string }>> = {
+    github: { label: 'GitHub', icon: 'i-ph:github-logo' },
+    google: { label: 'Google', icon: 'i-ph:google-logo-bold' },
+    microsoft: { label: 'Microsoft', icon: 'i-mdi:microsoft' },
+  }
+
+  const availableProviders = createMemo<Provider[]>(() => {
+    const fromSession = (auth.session().providers ?? []) as Provider[]
+    return fromSession.filter(provider => providerMeta[provider])
+  })
+
   const linkedProviders = createMemo<Provider[]>(() => {
-    return (auth.session().accounts?.map(a => a.provider) ?? []) as Provider[]
+    if (!auth.session().user)
+      return []
+    const providers = (auth.session().accounts?.map(a => a.provider) ?? []) as Provider[]
+    return providers.filter(provider => providerMeta[provider])
   })
 
   const unlinkedProviders = createMemo<Provider[]>(() => {
-    const all = (auth.session().providers ?? [])
     const linked = new Set(linkedProviders())
-    return all.filter(p => !linked.has(p))
+    return availableProviders().filter(provider => !linked.has(provider))
   })
 
   return (
@@ -25,27 +38,17 @@ export default function Home() {
             <div class="flex flex-col gap-4 items-center">
               <span class="text-lg tracking-wider">Sign In</span>
               <div class="flex gap-4 justify-center">
-                <button
-                  class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700"
-                  onClick={() => auth.signIn('github')}
-                >
-                  <div class="i-ph:github-logo size-5" />
-                  <p>GitHub</p>
-                </button>
-                <button
-                  class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700"
-                  onClick={() => auth.signIn('google')}
-                >
-                  <div class="i-ph:google-logo-bold size-5" />
-                  <p>Google</p>
-                </button>
-                <button
-                  class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700"
-                  onClick={() => auth.signIn('microsoft')}
-                >
-                  <div class="i-mdi:microsoft size-5" />
-                  <p>Microsoft</p>
-                </button>
+                <For each={unlinkedProviders()}>
+                  {provider => (
+                    <button
+                      class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700"
+                      onClick={() => auth.signIn(provider)}
+                    >
+                      <div class={`${providerMeta[provider]?.icon ?? ''} size-5`} />
+                      <p>{providerMeta[provider]?.label ?? provider}</p>
+                    </button>
+                  )}
+                </For>
               </div>
             </div>
           )}
@@ -69,8 +72,8 @@ export default function Home() {
                 <For each={linkedProviders()}>
                   {provider => (
                     <div class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 items-center justify-center">
-                      <div classList={{ 'i-ph:github-logo': provider === 'github', 'i-ph:google-logo-bold': provider === 'google', 'i-mdi:microsoft': provider === 'microsoft' }} class="size-5" />
-                      <p class="capitalize">{provider}</p>
+                      <div class={`${providerMeta[provider]?.icon ?? ''} size-5`} />
+                      <p>{providerMeta[provider]?.label ?? provider}</p>
                       <button
                         class="i-ph:x-bold transition-colors hover:text-red-500"
                         aria-label="Unlink account"
@@ -91,8 +94,8 @@ export default function Home() {
                         class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700"
                         onClick={() => auth.linkAccount(provider)}
                       >
-                        <div classList={{ 'i-ph:github-logo': provider === 'github', 'i-ph:google-logo-bold': provider === 'google', 'i-mdi:microsoft': provider === 'microsoft' }} class="size-5" />
-                        <p class="capitalize">{provider}</p>
+                        <div class={`${providerMeta[provider]?.icon ?? ''} size-5`} />
+                        <p>{providerMeta[provider]?.label ?? provider}</p>
                       </button>
                     )}
                   </For>

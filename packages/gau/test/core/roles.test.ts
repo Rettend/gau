@@ -84,7 +84,7 @@ describe('roles', () => {
     const response = await handleCallback(request, auth, 'mock')
     expect(response.status).toBe(200)
 
-    const { user } = await response.json<{ user: { role?: string } }>()
+    const { user } = await response.json()
     expect(user.role).toBe('admin')
   })
 

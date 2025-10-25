@@ -10,6 +10,7 @@
     "lint": "bun --bun eslint . --fix",
     "lint:test": "eslint coverage.json --fix",
     "check": "cd packages/gau && bun run check",
+    "check:test": "cd packages/gau && bun run check:test",
     "test": "vitest --project fast && bun run lint:test",
     "test:pg": "vitest --project pg && bun run lint:test",
     "test:ui": "vitest --project fast --ui",

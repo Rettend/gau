@@ -35,9 +35,9 @@ Object.defineProperty(globalThis, 'document', {
 describe('tauri runtime helpers', () => {
   function setTauri(on: boolean) {
     if (on)
-      (globalThis as any).__TAURI_INTERNALS__ = {}
+      globalThis.__TAURI_INTERNALS__ = {}
     else
-      delete (globalThis as any).__TAURI_INTERNALS__
+      delete globalThis.__TAURI_INTERNALS__
   }
 
   beforeEach(() => {
@@ -47,7 +47,7 @@ describe('tauri runtime helpers', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
-    delete (globalThis as any).__TAURI_INTERNALS__
+    delete globalThis.__TAURI_INTERNALS__
   })
 
   describe('isTauri', () => {
@@ -155,7 +155,7 @@ describe('tauri runtime helpers', () => {
 
   describe('without Tauri environment', () => {
     beforeEach(() => {
-      delete (globalThis as any).__TAURI_INTERNALS__
+      delete globalThis.__TAURI_INTERNALS__
     })
 
     it('signInWithTauri should not do anything', async () => {

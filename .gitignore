@@ -6,6 +6,7 @@ out
 dist
 *.tgz
 .svelte-kit
+**/public/client.js
 
 # code coverage
 coverage

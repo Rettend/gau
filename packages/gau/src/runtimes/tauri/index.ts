@@ -1,16 +1,17 @@
+import type { ProfileName, ProviderIds } from '../../core'
 import { BROWSER } from 'esm-env'
 import { getSessionToken } from '../../client/token'
 
 export function isTauri(): boolean {
-  return BROWSER && '__TAURI_INTERNALS__' in (globalThis as any)
+  return BROWSER && '__TAURI_INTERNALS__' in globalThis
 }
 
-export async function signInWithTauri(
-  provider: string,
+export async function signInWithTauri<const TAuth = unknown, P extends ProviderIds<TAuth> = ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(
+  provider: P,
   baseUrl: string,
   scheme: string = 'gau',
   redirectOverride?: string,
-  profile?: string,
+  profile?: PR,
 ) {
   if (!isTauri())
     return
@@ -31,7 +32,7 @@ export async function signInWithTauri(
   const params = new URLSearchParams()
   params.set('redirectTo', redirectTo)
   if (profile)
-    params.set('profile', profile)
+    params.set('profile', String(profile))
   const authUrl = `${baseUrl}/${provider}?${params.toString()}`
   await openUrl(authUrl)
 }
@@ -65,12 +66,12 @@ export function handleTauriDeepLink(url: string, baseUrl: string, scheme: string
     onToken(token)
 }
 
-export async function linkAccountWithTauri(
-  provider: string,
+export async function linkAccountWithTauri<const TAuth = unknown, P extends ProviderIds<TAuth> = ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(
+  provider: P,
   baseUrl: string,
   scheme: string = 'gau',
   redirectOverride?: string,
-  profile?: string,
+  profile?: PR,
 ) {
   if (!isTauri())
     return
@@ -98,7 +99,21 @@ export async function linkAccountWithTauri(
   params.set('redirectTo', redirectTo)
   params.set('token', token)
   if (profile)
-    params.set('profile', profile)
+    params.set('profile', String(profile))
   const linkUrl = `${baseUrl}/link/${provider}?${params.toString()}`
   await openUrl(linkUrl)
+}
+
+export async function startAuthBridge(
+  baseUrl: string,
+  scheme: string,
+  onToken: (token: string) => Promise<void> | void,
+): Promise<(() => void) | void> {
+  if (!isTauri())
+    return
+
+  const unlisten = await setupTauriListener(async (url) => {
+    handleTauriDeepLink(url, baseUrl, scheme, onToken)
+  })
+  return unlisten
 }

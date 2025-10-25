@@ -3,7 +3,7 @@
   import AuthProvider from '@rttnd/gau/client/svelte/AuthProvider.svelte'
   import '@unocss/reset/tailwind.css'
   import 'virtual:uno.css'
-  
+
   const { children } = $props()
 </script>
 

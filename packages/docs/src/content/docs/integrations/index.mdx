@@ -22,6 +22,12 @@ And backend-only frameworks:
 <div class="row">
   <IconLink href="/integrations/bun-serve/" icon="i-logos:bun" title="Bun.serve" flat />
   <IconLink href="/integrations/elysia/" icon="i-icons:elysia" title="Elysia" flat />
+</div>
+
+For backend-only setups, you can use the vanilla client on the frontend:
+
+<div class="row">
+  <IconLink href="/integrations/vanilla/" icon="i-material-icon-theme:typescript" title="Vanilla" flat />
 </div> 
 
 ## AuthProvider
@@ -76,6 +82,16 @@ An object containing the current authentication state. Its `user` and `session` 
 - `accounts`: An array of OAuth accounts linked to the user, or `null`.
 - `providers`: An array of available provider IDs.
 
+#### `isLoading`
+
+> **Type**: `boolean`
+
+A boolean indicating whether the initial session fetch is still in progress. This is useful for showing loading states in your UI.
+
+<Aside type="note">
+  This property is only available in the Svelte client. The Solid client uses Solid's resource system which has its own loading state.
+</Aside>
+
 #### `signIn`
 
 > **Type**: `(provider: string, options?: { redirectTo?: string }) => Promise<void>`
@@ -115,3 +131,14 @@ A function to unlink an OAuth provider from the user's account.
 <Aside type="caution">
   A user cannot unlink their last remaining account, as this would leave them with no way to sign in. `gau` will prevent this action and return an error.
 </Aside>
+
+#### `refresh`
+
+> **Type**: `() => Promise<void>`
+
+A function to manually refresh the session from the server. This fetches the latest session data and updates the local state.
+
+This might be useful when:
+- You've updated user data on the server and want to reflect changes immediately
+- You want to check if the session is still valid
+- You've linked or unlinked accounts and want to update the accounts list

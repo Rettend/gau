@@ -8,11 +8,11 @@ export default defineConfig({
     presetIcons({
       collections: {
         icons: {
-          'drizzle': () => fs.readFile('./src/assets/adapters/drizzle.svg', 'utf-8'),
-          'elysia': () => fs.readFile('./src/assets/integrations/elysia.svg', 'utf-8'),
+          drizzle: () => fs.readFile('./src/assets/adapters/drizzle.svg', 'utf-8'),
+          elysia: () => fs.readFile('./src/assets/integrations/elysia.svg', 'utf-8'),
         },
         bigicons: {
-          'discord': () => fs.readFile('./src/assets/providers/discord.svg', 'utf-8'),
+          discord: () => fs.readFile('./src/assets/providers/discord.svg', 'utf-8'),
         },
       },
       extraProperties: {

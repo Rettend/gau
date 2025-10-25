@@ -119,6 +119,26 @@ This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite or
     {/if}
     ```
 
+    For protecting routes on the client side, you can use the `<Protected>` component:
+
+    ```svelte title="src/routes/dashboard/+page.svelte"
+    <script>
+      import { useAuth } from '$lib/auth'
+      import Protected from '@rttnd/gau/client/svelte/Protected.svelte'
+
+      const auth = useAuth()
+    </script>
+
+    <Protected redirectTo='/'>
+      <h1>Dashboard</h1>
+      <p>Welcome, {auth.session?.user?.name}!</p>
+    </Protected>
+    ```
+
+    <Aside type="note">
+      For better security, consider [server-side protection](#server-side-protection) using `+page.server.ts`. See the [Protected Routes](/integrations/#protected-routes) section for more details.
+    </Aside>
+
 5. ##### File Structure
 
     <FileTree>

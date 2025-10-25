@@ -10,8 +10,12 @@ describe('vanilla client', () => {
   let fetchSpy: MockInstance
 
   const mockGetSessionToken = vi.fn(() => sessionToken)
-  const mockStoreSessionToken = vi.fn((t: string) => { sessionToken = t })
-  const mockClearSessionToken = vi.fn(() => { sessionToken = null })
+  const mockStoreSessionToken = vi.fn((t: string) => {
+    sessionToken = t
+  })
+  const mockClearSessionToken = vi.fn(() => {
+    sessionToken = null
+  })
 
   const makeJsonResponse = (data: any, headers: Record<string, string> = { 'content-type': 'application/json' }) =>
     new Response(JSON.stringify(data), { headers })

@@ -1,0 +1,155 @@
+---
+title: Vanilla Client
+description: How to use gau's vanilla JavaScript client for any frontend framework or vanilla JS.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+import Aside from 'starlight-plugin-icons/components/Aside.astro'
+import IconLink from 'starlight-plugin-icons/components/IconLink.astro'
+
+The vanilla client can be used with any frontend setup. It's perfect for:
+- Backend-only auth setups (Bun.serve, Elysia, etc.)
+- Frameworks not yet supported by `gau`
+- Frameworkless apps
+
+The downside is that 
+
+<br />
+
+<Steps>
+1. ##### Set up your backend
+
+    Follow one of the backend-only integration guides:
+
+    <div class="row">
+      <IconLink href="/integrations/bun-serve/" icon="i-logos:bun" title="Bun.serve" flat />
+      <IconLink href="/integrations/elysia/" icon="i-icons:elysia" title="Elysia" flat />
+    </div>
+
+    Or use `createHandler` from `@rttnd/gau/core` with any framework that supports standard `Request`/`Response` objects.
+
+2. ##### Create the client
+
+    Import `createAuthClient` and initialize it with your auth API base URL:
+
+    ```ts title="src/auth.ts"
+    import process from 'node:process'
+    import { createAuthClient } from '@rttnd/gau/client/vanilla'
+    import type { Auth } from './server/auth'
+
+    export const auth = createAuthClient<Auth>({
+      baseUrl: process.env.AUTH_BASE_URL // http://localhost:3000/api/auth in dev
+    })
+    ```
+
+    <Aside type="note">
+      The `Auth` type import is optional but provides better types for your configured providers.
+    </Aside>
+
+3. ##### Use the client
+
+    The client provides methods to manage authentication:
+
+    ###### Fetch Session
+
+    ```ts
+    const session = await auth.fetchSession()
+    console.log(session.user) // User | null
+    ```
+
+    ###### Sign In
+    
+    Redirects to OAuth provider
+
+    ```ts
+    await auth.signIn('github', {
+      redirectTo: '/dashboard', // Optional
+    })
+    ```
+
+    ###### Sign Out
+
+    ```ts
+    await auth.signOut()
+    ```
+
+    ###### Link Account
+
+    ```ts
+    await auth.linkAccount('google', {
+      redirectTo: '/profile',
+    })
+    ```
+
+    ###### Unlink Account
+
+    ```ts
+    await auth.unlinkAccount('google')
+    ```
+
+    ###### Refresh Session
+
+    ```ts
+    await auth.refreshSession()
+    ```
+
+    ###### Listen to Session Changes
+
+    ```ts
+    const unsubscribe = auth.onSessionChange((session) => {
+      console.log('Session updated:', session)
+      // Update UI, store in state management, etc.
+    })
+
+    // Later: clean up listener
+    unsubscribe()
+    ```
+
+    ###### Handle Redirect Callbacks
+
+    After OAuth redirects back to your app, handle the callback:
+
+    ```ts
+    const handled = await auth.handleRedirectCallback((url) => {
+      window.history.replaceState({}, '', url) // Example
+    })
+
+    if (handled) {
+      console.log('OAuth callback handled, session updated')
+    }
+    ```
+
+4. ##### Next Steps
+
+    - Learn about [Session Management](/guides/session-management)
+    - Explore [OAuth Providers](/providers/)
+    - See [Security best practices](/guides/security)
+
+</Steps>
+
+
+#### Session Token Storage
+
+The vanilla client stores and retrieves session tokens using:
+- `localStorage.getItem('gau-token')`
+- `document.cookie` for `__gau-session-token`
+
+#### API Reference
+
+##### `createAuthClient<TAuth>(options)`
+
+Creates a new auth client instance.
+
+**Options:**
+- `baseUrl` (required): Base URL of your auth API
+
+**Returns:**
+- `fetchSession()`: Fetches the current session from the server
+- `refreshSession()`: Alias for `fetchSession()`, refreshes the session
+- `applySessionToken(token)`: Applies a session token manually
+- `onSessionChange(listener)`: Subscribes to session changes, returns unsubscribe function
+- `handleRedirectCallback(replaceUrl?)`: Handles OAuth redirect callbacks
+- `signIn(provider, options?)`: Initiates sign-in flow
+- `signOut()`: Signs out the user
+- `linkAccount(provider, options?)`: Links an additional OAuth account
+- `unlinkAccount(provider)`: Unlinks an OAuth account

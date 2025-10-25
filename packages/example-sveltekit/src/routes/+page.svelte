@@ -5,7 +5,7 @@
   const auth = useAuth()
 
   $inspect(auth.session)
-  
+
   type ProvidersMeta = Record<Provider, { label: string, icon: string }>
   const providers: ProvidersMeta = {
     github: { label: 'GitHub', icon: 'i-ph:github-logo' },

@@ -1,18 +1,11 @@
-import type { Account, Session, User } from '../../core'
+import type { GauSession, ProfileName, ProviderIds } from '../../core'
 import { clearSessionToken, getSessionToken, storeSessionToken } from '../token'
 
 export interface AuthClientOptions {
   baseUrl: string
 }
 
-export interface GauSessionLike<TProviders extends string = string> {
-  user: User | null
-  session: Session | null
-  accounts?: Account[] | null
-  providers?: TProviders[]
-}
-
-type SessionListener = (session: GauSessionLike) => void
+type SessionListener<TAuth = unknown> = (session: GauSession<ProviderIds<TAuth>>) => void
 
 function buildQuery(params: Record<string, string | undefined | null>): string {
   const q = new URLSearchParams()
@@ -24,16 +17,16 @@ function buildQuery(params: Record<string, string | undefined | null>): string {
   return s ? `?${s}` : ''
 }
 
-export function createAuthClient<TProviders extends string = string>({ baseUrl }: AuthClientOptions) {
-  let currentSession: GauSessionLike<TProviders> = { user: null, session: null, accounts: null, providers: [] }
-  const listeners = new Set<SessionListener>()
+export function createAuthClient<const TAuth = unknown>({ baseUrl }: AuthClientOptions) {
+  let currentSession: GauSession<ProviderIds<TAuth>> = { user: null, session: null, accounts: null, providers: [] }
+  const listeners = new Set<SessionListener<TAuth>>()
 
   const notify = () => {
     for (const l of listeners)
       l(currentSession)
   }
 
-  async function fetchSession(): Promise<GauSessionLike<TProviders>> {
+  async function fetchSession(): Promise<GauSession<ProviderIds<TAuth>>> {
     const token = getSessionToken()
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined
     const res = await fetch(`${baseUrl}/session`, token ? { headers } : { credentials: 'include' })
@@ -43,34 +36,83 @@ export function createAuthClient<TProviders extends string = string>({ baseUrl }
     return { user: null, session: null, accounts: null, providers: [] }
   }
 
-  async function refreshSession(): Promise<GauSessionLike<TProviders>> {
+  async function refreshSession(): Promise<GauSession<ProviderIds<TAuth>>> {
     const next = await fetchSession()
     currentSession = next
     notify()
     return next
   }
 
-  function onSessionChange(listener: SessionListener): () => void {
+  async function applySessionToken(token: string): Promise<void> {
+    try {
+      storeSessionToken(token)
+    }
+    finally {
+      await refreshSession()
+    }
+  }
+
+  function onSessionChange(listener: SessionListener<TAuth>): () => void {
     listeners.add(listener)
     return () => listeners.delete(listener)
   }
 
-  function makeProviderUrl(provider: string, params?: { redirectTo?: string, profile?: string }): string {
-    const q = buildQuery({ redirectTo: params?.redirectTo, profile: params?.profile })
+  async function handleRedirectCallback(replaceUrl?: (url: string) => void): Promise<boolean> {
+    if (typeof window === 'undefined')
+      return false
+
+    if (window.location.hash === '#_=_') {
+      const cleanUrl = window.location.pathname + window.location.search
+      if (replaceUrl)
+        replaceUrl(cleanUrl)
+      else
+        window.history.replaceState(null, '', cleanUrl)
+      return false
+    }
+
+    const hash = window.location.hash?.substring(1) ?? ''
+    if (!hash)
+      return false
+
+    const params = new URLSearchParams(hash)
+    const token = params.get('token')
+    if (!token)
+      return false
+
+    await applySessionToken(token)
+
+    const cleanUrl = window.location.pathname + window.location.search
+    if (replaceUrl)
+      replaceUrl(cleanUrl)
+    else
+      window.history.replaceState(null, '', cleanUrl)
+
+    return true
+  }
+
+  function makeProviderUrl<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, params?: { redirectTo?: string, profile?: PR }): string {
+    const q = buildQuery({
+      redirectTo: params?.redirectTo,
+      profile: params?.profile != null ? String(params.profile) : undefined,
+    })
     return `${baseUrl}/${provider}${q}`
   }
 
-  function makeLinkUrl(provider: string, params: { redirectTo?: string, profile?: string, redirect?: 'false' | 'true' }): string {
-    const q = buildQuery({ redirectTo: params.redirectTo, profile: params.profile, redirect: params.redirect })
+  function makeLinkUrl<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, params: { redirectTo?: string, profile?: PR, redirect?: 'false' | 'true' }): string {
+    const q = buildQuery({
+      redirectTo: params.redirectTo,
+      profile: params.profile != null ? String(params.profile) : undefined,
+      redirect: params.redirect,
+    })
     return `${baseUrl}/link/${provider}${q}`
   }
 
-  async function signIn(provider: string, options?: { redirectTo?: string, profile?: string }): Promise<string> {
+  async function signIn<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
     const url = makeProviderUrl(provider, options)
     return url
   }
 
-  async function linkAccount(provider: string, options?: { redirectTo?: string, profile?: string }): Promise<string> {
+  async function linkAccount<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
     const linkUrl = makeLinkUrl(provider, { redirectTo: options?.redirectTo, profile: options?.profile, redirect: 'false' })
     const token = getSessionToken()
     const fetchOptions: RequestInit = token ? { headers: { Authorization: `Bearer ${token}` } } : { credentials: 'include' }
@@ -86,7 +128,7 @@ export function createAuthClient<TProviders extends string = string>({ baseUrl }
     return linkUrl
   }
 
-  async function unlinkAccount(provider: string): Promise<boolean> {
+  async function unlinkAccount<P extends ProviderIds<TAuth>>(provider: P): Promise<boolean> {
     const token = getSessionToken()
     const fetchOptions: RequestInit = token ? { headers: { Authorization: `Bearer ${token}` } } : { credentials: 'include' }
     const res = await fetch(`${baseUrl}/unlink/${provider}`, { method: 'POST', ...fetchOptions })
@@ -111,6 +153,8 @@ export function createAuthClient<TProviders extends string = string>({ baseUrl }
     },
     fetchSession,
     refreshSession,
+    applySessionToken,
+    handleRedirectCallback,
     onSessionChange,
     signIn,
     linkAccount,

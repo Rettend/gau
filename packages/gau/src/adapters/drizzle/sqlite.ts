@@ -26,7 +26,7 @@ export type AccountsTable = Table & {
   tokenType: AnyColumn
   scope: AnyColumn
   idToken: AnyColumn
-  sessionState: AnyColumn
+  sessionState?: AnyColumn
 }
 
 export function SQLiteDrizzleAdapter<

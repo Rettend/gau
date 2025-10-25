@@ -144,6 +144,26 @@ This guide shows how to integrate `gau` with SolidStart, using Drizzle (SQLite o
     }
     ```
 
+    For protecting routes on the client side, you can use the `Protected` helper:
+
+    ```tsx title="src/routes/dashboard.tsx"
+    import { Protected } from '@rttnd/gau/client/solid'
+
+    export default Protected(
+      (session) => (
+        <div>
+          <h1>Dashboard</h1>
+          <p>Welcome, {session().user?.name}!</p>
+        </div>
+      ),
+      '/login' // redirect URL
+    )
+    ```
+
+    <Aside type="note">
+      For better security, consider [server-side protection](#server-side-protection) using route data functions. See the [Protected Routes](/integrations/#protected-routes) section for more details.
+    </Aside>
+
 5. ##### File Structure
 
     <FileTree>

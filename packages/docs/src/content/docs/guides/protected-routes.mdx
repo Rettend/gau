@@ -1,0 +1,134 @@
+---
+title: Protected Routes
+description: Keep routes behind authentication on both the client and the server.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components'
+import Aside from 'starlight-plugin-icons/components/Aside.astro'
+
+Protecting routes ensures that only authenticated users can access them.
+
+`gau` supports both client-side guards for better UX and server-side checks for security.
+
+**You should use both.**
+
+## Client-Side
+
+Client-side guards keep the session reactive and prevent flickers when navigating within your app.
+
+<Aside type="note">
+  Use layouts to protect a group of routes.
+</Aside>
+
+<Tabs syncKey="framework">
+  <TabItem label="SvelteKit">
+    Wrap the page in the `<Protected>` component.
+
+    ```svelte title="src/routes/dashboard/+page.svelte"
+    <script lang='ts'>
+      import Protected from '@rttnd/gau/client/svelte/Protected.svelte'
+      import { useAuth } from '$lib/auth'
+
+      const auth = useAuth()
+    </script>
+
+    <Protected redirectTo='/'>
+      <h1>Dashboard</h1>
+      <p>Welcome, {auth.session?.user?.name}!</p>
+    </Protected>
+    ```
+
+    `<Protected>` props:
+
+    - `redirectTo` (optional): where to send unauthenticated visitors. Defaults to `'/'`.
+    - `fallback` (optional): a Svelte snippet rendered while loading or when blocked.
+
+    ```svelte
+    <Protected redirectTo='/login' fallback={() => <div>Loading...</div>}>
+      <!-- page content -->
+    </Protected>
+    ```
+  </TabItem>
+
+  <TabItem label="SolidStart">
+    Use the `Protected` helper to create a wrapper component per route.
+
+    ```tsx title="src/routes/dashboard.tsx"
+    import { Protected } from '@rttnd/gau/client/solid'
+    import { useAuth } from '~/lib/auth'
+
+    export default Protected(Page, '/')
+
+    function Page() {
+      const auth = useAuth()
+
+      return (
+        <div>
+          <h1>Dashboard</h1>
+          <p>Welcome, {session().user?.name}!</p>
+        </div>
+      )
+    }
+    ```
+
+    Provide a fallback component to render a custom loading or blocked state instead of redirecting:
+
+    ```tsx
+    export default Protected(
+      () => <Dashboard />,
+      () => <div>Loading...</div>
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+## Server-Side
+
+Check session on the server to avoid rendering protected pages at all when the user is not signed in.
+
+<Tabs syncKey="framework">
+  <TabItem label="SvelteKit">
+    Example:
+
+    ```ts title="src/routes/dashboard/+page.server.ts"
+    import type { PageServerLoad } from './$types'
+    import { redirect } from '@sveltejs/kit'
+
+    export const load: PageServerLoad = async ({ locals }) => {
+      const session = await locals.getSession()
+      if (!session?.user)
+        throw redirect(302, '/login')
+
+      return { session }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="SolidStart">
+    Example:
+
+    ```tsx title="src/routes/dashboard.tsx"
+    import type { RouteDefinition } from '@solidjs/router'
+    import { query, createAsync, redirect } from '@solidjs/router'
+    import { getRequestEvent } from 'solid-js/web'
+
+    const getSession = query(async () => {
+      'use server'
+      const event = getRequestEvent()
+      const session = await event.locals.getSession()
+      if (!session?.user)
+        throw redirect('/login')
+      return session
+    }, 'session')
+
+    export const route = {
+      preload: () => getSession(),
+    } satisfies RouteDefinition
+
+    export default function Dashboard() {
+      const session = createAsync(() => getSession())
+      return <div>Welcome, {session()?.user?.name}!</div>
+    }
+    ```
+  </TabItem>
+</Tabs>
