@@ -26,7 +26,7 @@ export default defineConfig({
           name: 'fast',
           globals: true,
           include: [
-            'packages/gau/test/**/*.test.(ts|tsx|svelte)',
+            'packages/gau/test/**/*.test.{ts,tsx,svelte}',
           ],
           exclude: ['packages/gau/test/adapters/drizzle/pg.test.ts'],
           environment: 'node',
@@ -39,10 +39,10 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'all',
+          name: 'pg',
           globals: true,
           include: [
-            'packages/gau/test/**/*.test.(ts|tsx|svelte)',
+            'packages/gau/test/adapters/drizzle/pg.test.ts',
           ],
           environment: 'node',
           setupFiles: ['packages/gau/test/setup.ts'],
