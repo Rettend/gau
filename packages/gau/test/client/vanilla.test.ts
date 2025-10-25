@@ -1,17 +1,17 @@
 import type { MockInstance } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as token from '../../src/client/token'
 import { createAuthClient } from '../../src/client/vanilla'
 
 describe('vanilla client', () => {
   const baseUrl = 'http://api.test/api/auth'
 
-  let token: string | null
+  let sessionToken: string | null
   let fetchSpy: MockInstance
-  const tokenStore = {
-    get: () => token,
-    set: (t: string) => { token = t },
-    clear: () => { token = null },
-  }
+
+  const mockGetSessionToken = vi.fn(() => sessionToken)
+  const mockStoreSessionToken = vi.fn((t: string) => { sessionToken = t })
+  const mockClearSessionToken = vi.fn(() => { sessionToken = null })
 
   const makeJsonResponse = (data: any, headers: Record<string, string> = { 'content-type': 'application/json' }) =>
     new Response(JSON.stringify(data), { headers })
@@ -19,8 +19,11 @@ describe('vanilla client', () => {
   const sessionPayload = (id: string) => ({ user: { id }, session: { sub: id }, accounts: [], providers: [] })
 
   beforeEach(() => {
-    token = null
+    sessionToken = null
     fetchSpy = vi.spyOn(globalThis, 'fetch')
+    vi.spyOn(token, 'getSessionToken').mockImplementation(mockGetSessionToken)
+    vi.spyOn(token, 'storeSessionToken').mockImplementation(mockStoreSessionToken)
+    vi.spyOn(token, 'clearSessionToken').mockImplementation(mockClearSessionToken)
   })
 
   afterEach(() => {
@@ -30,7 +33,7 @@ describe('vanilla client', () => {
   it('fetchSession: no token -> uses credentials and returns JSON session', async () => {
     fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('u1')))
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const s = await client.fetchSession()
     expect(s).toEqual(sessionPayload('u1'))
 
@@ -41,10 +44,10 @@ describe('vanilla client', () => {
   })
 
   it('fetchSession: with token -> sends Authorization header', async () => {
-    token = 'tok-123'
+    sessionToken = 'tok-123'
     fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('u2')))
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const s = await client.fetchSession()
     expect(s).toEqual(sessionPayload('u2'))
 
@@ -57,7 +60,7 @@ describe('vanilla client', () => {
   it('fetchSession: non-JSON response -> returns null session shape', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('OK', { headers: { 'content-type': 'text/plain' } }))
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const s = await client.fetchSession()
     expect(s).toEqual({ user: null, session: null, accounts: null, providers: [] })
   })
@@ -65,7 +68,7 @@ describe('vanilla client', () => {
   it('refreshSession updates internal state and notifies listeners', async () => {
     fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('u3')))
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const listener = vi.fn()
     const off = client.onSessionChange(listener)
 
@@ -81,17 +84,17 @@ describe('vanilla client', () => {
   })
 
   it('signIn returns provider URL with query params', async () => {
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const url = await client.signIn('github', { redirectTo: 'http://app.test/cb', profile: 'work' })
     expect(url).toBe(`${baseUrl}/github?redirectTo=http%3A%2F%2Fapp.test%2Fcb&profile=work`)
   })
 
   it('linkAccount: uses redirect URL when Response is redirected', async () => {
-    token = 't'
+    sessionToken = 't'
     const redirectedResponse = { redirected: true, url: 'https://provider.test/redirect', json: vi.fn().mockResolvedValue({}), ok: true } as any
     fetchSpy.mockResolvedValueOnce(redirectedResponse)
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('github', { redirectTo: 'http://app/cb', profile: 'p1' })
     expect(fetchSpy).toHaveBeenCalledWith(
       `${baseUrl}/link/github?redirectTo=http%3A%2F%2Fapp%2Fcb&profile=p1&redirect=false`,
@@ -101,19 +104,19 @@ describe('vanilla client', () => {
   })
 
   it('linkAccount: uses JSON url when present', async () => {
-    token = 't'
+    sessionToken = 't'
     fetchSpy.mockResolvedValueOnce({ redirected: false, url: '', json: vi.fn().mockResolvedValue({ url: 'https://from-json' }) } as any)
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('google', { redirectTo: 'http://app/cb' })
     expect(url).toBe('https://from-json')
   })
 
   it('linkAccount: falls back to constructed URL when no redirect or JSON url', async () => {
-    token = null
+    sessionToken = null
     fetchSpy.mockResolvedValueOnce({ redirected: false, url: '', json: vi.fn().mockRejectedValue(new Error('no json')) } as any)
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('discord', { profile: 'default' })
     expect(fetchSpy).toHaveBeenCalledWith(
       `${baseUrl}/link/discord?profile=default&redirect=false`,
@@ -127,7 +130,7 @@ describe('vanilla client', () => {
       .mockResolvedValueOnce({ ok: true }) // POST unlink
       .mockResolvedValueOnce(makeJsonResponse(sessionPayload('u5'))) // refreshSession
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const ok = await client.unlinkAccount('github')
     expect(ok).toBe(true)
     expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/unlink/github`, { method: 'POST', credentials: 'include' })
@@ -136,20 +139,20 @@ describe('vanilla client', () => {
 
   it('unlinkAccount: returns false on non-OK', async () => {
     fetchSpy.mockResolvedValueOnce({ ok: false } as any)
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     const ok = await client.unlinkAccount('github')
     expect(ok).toBe(false)
   })
 
   it('signOut: clears token, POSTs without Authorization, then refreshes session', async () => {
-    token = 'to-clear'
+    sessionToken = 'to-clear'
     fetchSpy
       .mockResolvedValueOnce({ ok: true }) // POST signout
       .mockResolvedValueOnce(makeJsonResponse(sessionPayload('u6'))) // refreshSession
 
-    const client = createAuthClient({ baseUrl, tokenStore })
+    const client = createAuthClient({ baseUrl })
     await client.signOut()
-    expect(token).toBeNull()
+    expect(sessionToken).toBeNull()
     expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/signout`, { method: 'POST', credentials: 'include' })
     expect(fetchSpy).toHaveBeenNthCalledWith(2, `${baseUrl}/session`, { credentials: 'include' })
   })

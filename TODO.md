@@ -2,12 +2,22 @@
 
 ## now
 
+- [ ] docs
+  - [ ] protected routes: sveltekit, solidstart
+  - [ ] refresh method
+  - [ ] vanilla client
+- [ ] examples
+  - [ ] move elysia example to vanilla client
+  - [ ] move bun.serve example to vanilla client
+- [ ] fix
+  - [ ] solid client provider inside or outside router?
+
+## focus
+
 - [ ] email provider, send verification email?
 - [ ] FAILED (No max-age or expires): <https://formate.app/api/auth/session>
 
 ## docs
-
-- [ ] protected routes: sveltekit, solidstart
 
 ## fix
 
@@ -31,6 +41,6 @@
 
 ## later
 
-- [ ] drizzle drivers for mysql, postgres
+- [ ] drizzle drivers when drizzle 1.0
 - [ ] Passkeys/WebAuthn
 - [ ] eliminate waterfalls, currently: initial html, css, some js -> auth/session -> rest of the js

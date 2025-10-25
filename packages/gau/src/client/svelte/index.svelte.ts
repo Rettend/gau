@@ -32,11 +32,6 @@ export function createSvelteAuth<const TAuth = unknown>({
 
   const client = createAuthClient<ProviderIds<TAuth>>({
     baseUrl,
-    tokenStore: {
-      get: () => getSessionToken(),
-      set: t => storeSessionToken(t),
-      clear: () => clearSessionToken(),
-    },
   })
 
   const fetchSession = async (): Promise<CurrentSession> => {

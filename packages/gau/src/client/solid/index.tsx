@@ -23,11 +23,6 @@ export function AuthProvider<const TAuth = unknown>(props: ParentProps & { auth?
 
   const client = createAuthClient<ProviderIds<TAuth>>({
     baseUrl,
-    tokenStore: {
-      get: () => getSessionToken(),
-      set: t => storeSessionToken(t),
-      clear: () => clearSessionToken(),
-    },
   })
 
   const fetchSession = async (): Promise<GauSession<ProviderIds<TAuth>>> => {

@@ -1,14 +1,8 @@
 import type { Account, Session, User } from '../../core'
-
-export interface TokenStore {
-  get: () => string | null
-  set: (token: string) => void
-  clear: () => void
-}
+import { clearSessionToken, getSessionToken, storeSessionToken } from '../token'
 
 export interface AuthClientOptions {
   baseUrl: string
-  tokenStore: TokenStore
 }
 
 export interface GauSessionLike<TProviders extends string = string> {
@@ -30,7 +24,7 @@ function buildQuery(params: Record<string, string | undefined | null>): string {
   return s ? `?${s}` : ''
 }
 
-export function createAuthClient<TProviders extends string = string>({ baseUrl, tokenStore }: AuthClientOptions) {
+export function createAuthClient<TProviders extends string = string>({ baseUrl }: AuthClientOptions) {
   let currentSession: GauSessionLike<TProviders> = { user: null, session: null, accounts: null, providers: [] }
   const listeners = new Set<SessionListener>()
 
@@ -40,7 +34,7 @@ export function createAuthClient<TProviders extends string = string>({ baseUrl, 
   }
 
   async function fetchSession(): Promise<GauSessionLike<TProviders>> {
-    const token = tokenStore.get()
+    const token = getSessionToken()
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined
     const res = await fetch(`${baseUrl}/session`, token ? { headers } : { credentials: 'include' })
     const contentType = res.headers.get('content-type')
@@ -78,7 +72,7 @@ export function createAuthClient<TProviders extends string = string>({ baseUrl, 
 
   async function linkAccount(provider: string, options?: { redirectTo?: string, profile?: string }): Promise<string> {
     const linkUrl = makeLinkUrl(provider, { redirectTo: options?.redirectTo, profile: options?.profile, redirect: 'false' })
-    const token = tokenStore.get()
+    const token = getSessionToken()
     const fetchOptions: RequestInit = token ? { headers: { Authorization: `Bearer ${token}` } } : { credentials: 'include' }
     const res: Response = await fetch(linkUrl, fetchOptions)
     if (res.redirected)
@@ -93,7 +87,7 @@ export function createAuthClient<TProviders extends string = string>({ baseUrl, 
   }
 
   async function unlinkAccount(provider: string): Promise<boolean> {
-    const token = tokenStore.get()
+    const token = getSessionToken()
     const fetchOptions: RequestInit = token ? { headers: { Authorization: `Bearer ${token}` } } : { credentials: 'include' }
     const res = await fetch(`${baseUrl}/unlink/${provider}`, { method: 'POST', ...fetchOptions })
     if (res.ok) {
@@ -104,8 +98,8 @@ export function createAuthClient<TProviders extends string = string>({ baseUrl, 
   }
 
   async function signOut(): Promise<void> {
-    tokenStore.clear()
-    const token = tokenStore.get()
+    clearSessionToken()
+    const token = getSessionToken()
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined
     await fetch(`${baseUrl}/signout`, token ? { method: 'POST', headers } : { method: 'POST', credentials: 'include' })
     await refreshSession()
