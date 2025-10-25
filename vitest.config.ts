@@ -2,11 +2,6 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    globals: true,
-    include: ['packages/gau/test/**/*.test.ts'],
-    environment: 'node',
-    setupFiles: ['packages/gau/test/setup.ts'],
-    hookTimeout: 20000,
     coverage: {
       enabled: true,
       provider: 'v8',
@@ -16,7 +11,7 @@ export default defineConfig({
         ['json-summary', { file: '../coverage.json' }],
       ],
       include: [
-        'packages/gau/**/*.ts',
+        'packages/gau/src/**/*.@(ts|tsx|svelte)',
       ],
       exclude: [
         '**/dist/**',
@@ -25,8 +20,38 @@ export default defineConfig({
         '**/*.config.ts',
       ],
     },
-    typecheck: {
-      tsconfig: 'packages/gau/tsconfig.json',
-    },
+    projects: [
+      {
+        test: {
+          name: 'fast',
+          globals: true,
+          include: [
+            'packages/gau/test/**/*.test.(ts|tsx|svelte)',
+          ],
+          exclude: ['packages/gau/test/adapters/drizzle/pg.test.ts'],
+          environment: 'node',
+          setupFiles: ['packages/gau/test/setup.ts'],
+          hookTimeout: 20000,
+          typecheck: {
+            tsconfig: 'packages/gau/tsconfig.json',
+          },
+        },
+      },
+      {
+        test: {
+          name: 'all',
+          globals: true,
+          include: [
+            'packages/gau/test/**/*.test.(ts|tsx|svelte)',
+          ],
+          environment: 'node',
+          setupFiles: ['packages/gau/test/setup.ts'],
+          hookTimeout: 20000,
+          typecheck: {
+            tsconfig: 'packages/gau/tsconfig.json',
+          },
+        },
+      },
+    ],
   },
 })
