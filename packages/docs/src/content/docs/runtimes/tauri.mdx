@@ -88,42 +88,42 @@ This guide assumes you have already completed the setup for your web framework (
 
     - [Single Instance](https://v2.tauri.app/plugin/single-instance)
     - [OS](https://v2.tauri.app/plugin/os-info)
-    - [Shell](https://v2.tauri.app/plugin/shell)
+    - [Opener](https://v2.tauri.app/plugin/opener)
     - [Deep Link](https://v2.tauri.app/plugin/deep-linking)
 
     <Tabs syncKey="pkg">
       <TabItem label="npm">
         ```sh
         npm run tauri add os
-        npm run tauri add shell
+        npm run tauri add opener
         npm run tauri add deep-link
         ```
       </TabItem>
       <TabItem label="pnpm">
         ```sh
         pnpm tauri add os
-        pnpm tauri add shell
+        pnpm tauri add opener
         pnpm tauri add deep-link
         ```
       </TabItem>
       <TabItem label="yarn">
         ```sh
         yarn run tauri add os
-        yarn run tauri add shell
+        yarn run tauri add opener
         yarn run tauri add deep-link
         ```
       </TabItem>
       <TabItem label="bun">
         ```sh
         bun tauri add os
-        bun tauri add shell
+        bun tauri add opener
         bun tauri add deep-link
         ```
       </TabItem>
       <TabItem label="ni">
         ```sh
         nlx tauri add os
-        nlx tauri add shell
+        nlx tauri add opener
         nlx tauri add deep-link
         ```
       </TabItem>
@@ -201,9 +201,9 @@ This guide assumes you have already completed the setup for your web framework (
       "permissions": [
         "core:default",
         "core:event:default",
-        "os:default",
-        "shell:default",
-        "deep-link:default"
+        "deep-link:default",
+        "opener:default",
+        "os:default"
       ]
     }
     ```
@@ -234,8 +234,8 @@ This guide assumes you have already completed the setup for your web framework (
 
         builder
             .plugin(tauri_plugin_deep_link::init())
+            .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_os::init())
-            .plugin(tauri_plugin_shell::init())
             .setup(|app| {
                 #[cfg(any(windows, target_os = "linux"))]
                 #[cfg(debug_assertions)]

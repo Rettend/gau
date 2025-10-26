@@ -17,8 +17,8 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             #[cfg(any(windows, target_os = "linux"))]
             #[cfg(debug_assertions)]
