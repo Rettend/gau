@@ -177,6 +177,17 @@ This guide assumes you have already completed the setup for your web framework (
         </AuthProvider>
         ```
       </TabItem>
+      <TabItem label="Vanilla">
+        ```ts title="src/auth/client.ts" ins={5,6}
+        import process from 'node:process'
+        import { createAuthClient } from '@rttnd/gau/client/vanilla'
+
+        export const authClient = createAuthClient({
+          baseUrl: process.env.AUTH_BASE_URL, // http://localhost:3000/api/auth in dev
+          scheme: 'gau',
+        })
+        ```
+      </TabItem>
       <TabItem label="SolidStart">
         ```tsx title="src/app.tsx" del={5} ins={6}
         import { AuthProvider } from '@rttnd/gau/client/solid'
@@ -348,6 +359,28 @@ This guide assumes you have already completed the setup for your web framework (
         {:else}
           <button onclick={() => auth.signIn('github')}>Sign in with GitHub</button>
         {/if}
+        ```
+      </TabItem>
+      <TabItem label="Vanilla">
+        The vanilla client ships with helpers tailored for Tauri. Listen for tokens delivered via the Tauri deep link bridge with `startTauriBridge`.
+
+        ```ts title="src/main.ts" ins={5-14}
+        import { createAuthClient } from '@rttnd/gau/client/vanilla'
+
+        const authClient = createAuthClient({
+          baseUrl: import.meta.env.VITE_API_URL,
+          scheme: 'gau',
+        })
+
+        await authClient.startTauriBridge()
+
+        document.getElementById('sign-in-github')?.addEventListener('click', async () => {
+          await authClient.signIn('github')
+        })
+
+        document.getElementById('sign-out')?.addEventListener('click', async () => {
+          await authClient.signOut()
+        })
         ```
       </TabItem>
       <TabItem label="SolidStart">

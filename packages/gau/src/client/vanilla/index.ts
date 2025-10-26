@@ -1,8 +1,10 @@
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
+import { isTauri } from '../../runtimes/tauri/index'
 import { clearSessionToken, getSessionToken, storeSessionToken } from '../token'
 
 export interface AuthClientOptions {
   baseUrl: string
+  scheme?: string
 }
 
 type SessionListener<TAuth = unknown> = (session: GauSession<ProviderIds<TAuth>>) => void
@@ -17,7 +19,7 @@ function buildQuery(params: Record<string, string | undefined | null>): string {
   return s ? `?${s}` : ''
 }
 
-export function createAuthClient<const TAuth = unknown>({ baseUrl }: AuthClientOptions) {
+export function createAuthClient<const TAuth = unknown>({ baseUrl, scheme = 'gau' }: AuthClientOptions) {
   let currentSession: GauSession<ProviderIds<TAuth>> = { user: null, session: null, accounts: null, providers: [] }
   const listeners = new Set<SessionListener<TAuth>>()
 
@@ -108,12 +110,24 @@ export function createAuthClient<const TAuth = unknown>({ baseUrl }: AuthClientO
   }
 
   async function signIn<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
-    const url = makeProviderUrl(provider, options)
+    const url = makeProviderUrl<P, PR>(provider, options)
+
+    if (isTauri()) {
+      const { signInWithTauri } = await import('../../runtimes/tauri/index')
+      await signInWithTauri<TAuth, P, PR>(provider, baseUrl, scheme, options?.redirectTo, options?.profile)
+    }
+
     return url
   }
 
   async function linkAccount<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
-    const linkUrl = makeLinkUrl(provider, { redirectTo: options?.redirectTo, profile: options?.profile, redirect: 'false' })
+    if (isTauri()) {
+      const { linkAccountWithTauri } = await import('../../runtimes/tauri/index')
+      await linkAccountWithTauri<TAuth, P, PR>(provider, baseUrl, scheme, options?.redirectTo, options?.profile)
+      return makeLinkUrl<P, PR>(provider, { redirectTo: options?.redirectTo, profile: options?.profile, redirect: 'false' })
+    }
+
+    const linkUrl = makeLinkUrl<P, PR>(provider, { redirectTo: options?.redirectTo, profile: options?.profile, redirect: 'false' })
     const token = getSessionToken()
     const fetchOptions: RequestInit = token ? { headers: { Authorization: `Bearer ${token}` } } : { credentials: 'include' }
     const res: Response = await fetch(linkUrl, fetchOptions)
@@ -147,6 +161,17 @@ export function createAuthClient<const TAuth = unknown>({ baseUrl }: AuthClientO
     await refreshSession()
   }
 
+  async function startTauriBridge(): Promise<(() => void) | void> {
+    if (!isTauri())
+      return
+
+    const { startAuthBridge } = await import('../../runtimes/tauri/index')
+    const cleanup = await startAuthBridge(baseUrl, scheme, async (token) => {
+      await applySessionToken(token)
+    })
+    return cleanup
+  }
+
   return {
     get session() {
       return currentSession
@@ -160,5 +185,6 @@ export function createAuthClient<const TAuth = unknown>({ baseUrl }: AuthClientO
     linkAccount,
     unlinkAccount,
     signOut,
+    startTauriBridge,
   }
 }

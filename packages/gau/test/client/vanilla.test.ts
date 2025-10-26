@@ -2,6 +2,7 @@ import type { MockInstance } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as token from '../../src/client/token'
 import { createAuthClient } from '../../src/client/vanilla'
+import * as tauriHelpers from '../../src/runtimes/tauri/index'
 
 describe('vanilla client', () => {
   const baseUrl = 'http://api.test/api/auth'
@@ -93,6 +94,12 @@ describe('vanilla client', () => {
     expect(url).toBe(`${baseUrl}/github?redirectTo=http%3A%2F%2Fapp.test%2Fcb&profile=work`)
   })
 
+  it('signIn without redirect leaves URL untouched', async () => {
+    const client = createAuthClient({ baseUrl })
+    const url = await client.signIn('github')
+    expect(url).toBe(`${baseUrl}/github`)
+  })
+
   it('linkAccount: uses redirect URL when Response is redirected', async () => {
     sessionToken = 't'
     const redirectedResponse = { redirected: true, url: 'https://provider.test/redirect', json: vi.fn().mockResolvedValue({}), ok: true } as any
@@ -159,5 +166,69 @@ describe('vanilla client', () => {
     expect(sessionToken).toBeNull()
     expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/signout`, { method: 'POST', credentials: 'include' })
     expect(fetchSpy).toHaveBeenNthCalledWith(2, `${baseUrl}/session`, { credentials: 'include' })
+  })
+
+  it('signIn uses Tauri helper when environment is Tauri', async () => {
+    const isTauriSpy = vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(true)
+    const signInWithTauriSpy = vi.spyOn(tauriHelpers, 'signInWithTauri').mockResolvedValue()
+
+    const client = createAuthClient({ baseUrl, scheme: 'myapp' })
+    const url = await client.signIn('github', { redirectTo: 'https://app.test/callback', profile: 'work' })
+
+    expect(signInWithTauriSpy).toHaveBeenCalledWith('github', baseUrl, 'myapp', 'https://app.test/callback', 'work')
+    expect(url).toBe(`${baseUrl}/github?redirectTo=https%3A%2F%2Fapp.test%2Fcallback&profile=work`)
+
+    isTauriSpy.mockReturnValue(false)
+  })
+
+  it('linkAccount uses Tauri helper and skips fetch when environment is Tauri', async () => {
+    const isTauriSpy = vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(true)
+    const linkAccountWithTauriSpy = vi.spyOn(tauriHelpers, 'linkAccountWithTauri').mockResolvedValue()
+
+    const client = createAuthClient({ baseUrl })
+    const url = await client.linkAccount('github', { redirectTo: 'https://app.link' })
+
+    expect(linkAccountWithTauriSpy).toHaveBeenCalledWith('github', baseUrl, 'gau', 'https://app.link', undefined)
+    expect(url).toBe(`${baseUrl}/link/github?redirectTo=https%3A%2F%2Fapp.link&redirect=false`)
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    isTauriSpy.mockReturnValue(false)
+  })
+
+  it('startTauriBridge starts auth bridge and applies session token', async () => {
+    const cleanup = vi.fn()
+    const isTauriSpy = vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(true)
+    const startAuthBridgeSpy = vi.spyOn(tauriHelpers, 'startAuthBridge').mockResolvedValue(cleanup)
+
+    const client = createAuthClient({ baseUrl })
+    const unlisten = await client.startTauriBridge()
+
+    expect(startAuthBridgeSpy).toHaveBeenCalledWith(baseUrl, 'gau', expect.any(Function))
+    expect(unlisten).toBe(cleanup)
+
+    const handler = startAuthBridgeSpy.mock.calls[0][2]
+    fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('bridge')))
+    await handler('token-bridge')
+
+    expect(mockStoreSessionToken).toHaveBeenCalledWith('token-bridge')
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${baseUrl}/session`,
+      { headers: { Authorization: 'Bearer token-bridge' } },
+    )
+
+    isTauriSpy.mockReturnValue(false)
+  })
+
+  it('startTauriBridge is a no-op outside of Tauri', async () => {
+    const isTauriSpy = vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(false)
+    const startAuthBridgeSpy = vi.spyOn(tauriHelpers, 'startAuthBridge')
+
+    const client = createAuthClient({ baseUrl })
+    const result = await client.startTauriBridge()
+
+    expect(result).toBeUndefined()
+    expect(startAuthBridgeSpy).not.toHaveBeenCalled()
+
+    isTauriSpy.mockReturnValue(false)
   })
 })

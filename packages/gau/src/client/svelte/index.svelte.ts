@@ -54,15 +54,17 @@ export function createSvelteAuth<const TAuth = unknown>({
   }
 
   async function signIn<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
+    const inTauri = isTauri()
     let finalRedirectTo = redirectTo ?? defaultRedirectTo
-    if (!finalRedirectTo && BROWSER)
-      finalRedirectTo = window.location.origin
 
-    if (isTauri()) {
+    if (inTauri) {
       const { signInWithTauri } = await import('../../runtimes/tauri')
       await signInWithTauri<TAuth, P, typeof profile>(provider, baseUrl, scheme, finalRedirectTo, profile)
       return
     }
+
+    if (!finalRedirectTo && BROWSER)
+      finalRedirectTo = window.location.origin
 
     const url = await client.signIn<P, typeof profile>(provider, { redirectTo: finalRedirectTo, profile })
     if (BROWSER)

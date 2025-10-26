@@ -74,6 +74,12 @@ describe('tauri runtime helpers', () => {
         expect(mockOpen).toHaveBeenCalledWith('http://localhost:3000/api/auth/github?redirectTo=gau%3A%2F%2Foauth%2Fcallback')
       })
 
+      it('should default to scheme redirect when override omitted', async () => {
+        mockPlatform.mockReturnValue('windows')
+        await tauriHelpers.signInWithTauri('google', 'http://localhost:3000/api/auth', 'gau', undefined)
+        expect(mockOpen).toHaveBeenCalledWith('http://localhost:3000/api/auth/google?redirectTo=gau%3A%2F%2Foauth%2Fcallback')
+      })
+
       it('should use redirectOverride if provided', async () => {
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.signInWithTauri('github', 'http://localhost:3000/api/auth', 'gau', 'myapp://custom')
@@ -101,6 +107,14 @@ describe('tauri runtime helpers', () => {
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.linkAccountWithTauri('github', 'http://localhost:3000/api/auth', 'gau')
         const expectedUrl = 'http://localhost:3000/api/auth/link/github?redirectTo=gau%3A%2F%2Foauth%2Fcallback&token=test-session-token'
+        expect(mockOpen).toHaveBeenCalledWith(expectedUrl)
+      })
+
+      it('should default to scheme redirect when override omitted', async () => {
+        localStorageMock.setItem('gau-token', 'test-session-token')
+        mockPlatform.mockReturnValue('windows')
+        await tauriHelpers.linkAccountWithTauri('google', 'http://localhost:3000/api/auth', 'gau', undefined)
+        const expectedUrl = 'http://localhost:3000/api/auth/link/google?redirectTo=gau%3A%2F%2Foauth%2Fcallback&token=test-session-token'
         expect(mockOpen).toHaveBeenCalledWith(expectedUrl)
       })
 
