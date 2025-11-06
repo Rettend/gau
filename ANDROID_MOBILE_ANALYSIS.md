@@ -1,6 +1,6 @@
 # Android Mobile Support Analysis for gau
 
-**Date:** November 6, 2024  
+**Date:** November 6, 2024
 **Status:** gau works on web and Tauri desktop but not yet on mobile
 
 ## Executive Summary
@@ -73,7 +73,7 @@ According to Tauri 2 deep-link documentation, mobile apps should use:
 To properly handle OAuth redirects on Android, the app needs to be configured as the handler for specific HTTPS URLs.
 
 **Required:** Android App Links with Digital Asset Links verification
-- Server must host `.well-known/assetlinks.json` 
+- Server must host `.well-known/assetlinks.json`
 - AndroidManifest must include the correct intent filters
 - The app should intercept `https://yourdomain.com/oauth/callback` or similar
 
@@ -123,7 +123,7 @@ await openUrl(authUrl)
 if (forceToken || (!forceCookie && (isDesktopRedirect || isMobileRedirect))) {
   const destination = new URL(redirectUrl)
   destination.hash = `token=${sessionToken}`
-  
+
   // Returns HTML that redirects to deep link
   const html = `...
     window.location.href = url;
@@ -165,7 +165,7 @@ handle.deep_link().on_open_url(move |event| {
 });
 ```
 
-**Problem:** 
+**Problem:**
 - If the Android manifest isn't configured to intercept the right URLs, the deep link never reaches the app
 - The callback page redirects to `baseUrl.origin` but the app isn't registered to handle those URLs
 - No deep-link event is fired, so the token is never received
@@ -397,8 +397,8 @@ const forceToken = auth.sessionStrategy === 'token'
 const forceCookie = auth.sessionStrategy === 'cookie'
 
 const isDesktopRedirect = redirectUrl.protocol === 'gau:'
-const isMobileRedirect = requestUrl.host !== redirectUrl.host || 
-                         url.searchParams.get('mobile') === 'true'
+const isMobileRedirect = requestUrl.host !== redirectUrl.host
+  || url.searchParams.get('mobile') === 'true'
 ```
 
 ### 4. Add Mobile Callback Route (SvelteKit Example)
@@ -406,28 +406,29 @@ const isMobileRedirect = requestUrl.host !== redirectUrl.host ||
 Create `packages/example-sveltekit-tauri-mobile/src/routes/auth/mobile/callback/+page.svelte`:
 
 ```svelte
-<script lang="ts">
-  import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
-  
+<script lang='ts'>
+  import { browser } from '$app/environment'
+  import { onMount } from 'svelte'
+
   onMount(() => {
-    if (!browser) return;
-    
+    if (!browser)
+      return
+
     // Extract token from hash
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const token = params.get('token');
-    
+    const hash = window.location.hash.substring(1)
+    const params = new URLSearchParams(hash)
+    const token = params.get('token')
+
     if (token) {
       // Token will be handled by deep link in the Tauri app
       // This page is just for when viewed in browser
-      console.log('Token received, redirect handled by app');
+      console.log('Token received, redirect handled by app')
     }
-  });
+  })
 </script>
 
-<div class="flex items-center justify-center min-h-screen">
-  <div class="text-center">
+<div class='flex min-h-screen items-center justify-center'>
+  <div class='text-center'>
     <h1>Authentication Complete</h1>
     <p>You can close this page and return to the app.</p>
   </div>

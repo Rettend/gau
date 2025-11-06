@@ -447,7 +447,8 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const forceCookie = auth.sessionStrategy === 'cookie'
 
   const isDesktopRedirect = redirectUrl.protocol === 'gau:'
-  const isMobileRedirect = requestUrl.host !== redirectUrl.host
+  // Check if this is a mobile request by query param or by redirect URL path
+  const isMobileRedirect = requestUrl.host !== redirectUrl.host || url.searchParams.get('mobile') === 'true' || redirectUrl.pathname.includes('/auth/mobile/callback')
 
   // For Tauri, we can't set a cookie on a custom protocol or a different host,
   // so we pass the token in the URL. Additionally, return a small HTML page

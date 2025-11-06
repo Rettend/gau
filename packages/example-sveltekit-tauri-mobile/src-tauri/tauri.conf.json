@@ -43,7 +43,12 @@
       },
       "mobile": [
         {
-          "host": "tauri.localhost"
+          "scheme": "https",
+          "host": "tauri.localhost",
+          "pathPrefix": "/auth/mobile/"
+        },
+        {
+          "scheme": "gaumobile"
         }
       ]
     }

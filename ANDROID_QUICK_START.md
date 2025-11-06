@@ -56,8 +56,8 @@ gau works on web and desktop Tauri but **not on Android mobile** because:
 
 ## Status
 
-✅ Analysis complete  
-⏳ Implementation pending  
+✅ Analysis complete
+⏳ Implementation pending
 📝 Technical roadmap available
 
 See [TODO.md](./TODO.md) line 19 for tracking status.

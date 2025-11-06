@@ -22,5 +22,6 @@ export default antfu({
     '**/.astro/**',
     '**/.vinxi/**',
     '**/public/client.js',
+    '**/*.md',
   ],
 })

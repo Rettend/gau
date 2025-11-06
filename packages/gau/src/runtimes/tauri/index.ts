@@ -22,15 +22,23 @@ export async function signInWithTauri<const TAuth = unknown, P extends ProviderI
   const currentPlatform = platform() // platform is NO LONGER an async function
   let redirectTo: string
 
-  if (redirectOverride)
+  if (redirectOverride) {
     redirectTo = redirectOverride
-  else if (currentPlatform === 'android' || currentPlatform === 'ios')
-    redirectTo = new URL(baseUrl).origin
-  else
+  }
+  else if (currentPlatform === 'android' || currentPlatform === 'ios') {
+    // Use HTTPS deep link for mobile with a specific callback path
+    const baseOrigin = new URL(baseUrl).origin
+    redirectTo = `${baseOrigin}/auth/mobile/callback`
+  }
+  else {
     redirectTo = `${scheme}://oauth/callback`
+  }
 
   const params = new URLSearchParams()
   params.set('redirectTo', redirectTo)
+  // Add mobile flag to help server detect mobile requests
+  if (currentPlatform === 'android' || currentPlatform === 'ios')
+    params.set('mobile', 'true')
   if (profile)
     params.set('profile', String(profile))
   const authUrl = `${baseUrl}/${provider}?${params.toString()}`
@@ -82,12 +90,17 @@ export async function linkAccountWithTauri<const TAuth = unknown, P extends Prov
   const currentPlatform = platform()
   let redirectTo: string
 
-  if (redirectOverride)
+  if (redirectOverride) {
     redirectTo = redirectOverride
-  else if (currentPlatform === 'android' || currentPlatform === 'ios')
-    redirectTo = new URL(baseUrl).origin
-  else
+  }
+  else if (currentPlatform === 'android' || currentPlatform === 'ios') {
+    // Use HTTPS deep link for mobile with a specific callback path
+    const baseOrigin = new URL(baseUrl).origin
+    redirectTo = `${baseOrigin}/auth/mobile/callback`
+  }
+  else {
     redirectTo = `${scheme}://oauth/callback`
+  }
 
   const token = getSessionToken()
   if (!token) {
@@ -98,6 +111,9 @@ export async function linkAccountWithTauri<const TAuth = unknown, P extends Prov
   const params = new URLSearchParams()
   params.set('redirectTo', redirectTo)
   params.set('token', token)
+  // Add mobile flag to help server detect mobile requests
+  if (currentPlatform === 'android' || currentPlatform === 'ios')
+    params.set('mobile', 'true')
   if (profile)
     params.set('profile', String(profile))
   const linkUrl = `${baseUrl}/link/${provider}?${params.toString()}`
