@@ -22,7 +22,7 @@ Check out the [`packages`](https://github.com/Rettend/gau/tree/main/packages) fo
 
 - `example-sveltekit`: SvelteKit + Turso
 - `example-sveltekit-tauri`: SvelteKit + Turso + Tauri (desktop)
-- `example-sveltekit-tauri-mobile`: SvelteKit + Turso + Tauri (mobile and desktop) - **Note:** Mobile support is WIP. See [ANDROID_MOBILE_ANALYSIS.md](./ANDROID_MOBILE_ANALYSIS.md) for details.
+- `example-sveltekit-tauri-mobile`: SvelteKit + Turso + Tauri (mobile and desktop)
 - `example-solidstart`: SolidStart + Turso
 - `example-bun`: Bun.serve
 - `example-elysia`: Elysia
