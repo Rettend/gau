@@ -47,8 +47,8 @@ export function createHandler(auth: Auth): (request: Request) => Promise<Respons
         response = await handleSession(request, auth)
       else if (parts.length === 2 && parts[0] === 'link')
         response = await handleLink(request, auth, parts[1] as string)
-      else if (parts.length === 2 && parts[1] === 'callback')
-        response = await handleCallback(request, auth, action)
+      else if (parts.length === 2 && parts[0] === 'callback')
+        response = await handleCallback(request, auth, parts[1] as string)
       else if (parts.length === 1)
         response = await handleSignIn(request, auth, action)
       else

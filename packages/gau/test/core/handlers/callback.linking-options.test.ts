@@ -54,7 +54,7 @@ describe('callback linking options', () => {
       },
     })
 
-    const request = new Request('http://localhost/api/auth/mock/callback?code=c&state=state')
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=state')
     request.headers.set('Cookie', `${LINKING_TOKEN_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=state; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -92,7 +92,7 @@ describe('callback linking options', () => {
       },
     })
 
-    const request = new Request('http://localhost/api/auth/mock/callback?code=c&state=state')
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=state')
     request.headers.set('Cookie', `${LINKING_TOKEN_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=state; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -113,7 +113,7 @@ describe('callback linking options', () => {
     const existing = await auth.createUser({ email: 'user@provider.com', name: null, image: null, emailVerified: false })
     const sessionToken = await auth.createSession(existing.id)
 
-    const request = new Request('http://localhost/api/auth/mock/callback?code=c&state=state')
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=state')
     request.headers.set('Cookie', `${LINKING_TOKEN_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=state; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -135,7 +135,7 @@ describe('callback linking options', () => {
     const existing = await auth.createUser({ email: 'user@provider.com', name: null, image: null })
     const sessionToken = await auth.createSession(existing.id)
 
-    const request = new Request('http://localhost/api/auth/mock/callback?code=c&state=state')
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=state')
     request.headers.set('Cookie', `${LINKING_TOKEN_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=state; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -157,7 +157,7 @@ describe('callback linking options', () => {
     const existing = await auth.createUser({ email: 'user@provider.com', name: 'Old', image: 'old.png', emailVerified: false })
     const sessionToken = await auth.createSession(existing.id)
 
-    const request = new Request('http://localhost/api/auth/mock/callback?code=c&state=state')
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=state')
     request.headers.set('Cookie', `${LINKING_TOKEN_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=state; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')

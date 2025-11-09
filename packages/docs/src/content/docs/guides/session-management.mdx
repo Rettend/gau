@@ -15,7 +15,7 @@ This is the most common method for full-stack web apps.
 
 <Steps>
 1.  **Sign-In**: The user is redirected to the OAuth provider.
-2.  **Callback**: After successful authentication, the provider redirects the user back to your apps's callback URL (e.g., `/api/auth/github/callback`).
+2.  **Callback**: After successful authentication, the provider redirects the user back to your apps's callback URL (e.g., `/api/auth/callback/github`).
 3.  **Session Cookie**: `gau` validates the callback, creates a user session, and stores the session information in a `secure`, `HttpOnly` cookie.
 4.  **Authenticated Requests**: The browser automatically includes this cookie with every subsequent request to your backend. The server can then validate the cookie to identify the user.
 </Steps>

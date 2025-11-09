@@ -32,7 +32,7 @@ describe('google Provider', () => {
   const provider = Google({
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
-    redirectUri: 'http://localhost:5173/api/auth/google/callback',
+    redirectUri: 'http://localhost:5173/api/auth/callback/google',
   })
 
   it('should create an authorization URL', async () => {

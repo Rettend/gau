@@ -86,7 +86,7 @@ export async function prepareOAuthRedirect(
   const state = redirectTo ? `${originalState}.${btoa(redirectTo)}` : originalState
   let callbackUri = url.searchParams.get('callbackUri')
   if (!callbackUri && provider.requiresRedirectUri)
-    callbackUri = `${url.origin}${auth.basePath}/${providerId}/callback`
+    callbackUri = `${url.origin}${auth.basePath}/callback/${providerId}`
 
   let scopesOverride: string[] | undefined
   let extraParams: Record<string, string> | undefined

@@ -31,7 +31,7 @@ function makeProvider(overrides: Partial<OAuthProvider<'mock'>> = {}): OAuthProv
 }
 
 function makeRequest(state = 'state123', opts: { redirectFalse?: boolean } = {}) {
-  const url = new URL(`http://localhost/api/auth/mock/callback`)
+  const url = new URL(`http://localhost/api/auth/callback/mock`)
   url.searchParams.set('code', 'code123')
   url.searchParams.set('state', state)
   if (opts.redirectFalse)

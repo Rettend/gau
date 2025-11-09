@@ -43,7 +43,7 @@ describe('callback updates existing account tokens', () => {
 
   it('updates account tokens for already linked account', async () => {
     const state = 'state'
-    const req = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const req = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     req.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
     const res = await handleCallback(req as any, auth, 'mock')
     expect(res.status).toBe(302)

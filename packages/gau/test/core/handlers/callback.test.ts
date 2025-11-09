@@ -25,7 +25,7 @@ describe('callback handler', () => {
   it('should create a new user, link account, and set session cookie', async () => {
     const state = 'state123'
     const code = 'code123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -48,7 +48,7 @@ describe('callback handler', () => {
     const existingUser = await auth.createUser({ email: 'user@provider.com', name: 'Existing User' })
     const state = 'state123'
     const code = 'code123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     await handleCallback(request, auth, 'mock')
@@ -63,7 +63,7 @@ describe('callback handler', () => {
     const existingUser = await auth.createUser({ email: 'user@provider.com', name: 'Existing User', emailVerified: false })
     const state = 'state123'
     const code = 'code123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     await handleCallback(request, auth, 'mock')
@@ -79,7 +79,7 @@ describe('callback handler', () => {
     vi.spyOn(auth, 'createUser').mockRejectedValueOnce(new Error('DB error'))
     const state = 'state123'
     const code = 'code123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -92,7 +92,7 @@ describe('callback handler', () => {
     vi.spyOn(auth, 'linkAccount').mockRejectedValueOnce(new Error('DB error'))
     const state = 'state123'
     const code = 'code123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -106,7 +106,7 @@ describe('callback handler', () => {
     await auth.createUser({ email: 'user@provider.com', name: 'Existing', emailVerified: true })
 
     const state = 'state-conflict'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -117,7 +117,7 @@ describe('callback handler', () => {
 
   it('stores null email when provider email is unverified to avoid unique collisions', async () => {
     const state = 'state-unverified'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     mockProvider.validateCallback.mockResolvedValueOnce({
@@ -148,7 +148,7 @@ describe('callback handler', () => {
   it('creates and links when autoLink=false, verified email, and no existing user', async () => {
     auth.autoLink = false
     const state = 'state-create'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -181,7 +181,7 @@ describe('callback handler', () => {
     })
 
     const state = 'state-always'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -212,7 +212,7 @@ describe('callback handler', () => {
     })
 
     const state = 'state-verifiedEmail'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -225,7 +225,7 @@ describe('callback handler', () => {
   })
 
   it('should return 400 if provider is not found during callback', async () => {
-    const request = new Request('http://localhost/api/auth/unknown-provider/callback?code=c&state=s')
+    const request = new Request('http://localhost/api/auth/callback/unknown-provider?code=c&state=s')
     const response = await handleCallback(request, auth, 'unknown-provider')
     expect(response.status).toBe(400)
     const body = await response.json()
@@ -233,20 +233,20 @@ describe('callback handler', () => {
   })
 
   it('should return 400 for missing code or state', async () => {
-    const request = new Request('http://localhost/api/auth/mock/callback')
+    const request = new Request('http://localhost/api/auth/callback/mock')
     const response = await handleCallback(request, auth, 'mock')
     expect(response.status).toBe(400)
   })
 
   it('should return 403 for invalid CSRF token', async () => {
-    const request = new Request('http://localhost/api/auth/mock/callback?code=c&state=s')
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=s')
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=wrong-state`)
     const response = await handleCallback(request, auth, 'mock')
     expect(response.status).toBe(403)
   })
 
   it('should return 400 for missing PKCE verifier', async () => {
-    const request = new Request('http://localhost/api/auth/mock/callback?code=c&state=s')
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=s')
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=s`)
     const response = await handleCallback(request, auth, 'mock')
     expect(response.status).toBe(400)
@@ -254,7 +254,7 @@ describe('callback handler', () => {
 
   it('should handle malformed redirectTo in state gracefully', async () => {
     const state = `state123.not-base64`
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -264,7 +264,7 @@ describe('callback handler', () => {
 
   it('should return HTML for mobile redirects', async () => {
     const state = `state123.${btoa('https://mobile.app/callback')}`
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -277,7 +277,7 @@ describe('callback handler', () => {
 
   it('should return HTML for desktop/mobile redirects', async () => {
     const state = `state123.${btoa('gau://callback')}`
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -292,7 +292,7 @@ describe('callback handler', () => {
   it('should handle redirect=false on callback', async () => {
     const state = 'state123'
     const code = 'code123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}&redirect=false`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}&redirect=false`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
     const response = await handleCallback(request, auth, 'mock')
@@ -304,7 +304,7 @@ describe('callback handler', () => {
 
   it('clears temporary cookies and linking token on early return when invalid linking token', async () => {
     const state = 'state123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', [
       `${CSRF_COOKIE_NAME}=${state}`,
       `${PKCE_COOKIE_NAME}=pkce`,
@@ -330,7 +330,7 @@ describe('callback handler', () => {
   it('passes callbackUri from cookie to provider.validateCallback', async () => {
     const state = 'state123'
     const code = 'code123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=app://custom-callback`)
 
     await handleCallback(request, auth, 'mock')
@@ -343,7 +343,7 @@ describe('callback handler', () => {
     const code = 'code123'
     const options = { overrides: { tenant: 'organizations', prompt: 'login' }, params: { extra: 'x' } }
     const encoded = btoa(JSON.stringify(options))
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=${code}&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', [
       `${CSRF_COOKIE_NAME}=${state}`,
       `${PKCE_COOKIE_NAME}=pkce`,
@@ -367,7 +367,7 @@ describe('callback handler', () => {
       })
 
       const state = `state123.${btoa('/dashboard')}`
-      const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+      const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
       request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
 
       const response = await handleCallback(request, auth, 'mock')
@@ -387,7 +387,7 @@ describe('callback handler', () => {
       })
 
       const state = `state123.${btoa('https://trusted.app.com/callback')}`
-      const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+      const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
       request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
 
       const response = await handleCallback(request, auth, 'mock')

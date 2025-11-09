@@ -22,7 +22,7 @@ describe('roles', () => {
     })
 
     const state = 'state123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
     await handleCallback(request, auth, 'mock')
@@ -42,7 +42,7 @@ describe('roles', () => {
     })
 
     const state = 'state123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
     await handleCallback(request, auth, 'mock')
@@ -62,7 +62,7 @@ describe('roles', () => {
     })
 
     const state = 'state123'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
     await handleCallback(request, auth, 'mock')
@@ -79,7 +79,7 @@ describe('roles', () => {
     })
 
     const state = 's'
-    const request = new Request(`http://localhost/api/auth/mock/callback?code=c&state=${state}&redirect=false`)
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}&redirect=false`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
     const response = await handleCallback(request, auth, 'mock')
     expect(response.status).toBe(200)
