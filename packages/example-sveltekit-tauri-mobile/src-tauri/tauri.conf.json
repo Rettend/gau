@@ -5,7 +5,7 @@
   "identifier": "gau.sveltekit-mobile.dev",
   "build": {
     "frontendDist": "../build",
-    "devUrl": "http://localhost:4173",
+    "devUrl": "http://localhost:1420",
     "beforeDevCommand": "bun run dev",
     "beforeBuildCommand": "bun run build"
   },
@@ -43,12 +43,11 @@
       },
       "mobile": [
         {
-          "scheme": "https",
-          "host": "tauri.localhost",
-          "pathPrefix": "/auth/mobile/"
+          "scheme": ["https"],
+          "host": "tauri.localhost"
         },
         {
-          "scheme": "gaumobile"
+          "scheme": ["gau"]
         }
       ]
     }

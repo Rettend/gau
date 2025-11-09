@@ -446,15 +446,14 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const forceToken = auth.sessionStrategy === 'token'
   const forceCookie = auth.sessionStrategy === 'cookie'
 
-  const isDesktopRedirect = redirectUrl.protocol === 'gau:'
-  // Check if this is a mobile request by query param or by redirect URL path
-  const isMobileRedirect = requestUrl.host !== redirectUrl.host || url.searchParams.get('mobile') === 'true' || redirectUrl.pathname.includes('/auth/mobile/callback')
+  const isCustomScheme = redirectUrl.protocol !== 'http:' && redirectUrl.protocol !== 'https:'
+  const isCrossHost = requestUrl.host !== redirectUrl.host
 
   // For Tauri, we can't set a cookie on a custom protocol or a different host,
   // so we pass the token in the URL. Additionally, return a small HTML page
   // that immediately navigates to the deep-link and attempts to close the window,
   // so the external OAuth tab does not stay open.
-  if (forceToken || (!forceCookie && (isDesktopRedirect || isMobileRedirect))) {
+  if (forceToken || (!forceCookie && (isCustomScheme || isCrossHost))) {
     const destination = new URL(redirectUrl)
     // Use hash instead of query param for security. The hash is not sent to the server.
     destination.hash = `token=${sessionToken}`

@@ -5,6 +5,6 @@
   const { children } = $props()
 </script>
 
-<AuthProvider baseUrl={clientEnv.PUBLIC_API_URL}>
+<AuthProvider baseUrl={clientEnv.PUBLIC_API_URL} scheme='gau'>
   {@render children()}
 </AuthProvider>

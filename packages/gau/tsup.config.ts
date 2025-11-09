@@ -54,7 +54,6 @@ export default defineConfig(async () => {
         '@sveltejs/kit',
         '$app/navigation',
         '@solidjs/router',
-        '@tauri-apps/plugin-os',
         '@tauri-apps/plugin-opener',
         '@tauri-apps/api/event',
       ],
@@ -81,7 +80,6 @@ export default defineConfig(async () => {
       splitting: false,
       external: [
         '@solidjs/router',
-        '@tauri-apps/plugin-os',
         '@tauri-apps/plugin-opener',
         '@tauri-apps/api/event',
       ],
@@ -102,7 +100,6 @@ export default defineConfig(async () => {
       external: [
         '@sveltejs/kit',
         '$app/navigation',
-        '@tauri-apps/plugin-os',
         '@tauri-apps/plugin-opener',
         '@tauri-apps/api/event',
       ],
