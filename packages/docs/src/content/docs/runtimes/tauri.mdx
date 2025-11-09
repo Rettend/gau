@@ -1,11 +1,11 @@
 ---
 title: Tauri
-description: How to integrate gau with Tauri for desktop applications.
+description: How to integrate gau with Tauri for desktop and mobile applications.
 ---
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
-`gau` has first-class Tauri support. This guide explains how to build desktop apps with OAuth, and also shows how to set up the required deep linking to handle OAuth redirects.
+`gau` has first-class Tauri support. This guide explains how to build desktop and mobile apps with OAuth, and shows how to set up deep linking to handle OAuth redirects.
 
 This guide assumes you have already completed the setup for your web framework (e.g., [SvelteKit](/integrations/sveltekit/)).
 
@@ -86,43 +86,37 @@ This guide assumes you have already completed the setup for your web framework (
 
     `gau` requires the following plugins:
 
-    - [Single Instance](https://v2.tauri.app/plugin/single-instance)
-    - [OS](https://v2.tauri.app/plugin/os-info)
+    - [Single Instance](https://v2.tauri.app/plugin/single-instance) (recommended on desktop)
     - [Opener](https://v2.tauri.app/plugin/opener)
     - [Deep Link](https://v2.tauri.app/plugin/deep-linking)
 
     <Tabs syncKey="pkg">
       <TabItem label="npm">
         ```sh
-        npm run tauri add os
         npm run tauri add opener
         npm run tauri add deep-link
         ```
       </TabItem>
       <TabItem label="pnpm">
         ```sh
-        pnpm tauri add os
         pnpm tauri add opener
         pnpm tauri add deep-link
         ```
       </TabItem>
       <TabItem label="yarn">
         ```sh
-        yarn run tauri add os
         yarn run tauri add opener
         yarn run tauri add deep-link
         ```
       </TabItem>
       <TabItem label="bun">
         ```sh
-        bun tauri add os
         bun tauri add opener
         bun tauri add deep-link
         ```
       </TabItem>
       <TabItem label="ni">
         ```sh
-        nlx tauri add os
         nlx tauri add opener
         nlx tauri add deep-link
         ```
@@ -177,17 +171,6 @@ This guide assumes you have already completed the setup for your web framework (
         </AuthProvider>
         ```
       </TabItem>
-      <TabItem label="Vanilla">
-        ```ts title="src/auth/client.ts" ins={5,6}
-        import process from 'node:process'
-        import { createAuthClient } from '@rttnd/gau/client/vanilla'
-
-        export const authClient = createAuthClient({
-          baseUrl: process.env.AUTH_BASE_URL, // http://localhost:3000/api/auth in dev
-          scheme: 'gau',
-        })
-        ```
-      </TabItem>
       <TabItem label="SolidStart">
         ```tsx title="src/app.tsx" del={5} ins={6}
         import { AuthProvider } from '@rttnd/gau/client/solid'
@@ -202,24 +185,66 @@ This guide assumes you have already completed the setup for your web framework (
         }
         ```
       </TabItem>
+      <TabItem label="Vanilla">
+        ```ts title="src/auth/client.ts" ins={5,6}
+        import process from 'node:process'
+        import { createAuthClient } from '@rttnd/gau/client/vanilla'
+
+        export const authClient = createAuthClient({
+          baseUrl: process.env.AUTH_BASE_URL, // http://localhost:3000/api/auth in dev
+          scheme: 'gau',
+        })
+        ```
+      </TabItem>
     </Tabs>
 
-    Add the `core:event:default` permission to the `src-tauri/capabilities/default.json` file.
+    Add required permissions to your Tauri capabilities:
 
-    ```json title="src-tauri/capabilities/default.json" ins={5}
-    {
-      // ...
-      "permissions": [
-        "core:default",
-        "core:event:default",
-        "deep-link:default",
-        "opener:default",
-        "os:default"
-      ]
-    }
-    ```
+    <Tabs syncKey="capabilities">
+      <TabItem label="Desktop (default.json)">
+        ```json title="src-tauri/capabilities/default.json" ins={5}
+        {
+          // ...
+          "permissions": [
+            "core:default",
+            "core:event:default",
+            "deep-link:default",
+            "opener:default"
+          ]
+        }
+        ```
+      </TabItem>
+      <TabItem label="Mobile (mobile.json)">
+        ```json title="src-tauri/capabilities/mobile.json"
+        {
+          "$schema": "../gen/schemas/mobile-schema.json",
+          "identifier": "mobile-capability",
+          "windows": [
+            "main"
+          ],
+          "platforms": [
+            "iOS",
+            "android"
+          ],
+          "permissions": [
+            "core:event:default",
+            "deep-link:default",
+            "opener:default",
+            {
+              "identifier": "opener:allow-open-url",
+              "allow": [
+                {
+                  "url": "*"
+                }
+              ]
+            }
+          ]
+        }
+        ```
+      </TabItem>
+    </Tabs>
 
-4. ##### Set up Rust Backend
+4. ##### Set up Rust App Backend
 
     Here is a working `src-tauri/src/lib.rs` to initialize the deep link plugin and listen for incoming URLs. The listener forwards the URL to the frontend via an event.
 
@@ -246,7 +271,6 @@ This guide assumes you have already completed the setup for your web framework (
         builder
             .plugin(tauri_plugin_deep_link::init())
             .plugin(tauri_plugin_opener::init())
-            .plugin(tauri_plugin_os::init())
             .setup(|app| {
                 #[cfg(any(windows, target_os = "linux"))]
                 #[cfg(debug_assertions)]
@@ -300,23 +324,56 @@ This guide assumes you have already completed the setup for your web framework (
         export default config
         ```
 
-        Configure Vite to use a different port for Tauri. This way you can run your app on `localhost:5173` (which serves as the backend) and the Tauri app on `localhost:4173`.
+        Configure Vite for Tauri. On mobile, Tauri v2 sets `TAURI_DEV_HOST` to the host it exposes to the device and tunnels traffic. Use it for `server.host` and HMR; on desktop you can use the usual local ports.
 
-        ```ts title="vite.config.ts"
-        import process from 'node:process'
-        import { sveltekit } from '@sveltejs/kit/vite'
-        import { defineConfig } from 'vite'
+        <Tabs syncKey="tauriTarget">
+          <TabItem label="Desktop">
+            ```ts title="vite.config.ts"
+            import process from 'node:process'
+            import { sveltekit } from '@sveltejs/kit/vite'
+            import { defineConfig } from 'vite'
 
-        const isTauri = !!process.env.TAURI_ENV_PLATFORM
+            const isTauri = !!process.env.TAURI_ENV_PLATFORM
 
-        export default defineConfig({
-          plugins: [sveltekit()],
-          server: {
-            port: isTauri ? 4173 : 5173,
-            strictPort: true,
-          },
-        })
-        ```
+            export default defineConfig({
+              plugins: [sveltekit()],
+              server: {
+                port: isTauri ? 4173 : 5173,
+                strictPort: true,
+              },
+            })
+            ```
+          </TabItem>
+          <TabItem label="Android">
+            ```ts title="vite.config.ts"
+            import process from 'node:process'
+            import { sveltekit } from '@sveltejs/kit/vite'
+            import { defineConfig } from 'vite'
+
+            const host = process.env.TAURI_DEV_HOST
+            const isTauri = !!process.env.TAURI_ENV_PLATFORM
+            const devPort = 1420
+            const hmrPort = 1430
+
+            export default defineConfig({
+              plugins: [sveltekit()],
+              clearScreen: false,
+              server: {
+                port: isTauri ? devPort : 5173,
+                strictPort: true,
+                host: host || false,
+                hmr: host
+                  ? {
+                      protocol: 'ws',
+                      host,
+                      port: hmrPort,
+                    }
+                  : undefined,
+              },
+            })
+            ```
+          </TabItem>
+        </Tabs>
 
         Your Tauri development URL in `tauri.conf.json` should match this port (e.g., `http://localhost:4173`).
 
@@ -399,7 +456,11 @@ This guide assumes you have already completed the setup for your web framework (
      // ... other options
      trustHosts: ['tauri.localhost']
    })
-   ```
+    ```
+
+7. ##### Android Development Notes
+
+   See the [README](https://github.com/Rettend/gau/blob/main/packages/example-sveltekit-tauri-mobile/README.md).
 
 </Steps> 
 

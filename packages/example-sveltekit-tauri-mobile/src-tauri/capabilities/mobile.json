@@ -12,7 +12,6 @@
     "core:event:default",
     "deep-link:default",
     "opener:default",
-    "os:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [
