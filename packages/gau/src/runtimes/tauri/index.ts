@@ -6,6 +6,23 @@ export function isTauri(): boolean {
   return BROWSER && '__TAURI_INTERNALS__' in globalThis
 }
 
+function resolveOrigin(baseUrl: string): string | null {
+  try {
+    return new URL(baseUrl).origin
+  }
+  catch {
+    if (BROWSER && typeof window !== 'undefined') {
+      try {
+        return new URL(baseUrl, window.location.origin).origin
+      }
+      catch {
+        return null
+      }
+    }
+    return null
+  }
+}
+
 export async function signInWithTauri<const TAuth = unknown, P extends ProviderIds<TAuth> = ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(
   provider: P,
   baseUrl: string,
@@ -16,16 +33,31 @@ export async function signInWithTauri<const TAuth = unknown, P extends ProviderI
   if (!isTauri())
     return
 
-  const { platform } = await import('@tauri-apps/plugin-os')
   const { openUrl } = await import('@tauri-apps/plugin-opener')
 
-  const currentPlatform = platform() // platform is NO LONGER an async function
+  function resolveAbsoluteBase(base: string): string {
+    try {
+      const u = new URL(base)
+      return u.toString().replace(/\/$/, '')
+    }
+    catch {
+      if (BROWSER && typeof window !== 'undefined') {
+        try {
+          const u = new URL(base, window.location.origin)
+          return u.toString().replace(/\/$/, '')
+        }
+        catch {
+          return base
+        }
+      }
+      return base
+    }
+  }
+
   let redirectTo: string
 
   if (redirectOverride)
     redirectTo = redirectOverride
-  else if (currentPlatform === 'android' || currentPlatform === 'ios')
-    redirectTo = new URL(baseUrl).origin
   else
     redirectTo = `${scheme}://oauth/callback`
 
@@ -33,7 +65,8 @@ export async function signInWithTauri<const TAuth = unknown, P extends ProviderI
   params.set('redirectTo', redirectTo)
   if (profile)
     params.set('profile', String(profile))
-  const authUrl = `${baseUrl}/${provider}?${params.toString()}`
+  const resolvedBase = resolveAbsoluteBase(baseUrl)
+  const authUrl = `${resolvedBase}/${provider}?${params.toString()}`
   await openUrl(authUrl)
 }
 
@@ -57,7 +90,8 @@ export async function setupTauriListener(
 
 export function handleTauriDeepLink(url: string, baseUrl: string, scheme: string, onToken: (token: string) => void) {
   const parsed = new URL(url)
-  if (parsed.protocol !== `${scheme}:` && parsed.origin !== new URL(baseUrl).origin)
+  const baseOrigin = resolveOrigin(baseUrl)
+  if (parsed.protocol !== `${scheme}:` && (!baseOrigin || parsed.origin !== baseOrigin))
     return
 
   const params = new URLSearchParams(parsed.hash.substring(1))
@@ -76,16 +110,12 @@ export async function linkAccountWithTauri<const TAuth = unknown, P extends Prov
   if (!isTauri())
     return
 
-  const { platform } = await import('@tauri-apps/plugin-os')
   const { openUrl } = await import('@tauri-apps/plugin-opener')
 
-  const currentPlatform = platform()
   let redirectTo: string
 
   if (redirectOverride)
     redirectTo = redirectOverride
-  else if (currentPlatform === 'android' || currentPlatform === 'ios')
-    redirectTo = new URL(baseUrl).origin
   else
     redirectTo = `${scheme}://oauth/callback`
 
@@ -100,7 +130,25 @@ export async function linkAccountWithTauri<const TAuth = unknown, P extends Prov
   params.set('token', token)
   if (profile)
     params.set('profile', String(profile))
-  const linkUrl = `${baseUrl}/link/${provider}?${params.toString()}`
+  const resolvedBase = (() => {
+    try {
+      const u = new URL(baseUrl)
+      return u.toString().replace(/\/$/, '')
+    }
+    catch {
+      if (BROWSER && typeof window !== 'undefined') {
+        try {
+          const u = new URL(baseUrl, window.location.origin)
+          return u.toString().replace(/\/$/, '')
+        }
+        catch {
+          return baseUrl
+        }
+      }
+      return baseUrl
+    }
+  })()
+  const linkUrl = `${resolvedBase}/link/${provider}?${params.toString()}`
   await openUrl(linkUrl)
 }
 

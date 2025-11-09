@@ -16,7 +16,7 @@
 - [ ] dev: when editing only svelte nr dev deletes all files in dist but svelte files, entries delete each other's work
 - [ ] ssr
 - [x] sveltekit tauri dev/build
-- [ ] sveltekit tauri android dev/build
+- [x] sveltekit tauri android dev/build
 
 ## later
 

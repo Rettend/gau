@@ -20,7 +20,6 @@
     "@rttnd/gau": "workspace:*",
     "@tauri-apps/plugin-deep-link": "^2.4.3",
     "@tauri-apps/plugin-opener": "~2.5.0",
-    "@tauri-apps/plugin-os": "2",
     "drizzle-orm": "^0.44.6",
     "uuid": "^13.0.0"
   },

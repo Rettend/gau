@@ -3,7 +3,7 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "gau.sveltekit-mobile.dev",
+      "package_name": "gau.sveltekit_mobile.dev",
       "sha256_cert_fingerprints": ["1A:9E:4B:7C:FD:19:53:47:CD:E4:F3:AE:9B:6C:AB:6D:D6:16:33:59:21:8C:63:EF:8D:F5:D3:07:BE:D9:45:3E"]
     }
   }

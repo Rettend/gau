@@ -44,7 +44,7 @@
       <div class='space-y-4'>
         <div>
           <h3 class='text-lg tracking-wider mb-2'>Linked Accounts</h3>
-          <div class='flex gap-4'>
+          <div class='flex flex-col gap-4 sm:flex-row'>
             {#each linkedProviders as provider}
               <div class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 items-center justify-center'>
                 <div class:i-ph:github-logo={provider === 'github'} class:i-ph:google-logo-bold={provider === 'google'} class:i-mdi:microsoft={provider === 'microsoft'} class='size-5'></div>
@@ -62,7 +62,7 @@
         {#if unlinkedProviders.length > 0}
           <div>
             <h3 class='text-lg tracking-wider mb-2'>Link More Accounts</h3>
-            <div class='flex gap-4'>
+            <div class='flex flex-col gap-4 sm:flex-row'>
               {#each unlinkedProviders as provider}
                 <button
                   class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
@@ -79,7 +79,7 @@
     {:else}
       <div class='flex flex-col gap-4 items-center'>
         <span class='text-lg tracking-wider'>Sign In</span>
-        <div class='flex gap-4 justify-center'>
+        <div class='flex flex-col gap-4 justify-center sm:flex-row'>
           <button
             class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
             onclick={() => auth.signIn('github')}
