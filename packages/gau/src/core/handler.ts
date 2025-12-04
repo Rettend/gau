@@ -7,6 +7,7 @@ import {
   handleSession,
   handleSignIn,
   handleSignOut,
+  handleToken,
   handleUnlink,
   verifyRequestOrigin,
 } from './handlers'
@@ -57,6 +58,8 @@ export function createHandler(auth: Auth): (request: Request) => Promise<Respons
     else if (request.method === 'POST') {
       if (parts.length === 1 && action === 'signout')
         response = await handleSignOut(request, auth)
+      else if (parts.length === 1 && action === 'token')
+        response = await handleToken(request, auth)
       else if (parts.length === 2 && parts[0] === 'unlink')
         response = await handleUnlink(request, auth, parts[1] as string)
       else

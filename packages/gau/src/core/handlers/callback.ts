@@ -2,6 +2,7 @@ import type { Auth } from '../createAuth'
 import type { User } from '../index'
 import {
   CALLBACK_URI_COOKIE_NAME,
+  CLIENT_CHALLENGE_COOKIE_NAME,
   Cookies,
   CSRF_COOKIE_NAME,
   LINKING_TOKEN_COOKIE_NAME,
@@ -455,8 +456,20 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   // so the external OAuth tab does not stay open.
   if (forceToken || (!forceCookie && (isCustomScheme || isCrossHost))) {
     const destination = new URL(redirectUrl)
-    // Use hash instead of query param for security. The hash is not sent to the server.
-    destination.hash = `token=${sessionToken}`
+    const clientChallenge = cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)
+
+    if (clientChallenge) {
+      // PKCE
+      const authCode = await auth.signJWT({
+        sub: user.id,
+        challenge: clientChallenge,
+      }, { ttl: 60 })
+
+      destination.searchParams.set('code', authCode)
+    }
+    else {
+      return json({ error: 'Missing PKCE challenge' }, { status: 400 })
+    }
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -514,6 +527,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     if (callbackUri)
       cookies.delete(CALLBACK_URI_COOKIE_NAME)
     cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
+    cookies.delete(CLIENT_CHALLENGE_COOKIE_NAME)
 
     const response = new Response(html, {
       status: 200,

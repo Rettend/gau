@@ -49,4 +49,25 @@ describe('token helpers', () => {
       expect(document.cookie).toBe('__gau-session-token=; path=/; max-age=0')
     })
   })
+
+  describe('generatePKCE', () => {
+    beforeEach(() => {
+      vi.stubGlobal('window', {
+        crypto: globalThis.crypto,
+      })
+      vi.stubGlobal('TextEncoder', TextEncoder)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('should generate a verifier and challenge', async () => {
+      const { codeVerifier, codeChallenge } = await tokenHelpers.generatePKCE()
+      expect(codeVerifier).toBeDefined()
+      expect(codeChallenge).toBeDefined()
+      expect(typeof codeVerifier).toBe('string')
+      expect(typeof codeChallenge).toBe('string')
+    })
+  })
 })

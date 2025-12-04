@@ -32,16 +32,16 @@ For environments where cookies are not ideal or feasible - like desktop apps, mo
 
 ### How It Works
 
-This flow relies on a URL hash to transfer the session token from the OAuth provider back to the app. For Tauri, it uses deep linking (custom URL schemes).
+This flow relies on a secure PKCE exchange to transfer the session token from the backend to the app.
 
 <Steps>
-1.  **Sign-In**: The client-side `signIn` function (e.g., from `@rttnd/gau/client/svelte`) opens the system's web browser to the OAuth provider's authorization URL. A `redirectTo` parameter is included, pointing to a custom URL scheme (e.g., `my-app://oauth/callback`).
-2.  **Callback & Redirect**: After the user approves, the provider redirects to a special page hosted by your backend. This page receives the token, then immediately performs an HTML redirect to the custom URL scheme, embedding the session token in the URL's hash (e.g., `my-app://oauth/callback#token=...`).
-3.  **Deep Link Handling**: The operating system captures this custom URL and re-opens your native app. The app's deep link handler receives the URL, extracts the session token.
-4.  **Token Storage**: The client library then stores the token in two places:
+1.  **Sign-In**: The client-side `signIn` function generates a PKCE `code_verifier` and `code_challenge`. It opens the system's web browser to the OAuth provider's authorization URL, including the challenge.
+2.  **Callback & Redirect**: After the user approves, the provider redirects to your backend. The backend validates the request and issues a short-lived **Auth Code** via a deep link redirect (e.g., `my-app://oauth/callback?code=...`).
+3.  **Exchange**: The operating system captures this custom URL and re-opens your native app. The app extracts the auth code and sends it, along with the original `code_verifier`, to the backend's `/token` endpoint.
+4.  **Token Storage**: Upon successful validation, the backend returns a session token. The client library stores it in:
     -   **`localStorage`**: For the client to attach it to subsequent API requests in the `Authorization: Bearer <token>` header.
-    -   **A non-`HttpOnly` cookie**: This allows server-side rendering logic (e.g., in a SvelteKit `handle` hook) to access the session on the initial page load, preventing a "logged-out" flash.
-5.  **Authenticated Requests**: The client is now responsible for including this token in the `Authorization` header for all subsequent API requests.
+    -   **A non-`HttpOnly` cookie**: This allows server-side rendering logic to access the session on the initial page load.
+5.  **Authenticated Requests**: The client now includes this token in the `Authorization` header for all subsequent API requests.
 </Steps>
 
 This is entirely managed by `gau`. The client libraries automatically handle storing the token and including it in requests, while the backend is designed to render the necessary redirect page.

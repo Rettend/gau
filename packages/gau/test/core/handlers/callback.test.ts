@@ -397,4 +397,21 @@ describe('callback handler', () => {
       expect(cookies.some(c => c.startsWith(SESSION_COOKIE_NAME))).toBe(true)
     })
   })
+
+  it('should return Auth Code in deep link when client challenge cookie is present', async () => {
+    const state = `state123.${btoa('gau://callback')}`
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce; __gau-client-challenge=challenge123`)
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toContain('text/html')
+
+    const html = await response.text()
+    expect(html).toContain('const url = "gau://callback?code=')
+    expect(html).not.toContain('#token=')
+
+    const cookies = response.headers.getSetCookie()
+    expect(cookies.some(c => c.startsWith('__gau-client-challenge=') && c.includes('Max-Age=0'))).toBe(true)
+  })
 })

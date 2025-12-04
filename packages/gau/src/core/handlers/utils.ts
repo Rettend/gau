@@ -2,6 +2,7 @@ import type { Auth } from '../createAuth'
 import { createOAuthUris } from '../../oauth/utils'
 import {
   CALLBACK_URI_COOKIE_NAME,
+  CLIENT_CHALLENGE_COOKIE_NAME,
   Cookies,
   CSRF_COOKIE_NAME,
   CSRF_MAX_AGE,
@@ -158,6 +159,10 @@ export async function prepareOAuthRedirect(
 
   const serializedOptions = JSON.stringify({ params: extraParams ?? {}, overrides: overrides ?? {} })
   cookies.set(PROVIDER_OPTIONS_COOKIE_NAME, btoa(serializedOptions), temporaryCookieOptions)
+
+  const codeChallenge = url.searchParams.get('code_challenge')
+  if (codeChallenge)
+    cookies.set(CLIENT_CHALLENGE_COOKIE_NAME, codeChallenge, temporaryCookieOptions)
 
   const redirectParam = url.searchParams.get('redirect')
 

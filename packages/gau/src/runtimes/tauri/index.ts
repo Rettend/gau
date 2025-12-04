@@ -1,6 +1,6 @@
 import type { ProfileName, ProviderIds } from '../../core'
 import { BROWSER } from 'esm-env'
-import { getSessionToken } from '../../client/token'
+import { generatePKCE, getSessionToken } from '../../client/token'
 
 export function isTauri(): boolean {
   return BROWSER && '__TAURI_INTERNALS__' in globalThis
@@ -61,10 +61,14 @@ export async function signInWithTauri<const TAuth = unknown, P extends ProviderI
   else
     redirectTo = `${scheme}://oauth/callback`
 
+  const { codeVerifier, codeChallenge } = await generatePKCE()
+  localStorage.setItem('gau-pkce-verifier', codeVerifier)
+
   const params = new URLSearchParams()
   params.set('redirectTo', redirectTo)
   if (profile)
     params.set('profile', String(profile))
+  params.set('code_challenge', codeChallenge)
   const resolvedBase = resolveAbsoluteBase(baseUrl)
   const authUrl = `${resolvedBase}/${provider}?${params.toString()}`
   await openUrl(authUrl)
@@ -88,16 +92,41 @@ export async function setupTauriListener(
   }
 }
 
-export function handleTauriDeepLink(url: string, baseUrl: string, scheme: string, onToken: (token: string) => void) {
+export async function handleTauriDeepLink(url: string, baseUrl: string, scheme: string, onToken: (token: string) => void) {
   const parsed = new URL(url)
   const baseOrigin = resolveOrigin(baseUrl)
   if (parsed.protocol !== `${scheme}:` && (!baseOrigin || parsed.origin !== baseOrigin))
     return
 
-  const params = new URLSearchParams(parsed.hash.substring(1))
-  const token = params.get('token')
-  if (token)
-    onToken(token)
+  const queryParams = new URLSearchParams(parsed.search)
+  const code = queryParams.get('code')
+  if (code) {
+    const verifier = localStorage.getItem('gau-pkce-verifier')
+    if (!verifier) {
+      console.error('No PKCE verifier found')
+      return
+    }
+    localStorage.removeItem('gau-pkce-verifier')
+
+    try {
+      const res = await fetch(`${baseUrl}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, codeVerifier: verifier }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.token)
+          onToken(data.token)
+      }
+      else {
+        console.error('Failed to exchange code for token')
+      }
+    }
+    catch (e) {
+      console.error('Error exchanging code for token:', e)
+    }
+  }
 }
 
 export async function linkAccountWithTauri<const TAuth = unknown, P extends ProviderIds<TAuth> = ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(

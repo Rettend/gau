@@ -401,7 +401,7 @@ This guide assumes you have already completed the setup for your web framework (
         </AuthProvider>
         ```
 
-        Finally, you can use the `useAuth` hook in your components. The `signIn` method will automatically open the browser for the OAuth flow, and the app will receive the token via the deep link.
+        Finally, you can use the `useAuth` hook in your components. The `signIn` method will automatically open the browser for the OAuth flow, and the app will receive the auth code via the deep link and exchange it for a session token.
 
         ```svelte title="src/routes/+page.svelte"
         <script>
@@ -464,6 +464,6 @@ This guide assumes you have already completed the setup for your web framework (
 
 </Steps> 
 
-Your application is now configured for desktop authentication with Tauri! When a user clicks a sign-in button, `gau` will open the system browser for the OAuth flow. After authorization, the provider redirects to a page that triggers the `gau://` deep link, sending the session token back to your Tauri app securely.
+Your application is now configured for desktop authentication with Tauri! When a user clicks a sign-in button, `gau` will open the system browser for the OAuth flow. After authorization, the provider redirects to a page that triggers the `gau://` deep link, sending an authorization code back to your Tauri app. The app then exchanges this code for a session token using PKCE, ensuring a secure handoff.
 
 This setup allows you to deploy the app on the web and build a desktop app too, with the same codebase.

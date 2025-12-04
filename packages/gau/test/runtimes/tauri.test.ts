@@ -40,10 +40,19 @@ describe('tauri runtime helpers', () => {
   beforeEach(() => {
     localStorageMock.clear()
     document.cookie = ''
+
+    // Mock window with crypto from global (setup.ts) or node:crypto
+    vi.stubGlobal('window', {
+      location: { origin: 'http://localhost:3000' },
+      crypto: globalThis.crypto,
+    })
+
+    vi.stubGlobal('TextEncoder', TextEncoder)
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     delete globalThis.__TAURI_INTERNALS__
   })
 
@@ -68,25 +77,25 @@ describe('tauri runtime helpers', () => {
       it('should open the correct auth URL on desktop', async () => {
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.signInWithTauri('github', 'http://localhost:3000/api/auth', 'gau')
-        expect(mockOpen).toHaveBeenCalledWith('http://localhost:3000/api/auth/github?redirectTo=gau%3A%2F%2Foauth%2Fcallback')
+        expect(mockOpen).toHaveBeenCalledWith(expect.stringMatching(/http:\/\/localhost:3000\/api\/auth\/github\?redirectTo=gau%3A%2F%2Foauth%2Fcallback&code_challenge=.+/))
       })
 
       it('should default to scheme redirect when override omitted', async () => {
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.signInWithTauri('google', 'http://localhost:3000/api/auth', 'gau', undefined)
-        expect(mockOpen).toHaveBeenCalledWith('http://localhost:3000/api/auth/google?redirectTo=gau%3A%2F%2Foauth%2Fcallback')
+        expect(mockOpen).toHaveBeenCalledWith(expect.stringMatching(/http:\/\/localhost:3000\/api\/auth\/google\?redirectTo=gau%3A%2F%2Foauth%2Fcallback&code_challenge=.+/))
       })
 
       it('should use redirectOverride if provided', async () => {
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.signInWithTauri('github', 'http://localhost:3000/api/auth', 'gau', 'myapp://custom')
-        expect(mockOpen).toHaveBeenCalledWith('http://localhost:3000/api/auth/github?redirectTo=myapp%3A%2F%2Fcustom')
+        expect(mockOpen).toHaveBeenCalledWith(expect.stringMatching(/http:\/\/localhost:3000\/api\/auth\/github\?redirectTo=myapp%3A%2F%2Fcustom&code_challenge=.+/))
       })
 
       it('should use custom scheme for redirect on mobile platforms', async () => {
         mockPlatform.mockReturnValue('android')
         await tauriHelpers.signInWithTauri('google', 'https://server.com/api/auth')
-        expect(mockOpen).toHaveBeenCalledWith('https://server.com/api/auth/google?redirectTo=gau%3A%2F%2Foauth%2Fcallback')
+        expect(mockOpen).toHaveBeenCalledWith(expect.stringMatching(/https:\/\/server.com\/api\/auth\/google\?redirectTo=gau%3A%2F%2Foauth%2Fcallback&code_challenge=.+/))
       })
     })
 
@@ -141,19 +150,18 @@ describe('tauri runtime helpers', () => {
     })
 
     describe('relative baseUrl resolution', () => {
-      let originalWindow: any
       beforeEach(() => {
-        originalWindow = globalThis.window
-        ;(globalThis as any).window = { location: { origin: 'http://localhost:4444' } }
-      })
-      afterEach(() => {
-        ;(globalThis as any).window = originalWindow
+        // Update window.location without removing crypto
+        Object.defineProperty(window, 'location', {
+          value: { origin: 'http://localhost:4444' },
+          writable: true,
+        })
       })
 
       it('signInWithTauri resolves relative baseUrl against window.location.origin', async () => {
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.signInWithTauri('github', '/api/auth', 'gau')
-        expect(mockOpen).toHaveBeenCalledWith('http://localhost:4444/api/auth/github?redirectTo=gau%3A%2F%2Foauth%2Fcallback')
+        expect(mockOpen).toHaveBeenCalledWith(expect.stringMatching(/http:\/\/localhost:4444\/api\/auth\/github\?redirectTo=gau%3A%2F%2Foauth%2Fcallback&code_challenge=.+/))
       })
 
       it('linkAccountWithTauri resolves relative baseUrl and includes token', async () => {
@@ -184,6 +192,27 @@ describe('tauri runtime helpers', () => {
         const url = 'http://another-site.com/#token=bad-token'
         tauriHelpers.handleTauriDeepLink(url, 'http://localhost:3000', 'gau', onToken)
         expect(onToken).not.toHaveBeenCalled()
+      })
+
+      it('should exchange code for token in PKCE flow', async () => {
+        const onToken = vi.fn()
+        const url = 'gau://oauth/callback?code=auth-code'
+        localStorageMock.setItem('gau-pkce-verifier', 'verifier')
+
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ token: 'session-token' }),
+        } as Response) as any
+
+        await tauriHelpers.handleTauriDeepLink(url, 'http://localhost:3000', 'gau', onToken)
+
+        expect(globalThis.fetch).toHaveBeenCalledWith('http://localhost:3000/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: 'auth-code', codeVerifier: 'verifier' }),
+        })
+        expect(onToken).toHaveBeenCalledWith('session-token')
+        expect(localStorageMock.getItem('gau-pkce-verifier')).toBeNull()
       })
     })
   })

@@ -9,7 +9,7 @@ This guide explains `gau`'s security features.
 
 ## Host Validation
 
-To protect against common web vulnerabilities, `gau` uses the `trustHosts` option to validate where requests are coming from and where users are being sent. This is a critical defense against both Cross-Site Request Forgery (CSRF) and Open Redirect attacks.
+To protect against common web vulnerabilities, `gau` uses the `trustHosts` option to validate where requests are coming from and where users are being sent. This is a critical defense against both CSRF and Open Redirect attacks.
 
 This is configured via the `trustHosts` option in `createAuth`.
 
@@ -44,20 +44,32 @@ Cross-Site Request Forgery is an attack that tricks a user into submitting a mal
     ]
     ```
 
--   **Trust all hosts (`'all'`)**: This setting disables host validation and is **not recommended for production**, as it exposes your application to both CSRF and open redirect risks.
+-   **Trust all hosts (`'all'`)**: This setting disables host validation and is **not recommended for production**.
 
 In addition to `trustHosts`, `gau` also uses a temporary state-based CSRF token (`__gau-csrf-token` cookie) during the OAuth flow itself. This ensures that the user who starts the authentication process is the same one who finishes it, providing an extra layer of security against CSRF during login.
 
 ## PKCE
 
-PKCE is a security extension to the OAuth 2.0 protocol. It's designed to prevent an attacker from intercepting the authorization code returned by the OAuth provider and exchanging it for an access token. This is especially critical for public clients like SPAs and mobile/desktop apps.
+OAuth 2.1 added PKCE to ensure that the client asking for the token is the same client that initiated the login flow. `gau` implements this in two layers, for both web and native apps.
 
-**This is built in. `gau` automatically handles the entire PKCE flow for you.**
+### Server-to-Provider PKCE
 
-1.  When a sign-in is initiated, `gau` generates a secret `code_verifier`.
-2.  It creates a `code_challenge` by hashing the verifier and sends this challenge to the authorization server.
-3.  When the authorization code is exchanged for an access token, `gau` sends the original `code_verifier`.
-4.  The authorization server re-applies the hash and ensures it matches the original challenge.
+`gau` automatically uses PKCE when communicating with OAuth providers.
+
+1.  The `gau` server generates a `code_verifier` and `code_challenge`.
+2.  It sends the `code_challenge` to the provider during the authorization request.
+3.  When exchanging the provider's authorization code for tokens, it sends the `code_verifier`.
+
+### Client-to-Server PKCE (Native Apps)
+
+For Tauri which uses deep links, `gau` implements an additional PKCE layer to prevent **Deep Link Interception**.
+
+1.  **Initiation**: The Tauri app generates a `code_verifier` and `code_challenge`. It sends the `code_challenge` to the `gau` server when starting the sign-in.
+2.  **Callback**: After authenticating with the provider, the `gau` server issues a short-lived **Auth Code** (instead of a session token) and redirects back to the app via deep link.
+3.  **Exchange**: The app intercepts the deep link, extracts the Auth Code, and sends it along with the original `code_verifier` to the server's `/token` endpoint.
+4.  **Validation**: The server verifies the Auth Code and ensures the `code_verifier` matches the initial `code_challenge`. Only then is a persistent session token issued.
+
+This ensures that even if a malicious app intercepts the deep link, it cannot exchange the Auth Code for a session token because it lacks the secret `code_verifier`.
 
 ## Secure Cookie Defaults
 
