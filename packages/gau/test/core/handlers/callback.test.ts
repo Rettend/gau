@@ -265,27 +265,27 @@ describe('callback handler', () => {
   it('should return HTML for mobile redirects', async () => {
     const state = `state123.${btoa('https://mobile.app/callback')}`
     const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
-    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce; __gau-client-challenge=challenge`)
 
     const response = await handleCallback(request, auth, 'mock')
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('text/html')
 
     const html = await response.text()
-    expect(html).toContain('const url = "https://mobile.app/callback#token=')
+    expect(html).toContain('const url = "https://mobile.app/callback?code=')
   })
 
   it('should return HTML for desktop/mobile redirects', async () => {
     const state = `state123.${btoa('gau://callback')}`
     const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
-    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce; __gau-client-challenge=challenge`)
 
     const response = await handleCallback(request, auth, 'mock')
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('text/html')
 
     const html = await response.text()
-    expect(html).toContain('const url = "gau://callback#token=')
+    expect(html).toContain('const url = "gau://callback?code=')
     expect(html).toContain('window.location.href = url;')
   })
 
@@ -368,13 +368,13 @@ describe('callback handler', () => {
 
       const state = `state123.${btoa('/dashboard')}`
       const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
-      request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce`)
+      request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=state123; ${PKCE_COOKIE_NAME}=pkce; __gau-client-challenge=challenge`)
 
       const response = await handleCallback(request, auth, 'mock')
       expect(response.status).toBe(200)
       expect(response.headers.get('Content-Type')).toContain('text/html')
       const html = await response.text()
-      expect(html).toContain('const url = "http://localhost/dashboard#token=')
+      expect(html).toContain('const url = "http://localhost/dashboard?code=')
     })
 
     it('should force cookie strategy for cross-origin when strategy is "cookie"', async () => {

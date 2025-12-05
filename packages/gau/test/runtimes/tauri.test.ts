@@ -173,18 +173,32 @@ describe('tauri runtime helpers', () => {
     })
 
     describe('handleTauriDeepLink', () => {
-      it('should call onToken with the token from a custom scheme URL', () => {
+      it('should call onToken with the token from a custom scheme URL', async () => {
         const onToken = vi.fn()
-        const url = 'gau://oauth/callback#token=test-token'
-        tauriHelpers.handleTauriDeepLink(url, 'http://localhost:3000', 'gau', onToken)
-        expect(onToken).toHaveBeenCalledWith('test-token')
+        const url = 'gau://oauth/callback?code=auth-code'
+        localStorageMock.setItem('gau-pkce-verifier', 'verifier')
+
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ token: 'session-token' }),
+        } as Response) as any
+
+        await tauriHelpers.handleTauriDeepLink(url, 'http://localhost:3000', 'gau', onToken)
+        expect(onToken).toHaveBeenCalledWith('session-token')
       })
 
-      it('should call onToken with the token from a base URL origin', () => {
+      it('should call onToken with the token from a base URL origin', async () => {
         const onToken = vi.fn()
-        const url = 'http://localhost:3000/#token=test-token-2'
-        tauriHelpers.handleTauriDeepLink(url, 'http://localhost:3000', 'gau', onToken)
-        expect(onToken).toHaveBeenCalledWith('test-token-2')
+        const url = 'http://localhost:3000/?code=auth-code'
+        localStorageMock.setItem('gau-pkce-verifier', 'verifier')
+
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ token: 'session-token' }),
+        } as Response) as any
+
+        await tauriHelpers.handleTauriDeepLink(url, 'http://localhost:3000', 'gau', onToken)
+        expect(onToken).toHaveBeenCalledWith('session-token')
       })
 
       it('should not call onToken for an invalid URL', () => {

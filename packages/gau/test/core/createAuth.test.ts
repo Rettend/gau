@@ -24,7 +24,7 @@ describe('createAuth', () => {
   it('initializes with default options', () => {
     const auth = createAuth({ adapter, providers: [] })
     expect(auth.basePath).toBe('/api/auth')
-    expect(auth.jwt.ttl).toBe(3600 * 24)
+    expect(auth.jwt.ttl).toBe(3600 * 24 * 7)
     expect(auth.cookieOptions.path).toBe('/')
     expect(auth.trustHosts).toEqual([])
     expect(auth.autoLink).toBe('verifiedEmail')
