@@ -212,7 +212,7 @@ For `HS256`, this can be a simple string. For the default and recommended `ES256
 
 The signing algorithm to use.
 
-`ES256` (ECDSA with P-256 and SHA-256) is the default and recommended algorithm. It uses asymmetric cryptography (a private key to sign, a public key to verify), which is generally more secure than symmetric algorithms like `HS256`. `HS256` is for backend-only setups, and it's a bit faster.
+`ES256` is the default and recommended. It uses a private/public key pair, which is more secure: only your server can sign tokens, but anyone with the public key can verify them. `HS256` uses a single shared secret and is slightly faster, but both the signer and verifier need the same key.
 
 ### jwt.privateKey
 
@@ -260,10 +260,10 @@ cookies: {
 > **Type**: `'all' | string[]`,
 > **Default**: `[]`
 
-The `trustHosts` option is a crucial security feature that serves two main purposes:
+This controls which domains are allowed to make requests to your auth endpoints and where users can be redirected after login.
 
-1.  **CSRF Protection**: It whitelists origins that are allowed to make `POST` requests (e.g., for signing out) to your auth endpoints.
-2.  **Open Redirect Prevention**: It validates the `redirectTo` URL parameter during a login flow, ensuring users are only redirected to trusted domains after authentication.
+1.  **CSRF Protection**: Only origins in this list can make `POST` requests (like signing out).
+2.  **Redirect Validation**: The `redirectTo` parameter is only honored if it points to a trusted host.
 
 The `Origin` header of incoming requests and the host of redirect URLs are checked against this list.
 
@@ -314,9 +314,9 @@ Controls how `gau` does automatic account linking.
 
 Read the [Account Linking](/guides/account-linking) guide for a full explanation.
 
-- **`'verifiedEmail'` (Default)**: If an existing user signs in with a new OAuth provider, `gau` will try very hard to get a **verified** email address from the provider, then it will automatically link the new account to that existing user. Otherwise, it will create a new user.
-- **`'always'`**: Links accounts if the email addresses match, regardless of whether the email is verified by the provider.
-- **`false`**: Disables automatic account linking. A new user will be created for each new OAuth provider sign-in, even if the email already exists.
+- **`'verifiedEmail'` (Default)**: On sign-in with a new provider, `gau` checks if the email is verified. If a user with that email already exists, the new account is linked to them. Otherwise, a new user is created.
+- **`'always'`**: Same as above, but links even if the provider doesn't mark the email as verified.
+- **`false`**: Never auto-link. Every new provider sign-in creates a new user.
 
 ## allowDifferentEmails
 

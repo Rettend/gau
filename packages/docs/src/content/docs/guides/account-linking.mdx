@@ -38,9 +38,9 @@ This means a user can sign in with GitHub, sign out, and then sign back in with 
 
 You can control this behavior with the [`autoLink`](/guides/configuration#autolink) option in `createAuth`.
 
-- **`'verifiedEmail'` (Default)**: Links accounts only if the email from the new provider is verified.
-- **`'always'`**: Links accounts if the emails match, even if the new provider doesn't verify the email.
-- **`false`**: Disables automatic linking entirely. A new user is created for each new provider sign-in.
+- **`'verifiedEmail'` (Default)**: Only links if the new provider's email is verified.
+- **`'always'`**: Links if emails match, even if not verified.
+- **`false`**: No auto-linking. Each new provider creates a new user.
 
 ## Manual Account Linking
 

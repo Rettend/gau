@@ -14,7 +14,7 @@ This guide covers two distinct concepts: **provider refresh tokens** (for callin
 
 ### What are provider refresh tokens?
 
-Provider refresh tokens are long-lived credentials issued by OAuth providers (Google, Microsoft, etc.) to obtain new, short-lived access tokens without user re-authentication. These are used to call the provider's APIs on behalf of the user—not for `gau` sessions.
+Provider refresh tokens let your app get new access tokens without asking the user to sign in again. When you want to call a provider's API (like querying Google Calendar or fetching Microsoft emails), you need an access token, but those expire quickly. The refresh token lets you get a fresh one behind the scenes.
 
 <Aside type="note">
   Some providers (e.g., GitHub) often do not issue refresh tokens. In this case, the `refreshToken` column will remain `null`.

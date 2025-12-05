@@ -28,11 +28,11 @@ The session cookie is named `__gau-session-token` by default and its attributes 
 
 ## Token-Based Sessions (Native Apps & SPAs)
 
-For environments where cookies are not ideal or feasible - like desktop apps, mobile apps, or SPAs that are decoupled from their backend - `gau` uses a token-based flow.
+Cookies don't work well for desktop apps, mobile apps, or frontends hosted separately from the backend. For these cases, `gau` uses tokens instead.
 
 ### How It Works
 
-This flow relies on a secure PKCE exchange to transfer the session token from the backend to the app.
+The flow uses PKCE to securely pass the session token from your backend to the app, ensuring only the app that started the login can receive the token.
 
 <Steps>
 1.  **Sign-In**: The client-side `signIn` function generates a PKCE `code_verifier` and `code_challenge`. It opens the system's web browser to the OAuth provider's authorization URL, including the challenge.

@@ -15,9 +15,9 @@ This is configured via the `trustHosts` option in `createAuth`.
 
 ### Open Redirect Prevention
 
-An open redirect vulnerability occurs when an application redirects users to a URL that could be controlled by an attacker, often for phishing purposes. `gau` prevents this by validating the `redirectTo` parameter that can be passed during login.
+After login, you might want to send users to a specific page using the `redirectTo` parameter. Without validation, an attacker could trick users into being redirected to a phishing site.
 
-When a user signs in, you can provide a `redirectTo` query parameter to send them to a specific page afterward. `gau` checks if the hostname in the `redirectTo` URL is in your `trustHosts` list. If it isn't, the redirect is blocked.
+`gau` checks that the `redirectTo` URL points to a hostname in your `trustHosts` list. If it doesn't match, the redirect is blocked.
 
 <Aside type="note">
   Client-side integrations automatically set `redirectTo` to their URL. You just need to whitelist the hostnames on the server's `createAuth` config.
@@ -25,7 +25,7 @@ When a user signs in, you can provide a `redirectTo` query parameter to send the
 
 ### CSRF Protection
 
-Cross-Site Request Forgery is an attack that tricks a user into submitting a malicious request. `gau` mitigates this by validating the `Origin` header on all `POST` requests to its API routes (like `/api/auth/signout` and `/api/auth/unlink`). Only origins from hosts in `trustHosts` are allowed.
+A malicious site could try to make requests to your auth endpoints on behalf of a logged-in user. `gau` prevents this by checking the `Origin` header on all `POST` requests (like `/api/auth/signout`). Only requests from hosts in your `trustHosts` list are allowed.
 
 ### Configuration
 
@@ -62,21 +62,21 @@ OAuth 2.1 added PKCE to ensure that the client asking for the token is the same 
 
 ### Client-to-Server PKCE (Native Apps)
 
-For Tauri which uses deep links, `gau` implements an additional PKCE layer to prevent **Deep Link Interception**.
+Deep links (like `my-app://callback`) can potentially be intercepted by other apps on the device. To prevent this, `gau` adds another PKCE layer between your app and the server:
 
 1.  **Initiation**: The Tauri app generates a `code_verifier` and `code_challenge`. It sends the `code_challenge` to the `gau` server when starting the sign-in.
 2.  **Callback**: After authenticating with the provider, the `gau` server issues a short-lived **Auth Code** (instead of a session token) and redirects back to the app via deep link.
 3.  **Exchange**: The app intercepts the deep link, extracts the Auth Code, and sends it along with the original `code_verifier` to the server's `/token` endpoint.
-4.  **Validation**: The server verifies the Auth Code and ensures the `code_verifier` matches the initial `code_challenge`. Only then is a persistent session token issued.
+4.  **Validation**: The server verifies the Auth Code and checks that the `code_verifier` matches the initial challenge. Only then is a session token issued.
 
-This ensures that even if a malicious app intercepts the deep link, it cannot exchange the Auth Code for a session token because it lacks the secret `code_verifier`.
+This way, even if another app intercepts the deep link, it can't get a session token because it doesn't have the secret `code_verifier`.
 
 ## Secure Cookie Defaults
 
-When using cookie-based sessions, `gau` applies secure defaults to the session cookie (`__gau-session-token`):
+`gau` applies safe defaults to the session cookie (`__gau-session-token`):
 
--   **`httpOnly: true`**: Prevents the cookie from being accessed by client-side JavaScript, mitigating XSS attacks.
--   **`secure: true`**: Ensures the cookie is only sent over HTTPS connections.
--   **`sameSite: 'lax'`**: Provides a balance of security and usability, protecting against most CSRF attacks while allowing the cookie to be sent with top-level navigations.
+-   **`httpOnly: true`**: JavaScript can't read the cookie, protecting against XSS attacks.
+-   **`secure: true`**: The cookie is only sent over HTTPS.
+-   **`sameSite: 'lax'`**: Protects against most CSRF attacks while still working with normal navigation.
 
 You can customize these settings via the [`cookies`](/guides/configuration#cookies) option, for example, to enforce `'strict'` same-site policies if your application's flow allows for it. 

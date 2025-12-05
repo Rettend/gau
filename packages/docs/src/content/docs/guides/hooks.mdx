@@ -5,13 +5,11 @@ description: Extend and customize gau's OAuth flow using hooks.
 
 import Aside from 'starlight-plugin-icons/components/Aside.astro'
 
-`gau` exposes hooks to let you intercept the OAuth callback, modify provider profiles, and control linking.
-These are configured in `createAuth`.
+`gau` exposes hooks to let you intercept and customize the OAuth flow. You can modify user profiles, block linking, or take over the response entirely.
 
-They receive a context object (e.g., `providerId`, `tokens`, `providerUser`, and request/cookie details),
-and they return specific values to control the flow.
+Hooks are configured in `createAuth` and receive context about the current request (provider, tokens, user info, etc.).
 
-Conceptual hook example:
+Hook syntax:
 
 ```ts title="auth.ts"
 import { createAuth } from '@rttnd/gau/core'
