@@ -218,7 +218,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
   cors = true,
   profiles: profilesConfig,
 }: CreateAuthOptions<TProviders>): Auth<TProviders> {
-  const { algorithm = 'ES256', secret, iss, aud, ttl: defaultTTL = 3600 * 24 } = jwtConfig
+  const { algorithm = 'ES256', secret, iss, aud, ttl: defaultTTL = 3600 * 24 * 7 } = jwtConfig
   const cookieOptions = { ...DEFAULT_COOKIE_SERIALIZE_OPTIONS, ...cookieConfig }
 
   const sessionStrategy: 'auto' | 'cookie' | 'token' = sessionConfig.strategy ?? 'auto'
