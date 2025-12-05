@@ -9,7 +9,6 @@
     "core:default",
     "core:event:default",
     "deep-link:default",
-    "opener:default",
-    "os:default"
+    "opener:default"
   ]
 }
