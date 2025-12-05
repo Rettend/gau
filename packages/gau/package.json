@@ -97,8 +97,6 @@
     "dist"
   ],
   "scripts": {
-    "prepublishOnly": "node -e \"require('fs').copyFileSync('../../README.md', 'README.md')\"",
-    "postpublish": "node -e \"require('fs').unlinkSync('README.md')\"",
     "dev": "bun run --watch index.ts",
     "build": "bun --bun tsup",
     "lint": "bun --bun eslint . --fix",
