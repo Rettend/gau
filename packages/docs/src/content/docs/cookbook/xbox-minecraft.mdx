@@ -54,7 +54,7 @@ export const auth = createAuth({
 })
 ```
 
-<Aside type="tip" icon="i-ph:lightbulb-duotone">Mark the `xbox` profile as `linkOnly: true` to ensure users can only link it to an existing account and not sign in directly with Microsoft using that profile.</Aside>
+<Aside type="tip" icon="i-ph:lightbulb-bold">Mark the `xbox` profile as `linkOnly: true` to ensure users can only link it to an existing account and not sign in directly with Microsoft using that profile.</Aside>
 
 <Aside type="note">When you short-circuit with `onOAuthExchange`, gau clears temporary cookies (CSRF/PKCE/callbackUri) and returns your custom response.</Aside>
 

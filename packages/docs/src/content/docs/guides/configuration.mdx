@@ -226,9 +226,13 @@ By default, this is derived from `jwt.secret`.
 ### jwt.ttl
 
 > **Type**: `number`,
-> **Default**: `86400` (24 hours)
+> **Default**: `3600 * 24 * 7` (7 days)
 
-The default time-to-live for session JWTs, in seconds.
+The time-to-live for session JWTs, in seconds. This determines how long a user stays logged in before needing to re-authenticate.
+
+<Aside icon="i-ph:lightbulb-bold" type="tip" title="Session Duration">
+  The default is 7 days, which works well for most apps. For apps where you want users to stay logged in longer, you can safely increase this to 30 days or more.
+</Aside>
 
 ### jwt.iss, jwt.aud, and jwt.sub
 
