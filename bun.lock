@@ -251,7 +251,6 @@
     "workerd",
   ],
   "overrides": {
-    "@tauri-apps/api": "2.9.1",
     "vite": "^7.1.11",
   },
   "packages": {
