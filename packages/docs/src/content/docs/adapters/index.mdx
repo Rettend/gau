@@ -78,3 +78,34 @@ Updates a user's information.
 > **Type**: `(id: string) => Promise<void>`
 
 Deletes a user from the database.
+
+## Extending the Schema
+
+You can add custom fields to `gau`-managed tables using a `d.ts` file.
+
+#### 1. Update Schema
+
+Add your custom columns to the Drizzle schema.
+
+```ts title="schema.ts" ins={5}
+import { text } from 'drizzle-orm/sqlite-core'
+
+export const Users = sqliteTable('users', {
+  // ... 
+  nickname: text(),
+})
+```
+
+#### 2. Augment Types
+
+Create a declaration file to override the default `User` interface. This ensures `auth.session.user.nickname` is typed correctly.
+
+```ts title="src/gau.d.ts"
+import '@rttnd/gau'
+
+declare module '@rttnd/gau' {
+  interface User {
+    nickname?: string | null
+  }
+}
+```
