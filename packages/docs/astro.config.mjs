@@ -1,5 +1,6 @@
 // @ts-check
 import { fileURLToPath } from 'node:url'
+import starlightLlmsTxt from '@rttnd/starlight-llms-txt'
 import { defineConfig } from 'astro/config'
 import Icons from 'starlight-plugin-icons'
 import UnoCSS from 'unocss/astro'
@@ -22,6 +23,12 @@ export default defineConfig({
       extractSafelist: true,
       starlight: {
         title: 'gau',
+        plugins: [
+          starlightLlmsTxt({
+            generatePageMarkdown: true,
+            markdownFilePattern: 'replace',
+          }),
+        ],
         social: [
           { icon: 'github', label: 'GitHub', href: 'https://github.com/Rettend/gau' },
           { icon: 'discord', label: 'Discord', href: 'https://discord.gg/FvVaUPhj3t' },

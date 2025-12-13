@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@astrojs/starlight": "^0.36.1",
+    "@rttnd/starlight-llms-txt": "^0.6.1",
     "astro": "^5.14.7",
     "sharp": "^0.34.4",
     "starlight-plugin-icons": "^1.1.3",
