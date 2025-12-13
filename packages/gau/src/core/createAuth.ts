@@ -4,8 +4,9 @@ import type { SignOptions, VerifyOptions } from '../jwt'
 import type { AuthUser, OAuthProvider, OAuthProviderConfig, ProviderProfileOverrides } from '../oauth'
 import type { Cookies } from './cookies'
 import type { Adapter, GauSession } from './index'
+import { serialize } from 'cookie'
 import { sign, verify } from '../jwt'
-import { DEFAULT_COOKIE_SERIALIZE_OPTIONS } from './cookies'
+import { DEFAULT_COOKIE_SERIALIZE_OPTIONS, SESSION_COOKIE_NAME } from './cookies'
 import { AuthError } from './index'
 
 type ProviderId<P> = P extends OAuthProvider<infer T> ? T : never
@@ -140,6 +141,30 @@ export interface CreateAuthOptions<TProviders extends OAuthProvider[]> {
   profiles?: ProfilesConfig<TProviders>
 }
 
+/**
+ * Options for issuing a session.
+ */
+export interface IssueSessionOptions {
+  /** Custom claims to include in the session JWT. */
+  data?: Record<string, unknown>
+  /** Time-to-live in seconds (defaults to auth's configured jwt.ttl). */
+  ttl?: number
+}
+
+/**
+ * Result of issuing a session.
+ */
+export interface IssueSessionResult {
+  /** The raw JWT session token (for Bearer auth or storage). */
+  token: string
+  /** The serialized Set-Cookie header value (for web apps). */
+  cookie: string
+  /** The cookie name used by gau. */
+  cookieName: string
+  /** The maxAge in seconds. */
+  maxAge: number
+}
+
 export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
   providerMap: Map<ProviderId<TProviders[number]>, TProviders[number]>
   basePath: string
@@ -153,6 +178,23 @@ export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
   verifyJWT: <U = Record<string, unknown>>(token: string, customOptions?: Partial<VerifyOptions>) => Promise<U | null>
   createSession: (userId: string, data?: Record<string, unknown>, ttl?: number) => Promise<string>
   validateSession: (token: string) => Promise<GauSession | null>
+  /**
+   * Issue a session for a user, returning both the token and a Set-Cookie header.
+   * Useful for guest login, invite redemption, admin impersonation, etc.
+   */
+  issueSession: (userId: string, options?: IssueSessionOptions) => Promise<IssueSessionResult>
+  /**
+   * Refresh an existing session, issuing a new token with extended TTL.
+   * Preserves custom claims from the original token.
+   *
+   * @param token - The existing session token to refresh
+   * @param options.ttl - Override the default TTL for the new token
+   * @param options.threshold - Only refresh if past this fraction of TTL (0-1).
+   *   When set, returns null if below threshold.
+   *   Example: 0.5 means only refresh if session is past 50% of its lifetime.
+   * @returns The refreshed session, or null if invalid/expired/below threshold
+   */
+  refreshSession: (token: string, options?: { ttl?: number, threshold?: number }) => Promise<IssueSessionResult | null>
   /**
    * Get a valid access token for a linked provider. If the stored token is expired and a refresh token exists,
    * this will refresh it using the provider's refreshAccessToken and persist rotated tokens.
@@ -292,6 +334,54 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     return signJWT(payload, { ttl })
   }
 
+  async function issueSession(userId: string, options: IssueSessionOptions = {}): Promise<IssueSessionResult> {
+    const { data = {}, ttl = defaultTTL } = options
+    const token = await createSession(userId, data, ttl)
+
+    const cookieOpts: SerializeOptions = {
+      ...cookieOptions,
+      maxAge: ttl,
+    }
+
+    const cookie = serialize(SESSION_COOKIE_NAME, token, cookieOpts)
+
+    return {
+      token,
+      cookie,
+      cookieName: SESSION_COOKIE_NAME,
+      maxAge: ttl,
+    }
+  }
+
+  async function refreshSession(token: string, options: { ttl?: number, threshold?: number } = {}): Promise<IssueSessionResult | null> {
+    const payload = await verifyJWT<{ sub: string, iat?: number } & Record<string, unknown>>(token)
+    if (!payload || !payload.sub)
+      return null
+
+    if (options.threshold != null && options.threshold > 0 && options.threshold < 1) {
+      const { iat } = payload
+      if (iat) {
+        const now = Math.floor(Date.now() / 1000)
+        const sessionAge = now - iat
+        const ttl = options.ttl ?? defaultTTL
+        const thresholdSeconds = ttl * options.threshold
+
+        if (sessionAge < thresholdSeconds)
+          return null
+      }
+    }
+
+    const user = await adapter.getUser(payload.sub)
+    if (!user)
+      return null
+    const { sub, iat, exp, iss, aud, nbf, jti, ...customClaims } = payload
+
+    return issueSession(payload.sub, {
+      data: customClaims,
+      ttl: options.ttl,
+    })
+  }
+
   async function validateSession(token: string): Promise<GauSession | null> {
     const payload = await verifyJWT<{ sub: string } & Record<string, unknown>>(token)
     if (!payload)
@@ -370,6 +460,8 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     verifyJWT,
     createSession,
     validateSession,
+    issueSession,
+    refreshSession,
     getAccessToken,
     trustHosts,
     autoLink,

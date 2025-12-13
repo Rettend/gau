@@ -1,0 +1,373 @@
+---
+title: Advanced Use Cases
+description: Programmatic sessions and custom authentication flows in gau.
+---
+
+import { Steps, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components'
+
+Beyond standard OAuth flows, `gau` exposes APIs for building custom auth flows.
+
+## The `issueSession` method
+
+This method lets you programmatically create sessions for any user. It returns both a JWT token and a ready-to-use `Set-Cookie` header.
+
+```ts
+const { token, cookie, cookieName, maxAge } = await auth.issueSession(userId, {
+  data: { customClaim: 'value' },  // Optional: custom JWT claims
+  ttl: 3600                        // Optional: override default TTL (seconds)
+})
+
+// For web apps: set the cookie
+response.headers.set('Set-Cookie', cookie)
+
+// For native/mobile apps: use the token directly  
+headers: { Authorization: `Bearer ${token}` }
+```
+
+This enables use cases that OAuth alone can't handle:
+- **Guest sessions** - Let users use your app without signing up, and still save their data in the db
+- **Invite redemption** - Auto sign-in after claiming an invite
+- **Admin impersonation** - Debug issues as a specific user
+- **Device claiming** - Authenticate IoT devices or kiosks
+- **Magic links / OTP** - Build your own email auth flow
+
+## The `refreshSession` method
+
+Extend an existing session's lifetime by issuing a new token. Preserves all custom claims from the original:
+
+```ts
+const refreshed = await auth.refreshSession(existingToken, {
+  ttl: 3600,      // Optional: override TTL
+  threshold: 0.5  // Optional: only refresh if past 50% of TTL
+})
+
+if (refreshed) {
+  response.headers.set('Set-Cookie', refreshed.cookie)
+}
+```
+
+**Options:**
+- `ttl` - Override the default TTL for the new token
+- `threshold` - Only refresh if the session is past this fraction of its TTL (0-1).
+
+Returns `null` if the token is invalid, expired, below threshold, or the user no longer exists.
+
+---
+
+## Guest Login
+
+Let users use your app without requiring OAuth sign-up. Later, they can upgrade their guest account by linking an OAuth provider.
+
+<Steps>
+1. ##### Create a Guest User
+
+    When a user wants to use your app as a guest, create a user record and issue a session.
+
+    Consider not doing this on page visit, instead require a button click or captcha.
+
+    ```ts title="routes/api/guest/+server.ts"
+    import { auth } from '$lib/server/auth'
+
+    export async function POST() {
+      const guestUser = await auth.createUser({
+        name: `Guest ${Date.now()}`,
+      })
+
+      const { cookie } = await auth.issueSession(guestUser.id, {
+        data: { isGuest: true },
+        ttl: 60 * 60 * 24 * 365, // 1 year
+      })
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { 'Set-Cookie': cookie },
+      })
+    }
+    ```
+
+    <Aside type="tip">
+      Consider refreshing the guest session on each visit to keep it alive. See [Keep Sessions Alive](#keep-sessions-alive-optional).
+
+      Or it's also fine to use `ttl: 0` to create a never-expiring session.
+    </Aside>
+
+2. ##### Detect Guest Users
+
+    In your app, check for the guest claim:
+
+    ```ts title="routes/+layout.server.ts"
+    export async function load({ locals }) {
+      const session = await locals.getSession()
+      
+      return {
+        user: session?.user,
+        isGuest: session?.session?.isGuest === true,
+      }
+    }
+    ```
+
+3. ##### Keep Sessions Alive (Optional)
+
+    Use `refreshSession()` to extend the session on each visit. This issues a new token with fresh TTL while preserving custom claims:
+
+    ```ts title="hooks.server.ts"
+    import { auth } from '$lib/server/auth'
+    import { SESSION_COOKIE_NAME } from '@rttnd/gau/core'
+
+    export const handle = async ({ event, resolve }) => {
+      const token = event.cookies.get(SESSION_COOKIE_NAME)
+      
+      if (token) {
+        // Only refresh if past 50% of TTL
+        const refreshed = await auth.refreshSession(token, { threshold: 0.5 })
+        
+        if (refreshed) {
+          event.cookies.set(refreshed.cookieName, refreshed.token, {
+            path: '/',
+            maxAge: refreshed.maxAge,
+          })
+        }
+      }
+      
+      return resolve(event)
+    }
+    ```
+
+4. ##### Upgrade Guest to Full Account
+
+    When a guest decides to sign up, they simply sign in with an OAuth provider. Thanks to [Account Linking](/guides/account-linking), their existing user record will be linked to the new provider.
+
+    <Aside type="tip">
+      You may want to add a name and email to the guest user during the linking process using the `onAfterLinkAccount` hook.
+    </Aside>
+</Steps>
+
+---
+
+## Private Beta Invites (with Auto Sign-In)
+
+Build a closed beta where users need a valid invite token to join. When they redeem their invite, automatically sign them in.
+
+<Steps>
+1. ##### Generate Invite Tokens
+
+    Use `auth.signJWT` to create invite tokens. Add a `purpose` claim to distinguish them from session tokens, and a `jti` (JWT ID) for tracking:
+
+    ```ts title="invites.ts"
+    import { auth } from './auth'
+
+    export async function createInviteToken() {
+      const token = await auth.signJWT(
+        {
+          purpose: 'beta-invite',
+          jti: crypto.randomUUID(),
+        },
+        { ttl: 60 * 60 * 24 * 7 }, // Expires in 7 days
+      )
+      return token
+    }
+    ```
+
+2. ##### Store Used Tokens
+
+    Prevent tokens from being redeemed multiple times by tracking them:
+
+    <Tabs syncKey="db">
+      <TabItem label="SQLite">
+        ```ts title="db/schema.ts" ins={3-6}
+        // ... existing Users and Accounts tables
+
+        export const UsedInviteTokens = sqliteTable('used_invite_tokens', {
+          jti: text().primaryKey(),
+          usedAt: integer({ mode: 'timestamp' }).$defaultFn(() => new Date()),
+        });
+        ```
+      </TabItem>
+      <TabItem label="PostgreSQL">
+        ```ts title="db/schema.ts" ins={3-6}
+        // ... existing Users and Accounts tables
+
+        export const UsedInviteTokens = pgTable('used_invite_tokens', {
+          jti: text().primaryKey(),
+          usedAt: timestamp().defaultNow(),
+        });
+        ```
+      </TabItem>
+    </Tabs>
+
+3. ##### Verify and Redeem Invite
+
+    When a user redeems their invite, verify the token, create their account, and immediately issue a session:
+
+    ```ts title="routes/api/redeem-invite/+server.ts"
+    import { auth } from '$lib/server/auth'
+    import { db } from '$lib/server/db'
+    import { UsedInviteTokens } from '$lib/server/db/schema'
+
+    export async function POST({ request }) {
+      const { token, email } = await request.json()
+
+      // Verify the invite token
+      const payload = await auth.verifyJWT<{ purpose?: string, jti?: string }>(token)
+
+      if (payload?.purpose !== 'beta-invite' || !payload.jti)
+        return new Response('Invalid invite token', { status: 400 })
+
+      // Check if token was already used
+      const used = await db.query.UsedInviteTokens.findFirst({
+        where: (t, { eq }) => eq(t.jti, payload.jti),
+      })
+
+      if (used)
+        return new Response('Invite already used', { status: 400 })
+
+      // Check if email already exists
+      const existing = await auth.getUserByEmail(email)
+      if (existing)
+        return new Response('Email already registered', { status: 400 })
+
+      // Create user and mark token as used
+      const newUser = await db.transaction(async (tx) => {
+        await tx.insert(UsedInviteTokens).values({ jti: payload.jti! })
+        return await auth.createUser({ email })
+      })
+
+      // Auto sign-in: issue a session immediately
+      const { cookie } = await auth.issueSession(newUser.id, {
+        data: { inviteRedeemed: true },
+      })
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { 'Set-Cookie': cookie },
+      })
+    }
+    ```
+
+4. ##### Complete the Profile
+
+    The user is now signed in! Prompt them to complete their profile or link an OAuth provider for easier future logins.
+</Steps>
+
+---
+
+## Admin Impersonation
+
+Let admins sign in as other users for debugging or support purposes.
+
+```ts title="routes/api/admin/impersonate/+server.ts"
+import { auth } from '$lib/server/auth'
+
+export async function POST({ request, locals }) {
+  const session = await locals.getSession()
+  
+  // Verify the requester is an admin
+  if (!session?.user?.isAdmin)
+    return new Response('Forbidden', { status: 403 })
+
+  const { targetUserId } = await request.json()
+
+  // Issue a short-lived session for the target user
+  const { cookie } = await auth.issueSession(targetUserId, {
+    data: {
+      impersonatedBy: session.user.id,
+      impersonatedAt: Date.now(),
+    },
+    ttl: 60 * 30, // 30 minute impersonation session
+  })
+
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { 'Set-Cookie': cookie },
+  })
+}
+```
+
+<Aside type="caution">
+  Always log impersonation sessions and consider adding an "exit impersonation" feature that restores the admin's original session.
+</Aside>
+
+---
+
+## Device / Kiosk Authentication
+
+Authenticate devices that can't perform OAuth flows (IoT devices, kiosks, POS terminals).
+
+<Steps>
+1. ##### Generate a Claim Code
+
+    Create a short-lived, human-readable code for the device:
+
+    ```ts title="devices.ts"
+    export async function generateClaimCode(deviceId: string) {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+      
+      // Store code -> deviceId mapping with expiration
+      await redis.setex(`claim:${code}`, 300, deviceId) // 5 min expiry
+      
+      return code
+    }
+    ```
+
+2. ##### User Claims the Device
+
+    The user enters the code on your web app (where they're already authenticated):
+
+    ```ts title="routes/api/claim-device/+server.ts"
+    export async function POST({ request, locals }) {
+      const session = await locals.getSession()
+      if (!session?.user)
+        return new Response('Unauthorized', { status: 401 })
+
+      const { code } = await request.json()
+      const deviceId = await redis.get(`claim:${code}`)
+      
+      if (!deviceId)
+        return new Response('Invalid or expired code', { status: 400 })
+
+      // Issue a long-lived session for the device
+      const { token } = await auth.issueSession(session.user.id, {
+        data: { deviceId, isDevice: true },
+        ttl: 60 * 60 * 24 * 365, // 1 year
+      })
+
+      // Delete the claim code
+      await redis.del(`claim:${code}`)
+
+      // Send token to device via your preferred method
+      await notifyDevice(deviceId, { token })
+
+      return new Response(JSON.stringify({ success: true }))
+    }
+    ```
+
+3. ##### Device Uses Token
+
+    The device stores the token and uses it for all API requests:
+
+    ```ts
+    fetch('https://api.example.com/data', {
+      headers: { Authorization: `Bearer ${storedToken}` }
+    })
+    ```
+</Steps>
+
+---
+
+## JWT Configuration
+
+You can configure JWT behavior globally in `createAuth`:
+
+```ts title="auth.ts"
+export const auth = createAuth({
+  // ...
+  jwt: {
+    secret: process.env.AUTH_SECRET,
+    algorithm: 'ES256', // or 'HS256'
+    ttl: 3600 * 24 * 7, // Default: 7 days
+    iss: 'my-app',      // Issuer claim
+    aud: 'my-audience', // Audience claim
+  },
+})
+```
+
+The `issueSession` method respects these defaults but allows per-call overrides via the `ttl` option.
+
+See the [`jwt`](/guides/configuration#jwt) option in the configuration guide for more details.
