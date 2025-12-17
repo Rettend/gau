@@ -16,7 +16,7 @@
     "test:all": "vitest && bun run lint:test",
     "test:ui": "vitest --project fast --ui",
     "update": "taze latest -wr",
-    "release": "bumpp packages/gau/package.json packages/gau/jsr.json && bun run build && npm publish --workspace @rttnd/gau --access public"
+    "release": "bumpp packages/gau/package.json packages/gau/jsr.json && bun run build && bun publish --cwd packages/gau"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^6.0.0",

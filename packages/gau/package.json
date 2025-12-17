@@ -96,6 +96,9 @@
     "README.md",
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "bun run --watch index.ts",
     "build": "bun --bun tsup",

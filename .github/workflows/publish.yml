@@ -24,11 +24,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
-      - name: Copy README to package for JSR
-        run: cp README.md packages/gau/README.md
-
       - run: bun x jsr publish --allow-dirty
-
-      - name: Clean up README from package
-        if: always()
-        run: rm packages/gau/README.md
