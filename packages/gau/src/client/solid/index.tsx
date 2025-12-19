@@ -1,4 +1,4 @@
-import type { ParentProps, Resource } from 'solid-js'
+import type { InitializedResource, ParentProps } from 'solid-js'
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
 import { createContext, createResource, onCleanup, onMount, untrack, useContext } from 'solid-js'
 import { isServer } from 'solid-js/web'
@@ -7,7 +7,7 @@ import { isTauri } from '../../runtimes/tauri'
 import { createAuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> {
-  session: Resource<GauSession<ProviderIds<TAuth>>>
+  session: InitializedResource<GauSession<ProviderIds<TAuth>>>
   signIn: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
   linkAccount: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
