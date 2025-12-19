@@ -1,4 +1,4 @@
-import type { Accessor, JSXElement, VoidComponent } from 'solid-js'
+import type { JSXElement, Resource, VoidComponent } from 'solid-js'
 import type { GauSession, ProviderIds } from '../../core'
 import { useNavigate } from '@solidjs/router'
 import { onMount, Show } from 'solid-js'
@@ -6,7 +6,7 @@ import { isServer } from 'solid-js/web'
 import { useAuth } from './index'
 
 export function Protected<const TAuth = unknown>(
-  page: (session: Accessor<GauSession<ProviderIds<TAuth>>>) => JSXElement,
+  page: (session: Resource<GauSession<ProviderIds<TAuth>>>) => JSXElement,
   fallbackOrRedirect?: (() => JSXElement) | string,
 ): VoidComponent {
   return () => {
@@ -27,7 +27,7 @@ export function Protected<const TAuth = unknown>(
 
     return (
       <Show
-        when={auth.session().user}
+        when={auth.session()?.user}
         fallback={isRedirectMode ? <Redirect /> : (Fallback ? <Fallback /> : null)}
       >
         {page(auth.session)}
