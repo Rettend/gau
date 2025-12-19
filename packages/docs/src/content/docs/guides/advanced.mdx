@@ -87,7 +87,7 @@ Let users use your app without requiring OAuth sign-up. Later, they can upgrade 
     <Aside type="tip">
       Consider refreshing the guest session on each visit to keep it alive. See [Keep Sessions Alive](#keep-sessions-alive-optional).
 
-      Or it's also fine to use `ttl: 0` to create a never-expiring session.
+      If you want guest accounts to persist for a long time, use a large TTL (e.g. 1 year) instead of `0`. Setting `ttl: 0` will cause the session cookie to be deleted immediately by the browser.
     </Aside>
 
 2. ##### Detect Guest Users
