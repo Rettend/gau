@@ -40,6 +40,8 @@ describe('tauri runtime helpers', () => {
   beforeEach(() => {
     localStorageMock.clear()
     document.cookie = ''
+    mockOpen.mockClear()
+    mockListen.mockClear()
 
     // Mock window with crypto from global (setup.ts) or node:crypto
     vi.stubGlobal('window', {

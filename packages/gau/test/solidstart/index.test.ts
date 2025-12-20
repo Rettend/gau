@@ -18,6 +18,12 @@ vi.mock('../../src/core', async (importOriginal) => {
   }
 })
 
+let mockRequestEvent: { request: Request } | undefined
+vi.mock('solid-js/web', () => ({
+  getRequestEvent: () => mockRequestEvent,
+  isServer: true,
+}))
+
 describe('solidAuth', () => {
   beforeEach(() => {
     mockAuth.providerMap = new Map()

@@ -1,9 +1,13 @@
 import type { Provider } from '~/lib/auth'
-import { createMemo, For, Show } from 'solid-js'
+import { createEffect, createMemo, For, Show } from 'solid-js'
 import { useAuth } from '~/lib/auth'
 
 export default function Home() {
   const auth = useAuth()
+
+  createEffect(() => {
+    console.log(auth.session())
+  })
 
   const providerMeta: Partial<Record<Provider, { label: string, icon: string }>> = {
     github: { label: 'GitHub', icon: 'i-ph:github-logo' },

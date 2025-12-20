@@ -3,7 +3,7 @@ title: SolidStart
 description: How to integrate gau with SolidStart.
 ---
 
-import { Steps } from '@astrojs/starlight/components'
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 import FileTree from 'starlight-plugin-icons/components/FileTree.astro'
 import Aside from 'starlight-plugin-icons/components/Aside.astro'
 
@@ -78,27 +78,76 @@ This guide shows how to integrate `gau` with SolidStart, using Drizzle (SQLite o
 
     Wrap your application in an `AuthProvider` and use the `useAuth` hook to access session data.
 
-    ```tsx title="src/app.tsx"
-    // @refresh reload
-    import { AuthProvider } from '@rttnd/gau/client/solid'
-    import { Router } from '@solidjs/router'
-    import { FileRoutes } from '@solidjs/start/router'
-    import { Suspense } from 'solid-js'
+    <Tabs>
+      <TabItem label="SSR">
+        Use `createAsync` to fetch the session on the server. This will serialize the session into the initial HTML.
 
-    export default function App() {
-      return (
-        <AuthProvider>
-          <Router
-            root={props => (
-              <Suspense>{props.children}</Suspense>
-            )}
-          >
-            <FileRoutes />
-          </Router>
-        </AuthProvider>
-      )
-    }
-    ```
+        ```ts title="src/server/session.ts"
+        import { query } from '@solidjs/router'
+        import { getRequestEvent } from 'solid-js/web'
+
+        export const getSession = query(async () => {
+          'use server'
+          const event = getRequestEvent()
+          return event?.locals.getSession()
+        }, 'session')
+        ```
+
+        ```tsx title="src/app.tsx"
+        // @refresh reload
+        import { AuthProvider } from '@rttnd/gau/client/solid'
+        import { Router } from '@solidjs/router'
+        import { FileRoutes } from '@solidjs/start/router'
+        import { Suspense } from 'solid-js'
+        import { createAsync } from '@solidjs/router'
+        import { getSession } from '~/lib/session'
+
+        export default function App() {
+          return (
+            <Router
+              root={(props) => {
+                const session = createAsync(() => getSession())
+                return (
+                  <Suspense>
+                    <AuthProvider session={session} baseUrl={clientEnv.VITE_API_URL}>
+                      {props.children}
+                    </AuthProvider>
+                  </Suspense>
+                )
+              }}
+            >
+              <FileRoutes />
+            </Router>
+          )
+        }
+        ```
+      </TabItem>
+      <TabItem label="CSR">
+        If you use `ssr: false`, the setup is simple. The session will be fetched client-side after hydration.
+
+        ```tsx title="src/app.tsx"
+        // @refresh reload
+        import { AuthProvider } from '@rttnd/gau/client/solid'
+        import { Router } from '@solidjs/router'
+        import { FileRoutes } from '@solidjs/start/router'
+        import { Suspense } from 'solid-js'
+
+        export default function App() {
+          return (
+            <AuthProvider>
+              <Router
+                root={props => (
+                  <Suspense>{props.children}</Suspense>
+                )}
+              >
+                <FileRoutes />
+              </Router>
+            </AuthProvider>
+          )
+        }
+        ```
+      </TabItem>
+    </Tabs>
 
     <Aside type="note">
       If your frontend and backend are on different hosts, set `baseUrl` to the full URL of your backend's auth API. Use envs to set it for development and production.
@@ -170,6 +219,7 @@ This guide shows how to integrate `gau` with SolidStart, using Drizzle (SQLite o
       - src
         - lib
           - auth.ts
+          - session.ts
         - routes
           - api
             - auth

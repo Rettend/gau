@@ -4,5 +4,6 @@ import { getRequestEvent } from 'solid-js/web'
 export const getSession = query(async () => {
   'use server'
   const event = getRequestEvent()
-  return event?.locals.getSession()
+  const session = await event?.locals.getSession()
+  return session
 }, 'session')

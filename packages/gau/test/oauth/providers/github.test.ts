@@ -31,10 +31,10 @@ vi.mock('arctic', async (importOriginal) => {
   const original = await importOriginal<typeof import('arctic')>()
   return {
     ...original,
-    OAuth2Client: vi.fn(() => ({
-      createAuthorizationURLWithPKCE: vi.fn(() => new URL('https://github.com/login/oauth/authorize?mock=true')),
-      validateAuthorizationCode: vi.fn(() => Promise.resolve(mockTokens)),
-    })),
+    OAuth2Client: vi.fn(class {
+      createAuthorizationURLWithPKCE = vi.fn(() => new URL('https://github.com/login/oauth/authorize?mock=true'))
+      validateAuthorizationCode = vi.fn(() => Promise.resolve(mockTokens))
+    }),
   }
 })
 

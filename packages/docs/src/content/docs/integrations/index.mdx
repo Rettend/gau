@@ -5,7 +5,6 @@ description: How to integrate gau with your favorite framework.
 
 import IconLink from 'starlight-plugin-icons/components/IconLink.astro'
 import Aside from 'starlight-plugin-icons/components/Aside.astro'
-import { Tabs, TabItem } from '@astrojs/starlight/components'
 
 `gau` is designed to be framework-agnostic. It can run anywhere, but official support makes it easier.
 
@@ -86,18 +85,8 @@ An object containing the current authentication state. Its `user` and `session` 
 #### `isLoading`
 
 > **Type**: `boolean`
-<Tabs syncKey="framework">
-  <TabItem label="SvelteKit">
 
-
-    In Svelte, the session is a reactive object. Use the `isLoading` property to show loading states.
-  </TabItem>
-
-  <TabItem label="SolidStart">
-
-    In Solid, `session` is an [InitializedResource](https://docs.solidjs.com/reference/basic-reactivity/create-resource#resource). Call it as a function to get the value, and access `.loading` or `.state` for loading states.
-  </TabItem>
-</Tabs>
+True when the session is loading for client side apps.
 
 #### `signIn`
 

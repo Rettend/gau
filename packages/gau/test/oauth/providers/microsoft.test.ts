@@ -6,24 +6,25 @@ const mockPhotoBlob = new Blob(['photo-data'], { type: 'image/jpeg' })
 
 let mockIdToken: (() => string | null) | null = null
 
+const mockTokens = {
+  accessToken: () => 'test_access_token',
+  accessTokenExpiresAt: () => new Date(Date.now() + 3600 * 1000),
+  refreshToken: () => 'test_refresh_token',
+  idToken: () => mockIdToken?.() ?? null,
+}
+
 vi.mock('arctic', async (importOriginal) => {
   const original = await importOriginal<typeof import('arctic')>()
-  const mockTokens = {
-    accessToken: () => 'test_access_token',
-    accessTokenExpiresAt: () => new Date(Date.now() + 3600 * 1000),
-    refreshToken: () => 'test_refresh_token',
-    idToken: () => mockIdToken?.() ?? null,
-  }
   return {
     ...original,
-    OAuth2Client: vi.fn(() => ({
-      createAuthorizationURLWithPKCE: vi.fn((authURL: string) => {
+    OAuth2Client: vi.fn(class {
+      createAuthorizationURLWithPKCE = vi.fn((authURL: string) => {
         const u = new URL(authURL)
         u.searchParams.set('mock', 'true')
         return u
-      }),
-      validateAuthorizationCode: vi.fn(() => Promise.resolve(mockTokens)),
-    })),
+      })
+      validateAuthorizationCode = vi.fn(() => Promise.resolve(mockTokens))
+    }),
   }
 })
 
@@ -46,14 +47,15 @@ describe('microsoft Provider', () => {
       return Promise.reject(new Error(`Unhandled fetch mock for ${url}`))
     }))
 
-    vi.stubGlobal('FileReader', vi.fn(() => ({
-      readAsDataURL: vi.fn(function (this: any) {
-        this.onloadend()
-      }),
-      result: 'data:image/jpeg;base64,cGhvdG8tZGF0YQ==',
-      onerror: vi.fn(),
-      onloadend: vi.fn(),
-    })))
+    vi.stubGlobal('FileReader', class {
+      result: string | null = null
+      onloadend: (() => void) | null = null
+      onerror: ((err: any) => void) | null = null
+      readAsDataURL(_blob: Blob) {
+        this.result = 'data:image/jpeg;base64,cGhvdG8tZGF0YQ=='
+        queueMicrotask(() => this.onloadend?.())
+      }
+    })
   })
 
   afterEach(() => {
