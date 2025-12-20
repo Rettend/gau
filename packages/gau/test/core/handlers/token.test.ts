@@ -40,7 +40,7 @@ describe('handleToken', () => {
 
   it('should return 400 if verifier does not match challenge', async () => {
     mockAuth.verifyJWT.mockResolvedValue({ sub: 'user-123', challenge: 'mismatch-challenge' })
-    
+
     // Mock crypto for SHA-256
     const mockDigest = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4]).buffer)
     Object.defineProperty(globalThis, 'crypto', {

@@ -23,6 +23,7 @@ vi.mock('arctic', async (importOriginal) => {
         u.searchParams.set('mock', 'true')
         return u
       })
+
       validateAuthorizationCode = vi.fn(() => Promise.resolve(mockTokens))
     }),
   }

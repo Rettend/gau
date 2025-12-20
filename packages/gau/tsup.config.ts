@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 import type { Options } from 'tsup'
+import { $, Glob, write } from 'bun'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { $, Glob, write } from 'bun'
 import { defineConfig } from 'tsup'
 
 const commonConfig = {

@@ -47,4 +47,3 @@ await Promise.all(toDelete.map(async (dir) => {
 
 const totalEnd = performance.now()
 console.log(`Cleanup complete! Total: ${((totalEnd - totalStart) / 1000).toFixed(2)}s`)
-

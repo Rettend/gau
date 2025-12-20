@@ -6,6 +6,7 @@ export default function Home() {
   const auth = useAuth()
 
   createEffect(() => {
+    // eslint-disable-next-line no-console
     console.log(auth.session())
   })
 
