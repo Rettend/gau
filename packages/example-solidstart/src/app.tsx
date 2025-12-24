@@ -13,6 +13,7 @@ export default function App() {
     <Router
       root={(props) => {
         const session = createAsync(() => getSession())
+
         return (
           <Suspense>
             <AuthProvider session={session} baseUrl={clientEnv.VITE_API_URL}>
