@@ -8,6 +8,7 @@ import { serialize } from 'cookie'
 import { sign, verify } from '../jwt'
 import { DEFAULT_COOKIE_SERIALIZE_OPTIONS, SESSION_COOKIE_NAME } from './cookies'
 import { AuthError } from './index'
+import { getSessionTokenFromRequest } from './utils'
 
 type ProviderId<P> = P extends OAuthProvider<infer T> ? T : never
 export type ProviderIds<T> = T extends { providerMap: Map<infer K extends string, any> } ? K : string
@@ -165,6 +166,32 @@ export interface IssueSessionResult {
   maxAge: number
 }
 
+/**
+ * Options for refreshing a session.
+ */
+export interface RefreshSessionOptions {
+  /** Override the default TTL for the new token. */
+  ttl?: number
+  /**
+   * Only refresh if past this fraction of TTL (0-1).
+   * Example: 0.5 means only refresh if session is past 50% of its lifetime.
+   */
+  threshold?: number
+}
+
+/**
+ * Result of refreshing a session. Extends IssueSessionResult with source information.
+ */
+export interface RefreshSessionResult extends IssueSessionResult {
+  /**
+   * How the original token was provided.
+   * - 'cookie': Token was extracted from the Cookie header
+   * - 'bearer': Token was extracted from Authorization: Bearer header
+   * - 'token': A raw token string was passed directly
+   */
+  source: 'cookie' | 'bearer' | 'token'
+}
+
 export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
   providerMap: Map<ProviderId<TProviders[number]>, TProviders[number]>
   basePath: string
@@ -187,14 +214,14 @@ export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
    * Refresh an existing session, issuing a new token with extended TTL.
    * Preserves custom claims from the original token.
    *
-   * @param token - The existing session token to refresh
+   * @param tokenOrRequest - The existing session token, or a Request to extract the token from
    * @param options.ttl - Override the default TTL for the new token
    * @param options.threshold - Only refresh if past this fraction of TTL (0-1).
    *   When set, returns null if below threshold.
    *   Example: 0.5 means only refresh if session is past 50% of its lifetime.
-   * @returns The refreshed session, or null if invalid/expired/below threshold
+   * @returns The refreshed session with source info, or null if invalid/expired/below threshold
    */
-  refreshSession: (token: string, options?: { ttl?: number, threshold?: number }) => Promise<IssueSessionResult | null>
+  refreshSession: (tokenOrRequest: string | Request, options?: RefreshSessionOptions) => Promise<RefreshSessionResult | null>
   /**
    * Get a valid access token for a linked provider. If the stored token is expired and a refresh token exists,
    * this will refresh it using the provider's refreshAccessToken and persist rotated tokens.
@@ -353,7 +380,22 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     }
   }
 
-  async function refreshSession(token: string, options: { ttl?: number, threshold?: number } = {}): Promise<IssueSessionResult | null> {
+  async function refreshSession(tokenOrRequest: string | Request, options: RefreshSessionOptions = {}): Promise<RefreshSessionResult | null> {
+    let token: string | undefined
+    let source: RefreshSessionResult['source']
+
+    if (typeof tokenOrRequest === 'string') {
+      token = tokenOrRequest
+      source = 'token'
+    }
+    else {
+      const extracted = getSessionTokenFromRequest(tokenOrRequest)
+      if (!extracted.token || !extracted.source)
+        return null
+      token = extracted.token
+      source = extracted.source
+    }
+
     const payload = await verifyJWT<{ sub: string, iat?: number } & Record<string, unknown>>(token)
     if (!payload || !payload.sub)
       return null
@@ -376,10 +418,12 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
       return null
     const { sub, iat, exp, iss, aud, nbf, jti, ...customClaims } = payload
 
-    return issueSession(payload.sub, {
+    const result = await issueSession(payload.sub, {
       data: customClaims,
       ttl: options.ttl,
     })
+
+    return { ...result, source }
   }
 
   async function validateSession(token: string): Promise<GauSession | null> {

@@ -1,18 +1,11 @@
 import type { Auth } from '../createAuth'
-import { parseCookies, SESSION_COOKIE_NAME } from '../cookies'
 import { json } from '../index'
+import { getSessionTokenFromRequest } from '../utils'
 import { prepareOAuthRedirect } from './utils'
 
 export async function handleLink(request: Request, auth: Auth, providerId: string): Promise<Response> {
   const url = new URL(request.url)
-  const requestCookies = parseCookies(request.headers.get('Cookie'))
-  let sessionToken = requestCookies.get(SESSION_COOKIE_NAME)
-
-  if (!sessionToken) {
-    const authHeader = request.headers.get('Authorization')
-    if (authHeader?.startsWith('Bearer '))
-      sessionToken = authHeader.substring(7)
-  }
+  let sessionToken = getSessionTokenFromRequest(request).token
 
   if (!sessionToken)
     sessionToken = url.searchParams.get('token') ?? undefined
@@ -31,14 +24,7 @@ export async function handleLink(request: Request, auth: Auth, providerId: strin
 }
 
 export async function handleUnlink(request: Request, auth: Auth, providerId: string): Promise<Response> {
-  const requestCookies = parseCookies(request.headers.get('Cookie'))
-  let sessionToken = requestCookies.get(SESSION_COOKIE_NAME)
-
-  if (!sessionToken) {
-    const authHeader = request.headers.get('Authorization')
-    if (authHeader?.startsWith('Bearer '))
-      sessionToken = authHeader.substring(7)
-  }
+  const sessionToken = getSessionTokenFromRequest(request).token
 
   if (!sessionToken)
     return json({ error: 'Unauthorized' }, { status: 401 })

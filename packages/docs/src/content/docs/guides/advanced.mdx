@@ -33,16 +33,26 @@ This enables use cases that OAuth alone can't handle:
 
 ## The `refreshSession` method
 
-Extend an existing session's lifetime by issuing a new token. Preserves all custom claims from the original:
+Extend an existing session's lifetime by issuing a new token. Preserves all custom claims from the original.
+
+You can pass either a raw token string or a `Request` object, which auto-detects cookie vs bearer token.
 
 ```ts
-const refreshed = await auth.refreshSession(existingToken, {
+const refreshed = await auth.refreshSession(request, {
   ttl: 3600,      // Optional: override TTL
   threshold: 0.5  // Optional: only refresh if past 50% of TTL
 })
+```
+
+Or a raw token string, and use the `source` field.
+
+```ts
+const refreshed = await auth.refreshSession(existingToken, { threshold: 0.5 })
 
 if (refreshed) {
-  response.headers.set('Set-Cookie', refreshed.cookie)
+  if (refreshed.source === 'cookie') {
+    response.headers.set('Set-Cookie', refreshed.cookie)
+  }
 }
 ```
 
@@ -50,7 +60,14 @@ if (refreshed) {
 - `ttl` - Override the default TTL for the new token
 - `threshold` - Only refresh if the session is past this fraction of its TTL (0-1).
 
+**Result includes:**
+- `token` - The new JWT token
+- `cookie` - Ready-to-use `Set-Cookie` header value
+- `source` - How the original token was provided: `'cookie'`, `'bearer'`, or `'token'`
+
 Returns `null` if the token is invalid, expired, below threshold, or the user no longer exists.
+
+For framework-specific middleware helpers (SolidStart/SvelteKit), see the [Middleware](/guides/middleware) guide.
 
 ---
 
@@ -107,30 +124,7 @@ Let users use your app without requiring OAuth sign-up. Later, they can upgrade 
 
 3. ##### Keep Sessions Alive (Optional)
 
-    Use `refreshSession()` to extend the session on each visit. This issues a new token with fresh TTL while preserving custom claims:
-
-    ```ts title="hooks.server.ts"
-    import { auth } from '$lib/server/auth'
-    import { SESSION_COOKIE_NAME } from '@rttnd/gau/core'
-
-    export const handle = async ({ event, resolve }) => {
-      const token = event.cookies.get(SESSION_COOKIE_NAME)
-      
-      if (token) {
-        // Only refresh if past 50% of TTL
-        const refreshed = await auth.refreshSession(token, { threshold: 0.5 })
-        
-        if (refreshed) {
-          event.cookies.set(refreshed.cookieName, refreshed.token, {
-            path: '/',
-            maxAge: refreshed.maxAge,
-          })
-        }
-      }
-      
-      return resolve(event)
-    }
-    ```
+    Use the middleware helpers to automatically extend sessions on each visit. See the [Middleware](/guides/middleware) guide.
 
 4. ##### Upgrade Guest to Full Account
 

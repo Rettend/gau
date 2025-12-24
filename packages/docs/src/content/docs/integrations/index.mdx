@@ -138,3 +138,29 @@ This might be useful when:
 - You've updated user data on the server and want to reflect changes immediately
 - You want to check if the session is still valid
 - You've linked or unlinked accounts and want to update the accounts list
+
+#### `fetch`
+
+> **Type**: `(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>`
+
+A fetch wrapper for making authenticated API calls to your backend.
+
+```ts
+const { fetch } = useAuth()
+
+const res = await fetch('/api/my-endpoint', {
+  method: 'POST',
+  body: JSON.stringify({ data: 'value' }),
+})
+```
+
+**What it handles:**
+- Adds `Authorization: Bearer <token>` if a token is stored (Tauri/mobile)
+- Falls back to `credentials: 'include'` for cookie-based auth (web)
+- Auto-stores refreshed tokens from the `X-Refreshed-Token` header
+
+<Aside type="tip">
+  For pure web apps using cookies, you don't need `fetch` from useAuth, regular `fetch` with `credentials: 'include'` works fine. This is mainly useful for Tauri/mobile apps that use bearer tokens.
+</Aside>
+
+See the [Middleware](/guides/middleware) guide for setting up automatic session refresh on the server.

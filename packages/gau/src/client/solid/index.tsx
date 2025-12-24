@@ -14,6 +14,7 @@ interface AuthContextValue<TAuth = unknown> {
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 }
 
 const AuthContext = createContext<any>()
@@ -187,7 +188,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   })
 
   return (
-    <AuthContext.Provider value={{ session, isLoading, signIn, linkAccount, unlinkAccount, signOut, refresh: refetch }}>
+    <AuthContext.Provider value={{ session, isLoading, signIn, linkAccount, unlinkAccount, signOut, refresh: refetch, fetch: client.fetch }}>
       {props.children}
     </AuthContext.Provider>
   )

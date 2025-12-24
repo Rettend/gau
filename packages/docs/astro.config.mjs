@@ -47,6 +47,7 @@ export default defineConfig({
               { icon: 'i-ph:cookie-duotone', label: 'Session Management', slug: 'guides/session-management' },
               { icon: 'i-ph:plugs-connected-duotone', label: 'Account Linking', slug: 'guides/account-linking' },
               { icon: 'i-ph:arrows-counter-clockwise-duotone', label: 'Refresh Tokens', slug: 'guides/refresh-tokens' },
+              { icon: 'i-ph:rows-duotone', label: 'Middleware', slug: 'guides/middleware' },
               { icon: 'i-ph:folder-lock-duotone', label: 'Protected Routes', slug: 'guides/protected-routes' },
               { icon: 'i-ph:user-check-duotone', label: 'Role-Based Access Control', slug: 'guides/role-based-access-control' },
               { icon: 'i-ph:head-circuit-duotone', label: 'Advanced Use Cases', slug: 'guides/advanced' },

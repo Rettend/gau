@@ -1,11 +1,14 @@
 import { BROWSER } from 'esm-env'
 
+export const SESSION_TOKEN_KEY = '__gau-session-token'
+
+export const REFRESHED_TOKEN_HEADER = 'X-Refreshed-Token'
+
 export function storeSessionToken(token: string) {
   if (!BROWSER)
     return
   try {
-    localStorage.setItem('gau-token', token)
-    document.cookie = `__gau-session-token=${token}; path=/; max-age=31536000; samesite=lax; secure`
+    localStorage.setItem(SESSION_TOKEN_KEY, token)
   }
   catch {}
 }
@@ -13,17 +16,29 @@ export function storeSessionToken(token: string) {
 export function getSessionToken(): string | null {
   if (!BROWSER)
     return null
-  return localStorage.getItem('gau-token')
+  try {
+    return localStorage.getItem(SESSION_TOKEN_KEY)
+  }
+  catch {
+    return null
+  }
 }
 
 export function clearSessionToken() {
   if (!BROWSER)
     return
   try {
-    localStorage.removeItem('gau-token')
-    document.cookie = `__gau-session-token=; path=/; max-age=0`
+    localStorage.removeItem(SESSION_TOKEN_KEY)
   }
   catch {}
+}
+
+export function handleRefreshedToken(response: Response): void {
+  if (!BROWSER)
+    return
+  const refreshed = response.headers.get(REFRESHED_TOKEN_HEADER)
+  if (refreshed)
+    storeSessionToken(refreshed)
 }
 
 export async function generatePKCE() {

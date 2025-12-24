@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NULL_SESSION, SESSION_COOKIE_NAME } from '../../src/core'
-import { authMiddleware, createSolidStartGetSession, SolidAuth } from '../../src/solidstart/index'
+import { NULL_SESSION, REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
+import { authMiddleware, createSolidStartGetSession, refreshMiddleware, SolidAuth } from '../../src/solidstart/index'
 
 const mockAuth = {
   providerMap: new Map(),
@@ -165,5 +165,53 @@ describe('authMiddleware', () => {
     await mw(event)
     const session = await event.locals.getSession()
     expect(session).toEqual({ ...NULL_SESSION, providers: [] })
+  })
+})
+
+describe('refreshMiddleware', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sets Set-Cookie when refreshed source is cookie', async () => {
+    const authInstance = {
+      providerMap: new Map(),
+      signJWT: vi.fn(),
+      refreshSession: vi.fn().mockResolvedValue({
+        token: 'new-token',
+        cookie: 'cookie-value',
+        cookieName: SESSION_COOKIE_NAME,
+        maxAge: 123,
+        source: 'cookie',
+      }),
+    } as any
+
+    const mw = refreshMiddleware(authInstance, { threshold: 0.5 })
+    const event: any = { request: new Request('http://localhost/'), response: new Response(null), locals: {} }
+    await mw(event)
+
+    expect(event.response.headers.get('Set-Cookie')).toBe('cookie-value')
+    expect(event.response.headers.get(REFRESHED_TOKEN_HEADER)).toBeNull()
+  })
+
+  it('sets X-Refreshed-Token when refreshed source is bearer', async () => {
+    const authInstance = {
+      providerMap: new Map(),
+      signJWT: vi.fn(),
+      refreshSession: vi.fn().mockResolvedValue({
+        token: 'new-token',
+        cookie: 'cookie-value',
+        cookieName: SESSION_COOKIE_NAME,
+        maxAge: 123,
+        source: 'bearer',
+      }),
+    } as any
+
+    const mw = refreshMiddleware(authInstance)
+    const event: any = { request: new Request('http://localhost/'), response: new Response(null), locals: {} }
+    await mw(event)
+
+    expect(event.response.headers.get(REFRESHED_TOKEN_HEADER)).toBe('new-token')
+    expect(event.response.headers.get('Set-Cookie')).toBeNull()
   })
 })

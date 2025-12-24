@@ -1,6 +1,8 @@
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
 import { isTauri } from '../../runtimes/tauri/index'
-import { clearSessionToken, getSessionToken, storeSessionToken } from '../token'
+import { clearSessionToken, getSessionToken, handleRefreshedToken, storeSessionToken } from '../token'
+
+export { clearSessionToken, getSessionToken, handleRefreshedToken, REFRESHED_TOKEN_HEADER, SESSION_TOKEN_KEY, storeSessionToken } from '../token'
 
 export interface AuthClientOptions {
   baseUrl: string
@@ -172,10 +174,35 @@ export function createAuthClient<const TAuth = unknown>({ baseUrl, scheme = 'gau
     return cleanup
   }
 
+  /**
+   * Fetch wrapper that automatically handles authentication:
+   * - Adds Authorization header if a token is stored (Tauri/mobile)
+   * - Falls back to credentials: 'include' for cookie-based auth (web)
+   * - Automatically stores refreshed tokens from X-Refreshed-Token header
+   */
+  async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+    const token = getSessionToken()
+    const headers = new Headers(init.headers)
+
+    if (token)
+      headers.set('Authorization', `Bearer ${token}`)
+
+    const res = await globalThis.fetch(input, {
+      ...init,
+      headers,
+      ...(!token && { credentials: 'include' as RequestCredentials }),
+    })
+
+    handleRefreshedToken(res)
+
+    return res
+  }
+
   return {
     get session() {
       return currentSession
     },
+    fetch: authFetch,
     fetchSession,
     refreshSession,
     applySessionToken,

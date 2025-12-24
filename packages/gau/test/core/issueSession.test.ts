@@ -609,4 +609,52 @@ describe('refreshSession', () => {
       expect(payload?.isGuest).toBe(true)
     })
   })
+
+  describe('request overload', () => {
+    it('refreshes from Cookie and reports source=cookie', async () => {
+      const auth = createAuth({ adapter, providers: [], jwt: { secret, algorithm: 'HS256', ttl: 3600 } })
+      const user = await auth.createUser({ name: 'Guest' })
+      const { token: originalToken } = await auth.issueSession(user.id)
+
+      vi.advanceTimersByTime(1000)
+
+      const req = new Request('http://localhost/', {
+        headers: { Cookie: `${SESSION_COOKIE_NAME}=${originalToken}` },
+      })
+      const refreshed = await auth.refreshSession(req)
+
+      expect(refreshed).not.toBeNull()
+      expect(refreshed?.source).toBe('cookie')
+      expect(refreshed?.token).toBeDefined()
+      expect(refreshed?.cookie).toBeDefined()
+    })
+
+    it('refreshes from Authorization header and reports source=bearer', async () => {
+      const auth = createAuth({ adapter, providers: [], jwt: { secret, algorithm: 'HS256', ttl: 3600 } })
+      const user = await auth.createUser({ name: 'Guest' })
+      const { token: originalToken } = await auth.issueSession(user.id)
+
+      vi.advanceTimersByTime(1000)
+
+      const req = new Request('http://localhost/', {
+        headers: { Authorization: `Bearer ${originalToken}` },
+      })
+      const refreshed = await auth.refreshSession(req)
+
+      expect(refreshed).not.toBeNull()
+      expect(refreshed?.source).toBe('bearer')
+    })
+
+    it('reports source=token when passing a raw token string', async () => {
+      const auth = createAuth({ adapter, providers: [], jwt: { secret, algorithm: 'HS256', ttl: 3600 } })
+      const user = await auth.createUser({ name: 'Guest' })
+      const { token: originalToken } = await auth.issueSession(user.id)
+
+      vi.advanceTimersByTime(1000)
+
+      const refreshed = await auth.refreshSession(originalToken)
+      expect(refreshed).not.toBeNull()
+      expect(refreshed?.source).toBe('token')
+    })
+  })
 })
