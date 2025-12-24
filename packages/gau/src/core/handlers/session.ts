@@ -1,17 +1,9 @@
 import type { Auth } from '../createAuth'
-import { parseCookies, SESSION_COOKIE_NAME } from '../cookies'
 import { json, NULL_SESSION } from '../index'
+import { getSessionTokenFromRequest } from '../utils'
 
 export async function handleSession(request: Request, auth: Auth): Promise<Response> {
-  const rawCookieHeader = request.headers.get('Cookie')
-  const requestCookies = parseCookies(rawCookieHeader)
-  let sessionToken = requestCookies.get(SESSION_COOKIE_NAME)
-
-  if (!sessionToken) {
-    const authHeader = request.headers.get('Authorization')
-    if (authHeader?.startsWith('Bearer '))
-      sessionToken = authHeader.substring(7)
-  }
+  const { token: sessionToken } = getSessionTokenFromRequest(request)
 
   const providers = Array.from(auth.providerMap.keys())
 
