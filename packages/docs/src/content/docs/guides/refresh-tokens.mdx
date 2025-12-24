@@ -47,10 +47,10 @@ Behavior:
 
 ## Session Refresh Tokens
 
-<Aside type="caution" title="Not Implemented">
-  `gau` does not currently implement session refresh tokens. Sessions are managed using simple expiring JWTs.
+`gau` does not implement classic **refresh token pairs**. Sessions are managed using expiring JWTs, and not stored in the database.
 
-  **For longer sessions**, increase [`jwt.ttl`](/guides/configuration#jwtttl) in your config. The default is 7 days; you can safely set it to 30 days or more for most apps.
+You can optionally do **sliding expiration** by refreshing the session JWT as the user keeps using the app. See the [Middleware](/guides/middleware) guide, or the [`refreshSession`](/guides/advanced#the-refreshsession-method) method.
 
-  **Session refresh tokens** do have benefits: sliding session expiration, logout all devices, instant ban. If this is important to you, [open an issue](https://github.com/Rettend/gau/issues).
-</Aside>
+**For longer sessions**, just increase [`jwt.ttl`](/guides/configuration#jwtttl) in your config. The default is 7 days; you can safely set it to 30 days or more for most apps.
+
+**Refresh token pairs** do have benefits: logout all devices, replay protection, instant revocation. If this is important to you, [open an issue](https://github.com/Rettend/gau/issues).

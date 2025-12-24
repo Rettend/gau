@@ -1,0 +1,95 @@
+---
+title: Middleware
+description: Composable server middleware for sessions in SvelteKit and SolidStart.
+---
+
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components'
+
+`gau` provides composable middleware helpers for framework integrations. Use what you need.
+
+## Auth middleware
+
+The base middleware attaches `locals.getSession()` to your request context, letting you access the session anywhere in your app.
+
+<Tabs syncKey="framework">
+  <TabItem label="SvelteKit">
+    `SvelteKitAuth` returns a `handle` hook that sets up `locals.getSession()`:
+
+    ```ts title="hooks.server.ts"
+    export { handle } from './routes/api/auth/[...gau]/+server'
+    ```
+
+    Now you can use `locals.getSession()` in load functions, endpoints, and remote functions.
+  </TabItem>
+
+  <TabItem label="SolidStart">
+    Use `authMiddleware` to attach `locals.getSession`. The first argument controls preloading:
+
+    ```ts title="middleware.ts"
+    import { authMiddleware } from '@rttnd/gau/solidstart'
+    import { createMiddleware } from '@solidjs/start/middleware'
+    import { auth } from './server/auth'
+
+    export default createMiddleware({
+      onRequest: [
+        authMiddleware(true, auth),
+      ],
+    })
+    ```
+
+    Options for the first argument:
+    - `true` - Preload session on all routes
+    - `false` - Lazy load (resolve on first `getSession()` call)
+    - `['/dashboard', '/settings']` - Preload only on specific paths
+  </TabItem>
+</Tabs>
+
+## Refresh middleware
+
+The Refresh middleware adds automatic session refresh:
+- Reads the token from **Cookie** first, then **Authorization: Bearer**
+- Refreshes if past the threshold, or every request
+- Responds appropriately:
+  - **Cookie**: `Set-Cookie` header
+  - **Bearer**: `X-Refreshed-Token` header (for Tauri/mobile)
+
+<Tabs syncKey="framework">
+  <TabItem label="SvelteKit">
+    ```ts title="hooks.server.ts"
+    import { sequence } from '@sveltejs/kit/hooks'
+    import { handle as authHandle } from './routes/api/auth/[...gau]/+server'
+    import { createRefreshHandle } from '@rttnd/gau/sveltekit'
+    import { auth } from '$lib/server/auth'
+
+    export const handle = sequence(
+      authHandle,
+      createRefreshHandle(auth, { threshold: 0.5 }),
+    )
+    ```
+  </TabItem>
+
+  <TabItem label="SolidStart">
+    ```ts title="middleware.ts"
+    import { authMiddleware, refreshMiddleware } from '@rttnd/gau/solidstart'
+    import { createMiddleware } from '@solidjs/start/middleware'
+    import { auth } from './server/auth'
+
+    export default createMiddleware({
+      onRequest: [
+        authMiddleware(true, auth),
+        refreshMiddleware(auth, { threshold: 0.5 }),
+      ],
+    })
+    ```
+  </TabItem>
+</Tabs>
+
+**Options:**
+- `threshold` - Only refresh if past this fraction of TTL (0-1). Example: `0.5` = refresh after 50% of session lifetime.
+- `ttl` - Override the TTL for the new token.
+
+### Token-based clients
+
+If your app uses bearer tokens instead of cookies, the server middleware sends refreshed tokens via the `X-Refreshed-Token` header. Use the `fetch` method from `useAuth()` to handle this automatically.
+
+See the [Integrations](/integrations#fetch) page for details.
