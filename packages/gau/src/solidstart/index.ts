@@ -1,7 +1,9 @@
-import type { CreateAuthOptions, GauSession, ProviderIds } from '../core'
+import type { CreateAuthOptions, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
 import type { OAuthProvider } from '../oauth'
 import process from 'node:process'
-import { createAuth, createHandler, NULL_SESSION, parseCookies, SESSION_COOKIE_NAME } from '../core'
+import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER } from '../core'
+
+export { REFRESHED_TOKEN_HEADER }
 
 type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof createAuth<TProviders>>
 
@@ -18,12 +20,7 @@ type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof c
  * ```
  */
 export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
-  // TODO: Duck-type to check if we have an instance or raw options
-  const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
-
-  const auth = isInstance
-    ? (optionsOrAuth as AuthInstance<TProviders>)
-    : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
+  const auth = resolveAuth(optionsOrAuth)
 
   auth.development = process.env.NODE_ENV === 'development'
 
@@ -44,14 +41,7 @@ export function createSolidStartGetSession<const TProviders extends OAuthProvide
   return async function getSessionFromRequest(
     request: Request,
   ): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> {
-    const requestCookies = parseCookies(request.headers.get('Cookie'))
-    let sessionToken = requestCookies.get(SESSION_COOKIE_NAME)
-
-    if (!sessionToken) {
-      const authHeader = request.headers.get('Authorization')
-      if (authHeader?.startsWith('Bearer '))
-        sessionToken = authHeader.substring(7)
-    }
+    const { token: sessionToken } = getSessionTokenFromRequest(request)
 
     const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
 
@@ -83,10 +73,7 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
   pathsToPreLoad: string[] | boolean,
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
 ) {
-  const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
-  const auth = isInstance
-    ? (optionsOrAuth as AuthInstance<TProviders>)
-    : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
+  const auth = resolveAuth(optionsOrAuth)
 
   const getSessionFromRequest = createSolidStartGetSession(auth)
 
@@ -103,5 +90,51 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
     }
 
     event.locals.getSession = () => getSessionFromRequest(event.request)
+  }
+}
+
+function resolveAuth<const TProviders extends OAuthProvider<any>[]>(
+  optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
+): AuthInstance<TProviders> {
+  const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
+  return isInstance
+    ? (optionsOrAuth as AuthInstance<TProviders>)
+    : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
+}
+
+/**
+ * SolidStart middleware to automatically refresh sessions.
+ * Sets the appropriate header based on how the token was provided:
+ * - Cookie → Set-Cookie header
+ * - Bearer token → X-Refreshed-Token header (for Tauri/mobile clients)
+ *
+ * @example
+ * ```ts
+ * // middleware.ts
+ * import { authMiddleware, refreshMiddleware } from '@rttnd/gau/solidstart'
+ *
+ * export default createMiddleware({
+ *   onRequest: [
+ *     authMiddleware(true, auth),
+ *     refreshMiddleware(auth, { threshold: 0.5 }),
+ *   ],
+ * })
+ * ```
+ */
+export function refreshMiddleware<const TProviders extends OAuthProvider<any>[]>(
+  optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
+  options: RefreshSessionOptions = {},
+) {
+  const auth = resolveAuth(optionsOrAuth)
+
+  return async (event: any) => {
+    const refreshed = await auth.refreshSession(event.request, options)
+
+    if (refreshed) {
+      if (refreshed.source === 'cookie')
+        event.response.headers.set('Set-Cookie', refreshed.cookie)
+      else
+        event.response.headers.set(REFRESHED_TOKEN_HEADER, refreshed.token)
+    }
   }
 }

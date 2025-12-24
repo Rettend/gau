@@ -1,7 +1,9 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit'
-import type { CreateAuthOptions, GauSession, ProviderIds } from '../core'
+import type { CreateAuthOptions, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
 import type { OAuthProvider } from '../oauth'
-import { createAuth, createHandler, NULL_SESSION, parseCookies, SESSION_COOKIE_NAME } from '../core'
+import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER } from '../core'
+
+export { REFRESHED_TOKEN_HEADER }
 
 type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof createAuth<TProviders>>
 
@@ -39,14 +41,7 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
 
   const handle: Handle = async ({ event, resolve }) => {
     (event.locals as any).getSession = async (): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> => {
-      const requestCookies = parseCookies(event.request.headers.get('Cookie'))
-      let sessionToken = requestCookies.get(SESSION_COOKIE_NAME)
-
-      if (!sessionToken) {
-        const authHeader = event.request.headers.get('Authorization')
-        if (authHeader?.startsWith('Bearer '))
-          sessionToken = authHeader.substring(7)
-      }
+      const { token: sessionToken } = getSessionTokenFromRequest(event.request)
 
       const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
 
@@ -72,5 +67,53 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
     POST: sveltekitHandler,
     OPTIONS: sveltekitHandler,
     handle,
+  }
+}
+
+function resolveAuth<const TProviders extends OAuthProvider<any>[]>(
+  optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
+): AuthInstance<TProviders> {
+  const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
+  return isInstance
+    ? (optionsOrAuth as AuthInstance<TProviders>)
+    : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
+}
+
+/**
+ * Creates a SvelteKit handle that automatically refreshes sessions.
+ * Sets the appropriate header based on how the token was provided:
+ * - Cookie → Set-Cookie header
+ * - Bearer token → X-Refreshed-Token header (for Tauri/mobile clients)
+ *
+ * @example
+ * ```ts
+ * // hooks.server.ts
+ * import { sequence } from '@sveltejs/kit/hooks'
+ * import { handle as authHandle } from './routes/api/auth/[...gau]/+server'
+ * import { createRefreshHandle } from '@rttnd/gau/sveltekit'
+ * import { auth } from '$lib/server/auth'
+ *
+ * export const handle = sequence(authHandle, createRefreshHandle(auth, { threshold: 0.5 }))
+ * ```
+ */
+export function createRefreshHandle<const TProviders extends OAuthProvider<any>[]>(
+  optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
+  options: RefreshSessionOptions = {},
+): Handle {
+  const auth = resolveAuth(optionsOrAuth)
+
+  return async ({ event, resolve }) => {
+    const refreshed = await auth.refreshSession(event.request, options)
+
+    const response = await resolve(event)
+
+    if (refreshed) {
+      if (refreshed.source === 'cookie')
+        response.headers.set('Set-Cookie', refreshed.cookie)
+      else
+        response.headers.set(REFRESHED_TOKEN_HEADER, refreshed.token)
+    }
+
+    return response
   }
 }
