@@ -17,6 +17,7 @@ describe('vanilla client', () => {
   const mockClearSessionToken = vi.fn(() => {
     sessionToken = null
   })
+  const mockHandleRefreshedToken = vi.fn()
 
   const makeJsonResponse = (data: any, headers: Record<string, string> = { 'content-type': 'application/json' }) =>
     new Response(JSON.stringify(data), { headers })
@@ -29,6 +30,7 @@ describe('vanilla client', () => {
     vi.spyOn(token, 'getSessionToken').mockImplementation(mockGetSessionToken)
     vi.spyOn(token, 'storeSessionToken').mockImplementation(mockStoreSessionToken)
     vi.spyOn(token, 'clearSessionToken').mockImplementation(mockClearSessionToken)
+    vi.spyOn(token, 'handleRefreshedToken').mockImplementation(mockHandleRefreshedToken)
   })
 
   afterEach(() => {
@@ -230,5 +232,85 @@ describe('vanilla client', () => {
     expect(startAuthBridgeSpy).not.toHaveBeenCalled()
 
     isTauriSpy.mockReturnValue(false)
+  })
+
+  describe('client.fetch', () => {
+    it('adds Authorization header when token exists', async () => {
+      sessionToken = 'my-token'
+      fetchSpy.mockResolvedValueOnce(new Response('ok'))
+
+      const client = createAuthClient({ baseUrl })
+      await client.fetch('/api/data')
+
+      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
+        headers: expect.any(Headers),
+      }))
+      const call = fetchSpy.mock.calls[0]
+      const headers = call[1].headers as Headers
+      expect(headers.get('Authorization')).toBe('Bearer my-token')
+    })
+
+    it('uses credentials: include when no token', async () => {
+      sessionToken = null
+      fetchSpy.mockResolvedValueOnce(new Response('ok'))
+
+      const client = createAuthClient({ baseUrl })
+      await client.fetch('/api/data')
+
+      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
+        credentials: 'include',
+      }))
+    })
+
+    it('calls handleRefreshedToken with response', async () => {
+      const response = new Response('ok')
+      fetchSpy.mockResolvedValueOnce(response)
+
+      const client = createAuthClient({ baseUrl })
+      await client.fetch('/api/data')
+
+      expect(mockHandleRefreshedToken).toHaveBeenCalledWith(response)
+    })
+
+    it('returns the response', async () => {
+      const response = new Response('ok')
+      fetchSpy.mockResolvedValueOnce(response)
+
+      const client = createAuthClient({ baseUrl })
+      const res = await client.fetch('/api/data')
+
+      expect(res).toBe(response)
+    })
+
+    it('passes through init options', async () => {
+      sessionToken = 'tok'
+      fetchSpy.mockResolvedValueOnce(new Response('ok'))
+
+      const client = createAuthClient({ baseUrl })
+      await client.fetch('/api/data', {
+        method: 'POST',
+        body: JSON.stringify({ foo: 'bar' }),
+      })
+
+      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ foo: 'bar' }),
+      }))
+    })
+
+    it('merges custom headers with Authorization', async () => {
+      sessionToken = 'tok'
+      fetchSpy.mockResolvedValueOnce(new Response('ok'))
+
+      const client = createAuthClient({ baseUrl })
+      await client.fetch('/api/data', {
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const call = fetchSpy.mock.calls[0]
+      const headers = call[1].headers as Headers
+      expect(headers.get('Authorization')).toBe('Bearer tok')
+      expect(headers.get('Content-Type')).toBe('application/json')
+    })
   })
 })

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SESSION_TOKEN_KEY } from '../../src/client/token'
 import * as tauriHelpers from '../../src/runtimes/tauri/index'
 
 vi.mock('esm-env', () => ({ BROWSER: true }))
@@ -111,7 +112,7 @@ describe('tauri runtime helpers', () => {
       })
 
       it('should open the correct link URL on desktop', async () => {
-        localStorageMock.setItem('gau-token', 'test-session-token')
+        localStorageMock.setItem(SESSION_TOKEN_KEY, 'test-session-token')
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.linkAccountWithTauri('github', 'http://localhost:3000/api/auth', 'gau')
         const expectedUrl = 'http://localhost:3000/api/auth/link/github?redirectTo=gau%3A%2F%2Foauth%2Fcallback&token=test-session-token'
@@ -119,7 +120,7 @@ describe('tauri runtime helpers', () => {
       })
 
       it('should default to scheme redirect when override omitted', async () => {
-        localStorageMock.setItem('gau-token', 'test-session-token')
+        localStorageMock.setItem(SESSION_TOKEN_KEY, 'test-session-token')
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.linkAccountWithTauri('google', 'http://localhost:3000/api/auth', 'gau', undefined)
         const expectedUrl = 'http://localhost:3000/api/auth/link/google?redirectTo=gau%3A%2F%2Foauth%2Fcallback&token=test-session-token'
@@ -127,7 +128,7 @@ describe('tauri runtime helpers', () => {
       })
 
       it('should use redirectOverride if provided', async () => {
-        localStorageMock.setItem('gau-token', 'test-session-token')
+        localStorageMock.setItem(SESSION_TOKEN_KEY, 'test-session-token')
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.linkAccountWithTauri('github', 'http://localhost:3000/api/auth', 'gau', 'myapp://custom')
         const expectedUrl = 'http://localhost:3000/api/auth/link/github?redirectTo=myapp%3A%2F%2Fcustom&token=test-session-token'
@@ -135,7 +136,7 @@ describe('tauri runtime helpers', () => {
       })
 
       it('should use custom scheme for redirect on mobile platforms', async () => {
-        localStorageMock.setItem('gau-token', 'test-session-token')
+        localStorageMock.setItem(SESSION_TOKEN_KEY, 'test-session-token')
         mockPlatform.mockReturnValue('android')
         await tauriHelpers.linkAccountWithTauri('google', 'https://server.com/api/auth')
         const expectedUrl = 'https://server.com/api/auth/link/google?redirectTo=gau%3A%2F%2Foauth%2Fcallback&token=test-session-token'
@@ -167,7 +168,7 @@ describe('tauri runtime helpers', () => {
       })
 
       it('linkAccountWithTauri resolves relative baseUrl and includes token', async () => {
-        localStorageMock.setItem('gau-token', 'test-session-token')
+        localStorageMock.setItem(SESSION_TOKEN_KEY, 'test-session-token')
         mockPlatform.mockReturnValue('windows')
         await tauriHelpers.linkAccountWithTauri('google', '/api/auth', 'gau')
         expect(mockOpen).toHaveBeenCalledWith('http://localhost:4444/api/auth/link/google?redirectTo=gau%3A%2F%2Foauth%2Fcallback&token=test-session-token')

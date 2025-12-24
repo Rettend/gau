@@ -1,7 +1,7 @@
 import type { RequestEvent } from '@sveltejs/kit'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { NULL_SESSION, SESSION_COOKIE_NAME } from '../../src/core'
-import { SvelteKitAuth } from '../../src/sveltekit/index'
+import { NULL_SESSION, REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
+import { createRefreshHandle, SvelteKitAuth } from '../../src/sveltekit/index'
 
 const mockAuth = {
   providerMap: new Map(),
@@ -131,5 +131,55 @@ describe('svelteKitAuth', () => {
       expect(resolve).toHaveBeenCalledWith(event)
       expect(await response.text()).toBe('resolved')
     })
+  })
+})
+
+describe('createRefreshHandle', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sets Set-Cookie when refreshed source is cookie', async () => {
+    const authInstance = {
+      providerMap: new Map(),
+      signJWT: vi.fn(),
+      refreshSession: vi.fn().mockResolvedValue({
+        token: 'new-token',
+        cookie: 'cookie-value',
+        cookieName: SESSION_COOKIE_NAME,
+        maxAge: 123,
+        source: 'cookie',
+      }),
+    } as any
+
+    const handle = createRefreshHandle(authInstance, { threshold: 0.5 })
+    const event = { request: new Request('http://localhost/'), locals: {} } as any
+    const resolve = vi.fn(async () => new Response('ok'))
+
+    const response = await handle({ event, resolve } as any)
+    expect(response.headers.get('Set-Cookie')).toBe('cookie-value')
+    expect(response.headers.get(REFRESHED_TOKEN_HEADER)).toBeNull()
+  })
+
+  it('sets X-Refreshed-Token when refreshed source is bearer', async () => {
+    const authInstance = {
+      providerMap: new Map(),
+      signJWT: vi.fn(),
+      refreshSession: vi.fn().mockResolvedValue({
+        token: 'new-token',
+        cookie: 'cookie-value',
+        cookieName: SESSION_COOKIE_NAME,
+        maxAge: 123,
+        source: 'bearer',
+      }),
+    } as any
+
+    const handle = createRefreshHandle(authInstance)
+    const event = { request: new Request('http://localhost/'), locals: {} } as any
+    const resolve = vi.fn(async () => new Response('ok'))
+
+    const response = await handle({ event, resolve } as any)
+    expect(response.headers.get(REFRESHED_TOKEN_HEADER)).toBe('new-token')
+    expect(response.headers.get('Set-Cookie')).toBeNull()
   })
 })
