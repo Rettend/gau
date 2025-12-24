@@ -15,6 +15,7 @@ interface AuthContextValue<TAuth = unknown> {
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 }
 
 const AUTH_CONTEXT_KEY = Symbol('gau-auth')
@@ -148,6 +149,7 @@ export function createSvelteAuth<const TAuth = unknown>({
     unlinkAccount,
     signOut,
     refresh: async () => { session = await fetchSession() },
+    fetch: client.fetch,
   }
 
   setContext(AUTH_CONTEXT_KEY, contextValue)
