@@ -99,6 +99,15 @@ A function to initiate the sign-in process with a specific OAuth provider.
 
 <Aside type="note">
   You can get full TypeScript support for your provider IDs by creating a typed `useAuth` hook. See the framework integration guides for examples.
+
+  You can also extract the union type of your configured providers using the `ProviderIds` utility:
+  
+  ```ts
+  import type { ProviderIds } from '@rttnd/gau'
+  import type { Auth } from './server/auth'
+
+  export type Provider = ProviderIds<Auth> // 'github' | 'google'
+  ```
 </Aside>
 
 #### `signOut`
