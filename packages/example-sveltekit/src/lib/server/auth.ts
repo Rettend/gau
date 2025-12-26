@@ -33,7 +33,6 @@ export const auth = createAuth({
     secret: env.AUTH_SECRET,
   },
   trustHosts: 'all',
-  // autoLink: 'always',
 })
 
 export type Auth = typeof auth

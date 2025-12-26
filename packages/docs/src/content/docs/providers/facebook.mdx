@@ -30,7 +30,7 @@ Add the callback URL in your Facebook App under "Facebook Login" → "Settings" 
 The `email` and `public_profile` scopes are requested by default.
 
 <Aside type="note">
-  Make sure to request the `email` scope!
+  Make sure to enabled the `email` and `public_profile` permissions for your Facebook App!
 </Aside>
 
 ```ts title="auth.ts"
@@ -48,10 +48,6 @@ export const auth = createAuth({
 })
 ```
 
-<Aside type="caution">
-  It's unclear if the email returned by Facebook can be trusted, use `autoLink: 'always'` to enable automatic account linking.
-</Aside>
-
 ### Provider params
 
 #### params
@@ -61,5 +57,3 @@ export const auth = createAuth({
 > Default: —
 
 Extra query params appended to the authorization URL.
-
-
