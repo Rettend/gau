@@ -53,7 +53,7 @@ describe('facebook Provider', () => {
     expect(user.id).toBe('123')
     expect(user.name).toBe('Test User')
     expect(user.email).toBe('public@example.com')
-    expect(user.emailVerified).toBe(null)
+    expect(user.emailVerified).toBe(true)
     expect(user.avatar).toBe('https://example.com/avatar.png')
     expect(user.raw).toEqual(mockUser)
   })
