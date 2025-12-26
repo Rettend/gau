@@ -22,9 +22,75 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
+  const error = url.searchParams.get('error')
 
-  if (!code || !state)
-    return json({ error: 'Missing code or state' }, { status: 400 })
+  if (!code || !state || error) {
+    // Try to extract redirect URL from state if available
+    let redirectTo = '/'
+    if (state && state.includes('.')) {
+      try {
+        const encodedRedirect = state.split('.')[1]
+        redirectTo = atob(encodedRedirect ?? '') || '/'
+      }
+      catch {
+        redirectTo = '/'
+      }
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Authentication Cancelled</title>
+  <style>
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+      background-color: #09090b;
+      color: #fafafa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    .card {
+      background-color: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 0.75rem;
+      padding: 2rem;
+      max-width: 320px;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+    }
+    p {
+      margin: 0;
+      color: #a1a1aa;
+    }
+  </style>
+  <script>
+    window.onload = function() {
+      const url = ${JSON.stringify(redirectTo)};
+      window.location.href = url;
+      setTimeout(window.close, 500);
+    };
+  </script>
+</head>
+<body>
+  <div class="card">
+    <h1>Authentication Cancelled</h1>
+    <p>Redirecting you back to the app...</p>
+  </div>
+</body>
+</html>`
+    return new Response(html, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    })
+  }
 
   const requestCookies = parseCookies(request.headers.get('Cookie'))
   const cookies = new Cookies(requestCookies, auth.cookieOptions)
