@@ -232,10 +232,13 @@ describe('callback handler', () => {
     expect(body.error).toBe('Provider not found')
   })
 
-  it('should return 400 for missing code or state', async () => {
+  it('should return friendly HTML page for missing code or state (user cancelled)', async () => {
     const request = new Request('http://localhost/api/auth/callback/mock')
     const response = await handleCallback(request, auth, 'mock')
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    const html = await response.text()
+    expect(html).toContain('Authentication Cancelled')
   })
 
   it('should return 403 for invalid CSRF token', async () => {

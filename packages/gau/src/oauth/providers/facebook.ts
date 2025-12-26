@@ -15,10 +15,13 @@ interface FacebookUserResponse {
 
 async function getUser(accessToken: string): Promise<AuthUser> {
   const searchParams = new URLSearchParams()
-  searchParams.set('access_token', accessToken)
   searchParams.set('fields', ['id', 'name', 'picture', 'email'].join(','))
 
-  const response = await fetch(`${FB_GRAPH_ME_URL}?${searchParams.toString()}`)
+  const response = await fetch(`${FB_GRAPH_ME_URL}?${searchParams.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
   const data: FacebookUserResponse = await response.json()
 
   let avatar: string | null = null
@@ -31,7 +34,7 @@ async function getUser(accessToken: string): Promise<AuthUser> {
     id: String(data.id),
     name: data.name ?? '',
     email: data.email ?? null,
-    emailVerified: null,
+    emailVerified: data.email ? true : null,
     avatar,
     raw: data,
   }
