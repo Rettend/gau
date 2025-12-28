@@ -110,6 +110,7 @@ export function PostgresDrizzleAdapter<
       const [inserted] = await db
         .insert(Users)
         .values({
+          ...data,
           id,
           name: data.name ?? null,
           email: data.email ?? null,
@@ -165,17 +166,14 @@ export function PostgresDrizzleAdapter<
     },
 
     async updateUser(partial) {
+      const { id, ...rest } = partial
       const [updated] = await db
         .update(Users)
         .set({
-          name: partial.name,
-          email: partial.email,
-          image: partial.image,
-          emailVerified: partial.emailVerified,
-          ...(Users.role ? { role: partial.role } : {}),
+          ...rest,
           updatedAt: new Date(),
         } as Partial<DBInsertUser>)
-        .where(eq(Users.id, partial.id))
+        .where(eq(Users.id, id))
         .returning()
         .execute()
 

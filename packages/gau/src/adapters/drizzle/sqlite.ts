@@ -105,6 +105,7 @@ export function SQLiteDrizzleAdapter<
         await tx
           .insert(Users)
           .values({
+            ...data,
             id,
             name: data.name ?? null,
             email: data.email ?? null,
@@ -158,21 +159,18 @@ export function SQLiteDrizzleAdapter<
     },
 
     async updateUser(partial) {
+      const { id, ...rest } = partial
       return await transaction(db, async (tx) => {
         await tx
           .update(Users)
           .set({
-            name: partial.name,
-            email: partial.email,
-            image: partial.image,
-            emailVerified: partial.emailVerified,
-            ...(Users.role ? { role: partial.role } : {}),
+            ...rest,
             updatedAt: new Date(),
           } as Partial<DBInsertUser>)
-          .where(eq(Users.id, partial.id))
+          .where(eq(Users.id, id))
           .run()
 
-        const result: DBUser | undefined = await tx.select().from(Users).where(eq(Users.id, partial.id)).get()
+        const result: DBUser | undefined = await tx.select().from(Users).where(eq(Users.id, id)).get()
         return toUser(result) as User
       })
     },

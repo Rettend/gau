@@ -369,3 +369,56 @@ describe('memory adapter', () => {
     expect(updatedUser.role).toBe('user')
   })
 })
+
+declare module '../../src/core' {
+  interface User {
+    nickname?: string | null
+  }
+  interface NewUser {
+    nickname?: string | null
+  }
+}
+
+describe('memory adapter custom fields', () => {
+  let adapter: Adapter
+
+  beforeEach(() => {
+    adapter = MemoryAdapter()
+  })
+
+  it('createUser: should preserve custom fields', async () => {
+    const user = await adapter.createUser({
+      email: 'custom@example.com',
+      nickname: 'customNick',
+    })
+    expect(user.nickname).toBe('customNick')
+  })
+
+  it('updateUser: should preserve custom fields', async () => {
+    const user = await adapter.createUser({
+      email: 'update-custom@example.com',
+      nickname: 'originalNick',
+    })
+
+    const updated = await adapter.updateUser({
+      id: user.id,
+      nickname: 'newNick',
+    })
+    expect(updated.nickname).toBe('newNick')
+    expect(updated.email).toBe('update-custom@example.com')
+  })
+
+  it('updateUser: should not lose custom fields when updating core fields', async () => {
+    const user = await adapter.createUser({
+      email: 'preserve@example.com',
+      nickname: 'keepMe',
+    })
+
+    const updated = await adapter.updateUser({
+      id: user.id,
+      name: 'New Name',
+    })
+    expect(updated.name).toBe('New Name')
+    expect(updated.nickname).toBe('keepMe')
+  })
+})
