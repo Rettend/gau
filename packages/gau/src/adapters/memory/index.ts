@@ -57,6 +57,7 @@ export function MemoryAdapter(): Adapter {
     async createUser(data: NewUser) {
       const id = data.id ?? crypto.randomUUID()
       const user: User = {
+        ...data,
         id,
         name: data.name ?? null,
         email: data.email ?? null,
