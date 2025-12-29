@@ -3,7 +3,7 @@ title: SvelteKit
 description: How to integrate gau with SvelteKit.
 ---
 
-import { Steps } from '@astrojs/starlight/components'
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 import FileTree from 'starlight-plugin-icons/components/FileTree.astro'
 import Aside from 'starlight-plugin-icons/components/Aside.astro'
 
@@ -65,21 +65,47 @@ This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite or
 
 4. ##### Set up the Client
 
-    To use `gau` on the client-side, you'll need to wrap your application in an `AuthProvider` and use the `useAuth` hook to access session data.
+    Wrap your app in an `AuthProvider` and use the `useAuth` hook to access session data.
 
-    First, wrap your root layout in the `AuthProvider`. This makes the auth state available to all your components.
+    <Tabs>
+      <TabItem label="SSR">
+        Pass the session from a server load function to avoid a flash of logged-out state.
 
-    ```svelte title="src/routes/+layout.svelte"
-    <script lang="ts">
-      import AuthProvider from '@rttnd/gau/client/svelte/AuthProvider.svelte'
+        ```ts title="src/routes/+layout.server.ts"
+        export async function load({ locals }) {
+          return { session: await locals.getSession() }
+        }
+        ```
 
-      const { children } = $props()
-    </script>
+        ```svelte title="src/routes/+layout.svelte"
+        <script lang="ts">
+          import AuthProvider from '@rttnd/gau/client/svelte/AuthProvider.svelte'
 
-    <AuthProvider>
-      {@render children()}
-    </AuthProvider>
-    ```
+          const { data, children } = $props()
+        </script>
+
+        <AuthProvider session={data.session}>
+          {@render children()}
+        </AuthProvider>
+        ```
+      </TabItem>
+      <TabItem label="CSR">
+        For CSR-only apps, the session will be fetched client-side after hydration.
+        Use `isLoading` to handle the loading state.
+
+        ```svelte title="src/routes/+layout.svelte"
+        <script lang="ts">
+          import AuthProvider from '@rttnd/gau/client/svelte/AuthProvider.svelte'
+
+          const { children } = $props()
+        </script>
+
+        <AuthProvider>
+          {@render children()}
+        </AuthProvider>
+        ```
+      </TabItem>
+    </Tabs>
 
     <Aside type="note">
       If your frontend and backend are on different hosts, set `baseUrl` to the full URL of your backend's auth API. Use envs to set it for development and production.
@@ -152,6 +178,7 @@ This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite or
             - auth
               - [...gau]
                 - +server.ts
+          - +layout.server.ts
           - +layout.svelte
           - +page.svelte
         - app.d.ts

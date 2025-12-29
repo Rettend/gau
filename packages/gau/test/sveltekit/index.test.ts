@@ -131,6 +131,63 @@ describe('svelteKitAuth', () => {
       expect(resolve).toHaveBeenCalledWith(event)
       expect(await response.text()).toBe('resolved')
     })
+
+    it('getSession should memoize result within same request', async () => {
+      const event = {
+        locals: {},
+        request: new Request('http://localhost', {
+          headers: { Authorization: 'Bearer memoize-token' },
+        }),
+      } as RequestEvent
+      const resolve = vi.fn()
+      mockAuth.validateSession.mockResolvedValueOnce({ user: { id: 'memo' }, session: { sub: 'memo' }, accounts: [] })
+
+      await handle({ event, resolve })
+
+      // Call getSession multiple times
+      const s1 = await (event.locals as any).getSession()
+      const s2 = await (event.locals as any).getSession()
+      const s3 = await (event.locals as any).getSession()
+
+      expect(s1).toEqual({ user: { id: 'memo' }, session: { sub: 'memo' }, accounts: [], providers: [] })
+      expect(s2).toEqual(s1)
+      expect(s3).toEqual(s1)
+      // Should only validate once despite 3 calls
+      expect(mockAuth.validateSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('getSession should have separate cache per request', async () => {
+      mockAuth.validateSession
+        .mockResolvedValueOnce({ user: { id: 'user-a' }, session: { sub: 'user-a' }, accounts: [] })
+        .mockResolvedValueOnce({ user: { id: 'user-b' }, session: { sub: 'user-b' }, accounts: [] })
+
+      // First request
+      const event1 = {
+        locals: {},
+        request: new Request('http://localhost', {
+          headers: { Authorization: 'Bearer token-a' },
+        }),
+      } as RequestEvent
+      const resolve1 = vi.fn()
+      await handle({ event: event1, resolve: resolve1 })
+      const s1 = await (event1.locals as any).getSession()
+      expect(s1.user?.id).toBe('user-a')
+
+      // Second request (different event, different cache)
+      const event2 = {
+        locals: {},
+        request: new Request('http://localhost', {
+          headers: { Authorization: 'Bearer token-b' },
+        }),
+      } as RequestEvent
+      const resolve2 = vi.fn()
+      await handle({ event: event2, resolve: resolve2 })
+      const s2 = await (event2.locals as any).getSession()
+      expect(s2.user?.id).toBe('user-b')
+
+      // Each request validated once
+      expect(mockAuth.validateSession).toHaveBeenCalledTimes(2)
+    })
   })
 })
 

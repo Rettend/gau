@@ -40,24 +40,28 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
   const sveltekitHandler = (event: RequestEvent) => handler(event.request)
 
   const handle: Handle = async ({ event, resolve }) => {
-    (event.locals as any).getSession = async (): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> => {
-      const { token: sessionToken } = getSessionTokenFromRequest(event.request)
+    let cached: Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> | null = null;
 
-      const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
+    (event.locals as any).getSession = (): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> => {
+      return cached ??= (async () => {
+        const { token: sessionToken } = getSessionTokenFromRequest(event.request)
 
-      if (!sessionToken)
-        return { ...NULL_SESSION, providers }
+        const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
 
-      try {
-        const validated = await auth.validateSession(sessionToken)
-        if (!validated)
+        if (!sessionToken)
           return { ...NULL_SESSION, providers }
 
-        return { ...validated, providers }
-      }
-      catch {
-        return { ...NULL_SESSION, providers }
-      }
+        try {
+          const validated = await auth.validateSession(sessionToken)
+          if (!validated)
+            return { ...NULL_SESSION, providers }
+
+          return { ...validated, providers }
+        }
+        catch {
+          return { ...NULL_SESSION, providers }
+        }
+      })()
     }
     return resolve(event)
   }
