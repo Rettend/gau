@@ -37,6 +37,7 @@ This guide shows how to integrate `gau` with SolidStart, using Drizzle (SQLite o
 3. ##### Add Middleware
 
     Add the middleware to attach `getSession` to `event.locals`. Optionally, you can preload the session for selected paths or for all requests.
+    See [Eager vs Lazy Loading](/guides/middleware#eager-vs-lazy-loading).
 
     ```ts title="src/middleware.ts"
     import { authMiddleware } from '@rttnd/gau/solidstart'
