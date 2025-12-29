@@ -14,7 +14,27 @@ export interface Session {
   [key: string]: unknown
 }
 
+export interface ClientAccount {
+  provider: string
+  providerAccountId: string
+}
+
+/**
+ * Client-safe session data.
+ */
 export interface GauSession<TProviders extends string = string> {
+  user: User | null
+  session: Session | null
+  accounts?: ClientAccount[] | null
+  providers?: TProviders[]
+}
+
+/**
+ * Full server-side session with complete account data including tokens.
+ *
+ * Never serialize this to the client - contains sensitive access/refresh tokens.
+ */
+export interface GauServerSession<TProviders extends string = string> {
   user: User | null
   session: Session | null
   accounts?: Account[] | null
@@ -26,6 +46,20 @@ export const NULL_SESSION = {
   session: null,
   accounts: null,
 } as const
+
+export function toClientSession<TProviders extends string = string>(
+  serverSession: GauServerSession<TProviders>,
+): GauSession<TProviders> {
+  return {
+    user: serverSession.user,
+    session: serverSession.session,
+    accounts: serverSession.accounts?.map(acc => ({
+      provider: acc.provider,
+      providerAccountId: acc.providerAccountId,
+    })) ?? null,
+    providers: serverSession.providers,
+  }
+}
 
 export interface NewUser extends Omit<User, 'id' | 'accounts' | 'isAdmin'> {
   id?: string

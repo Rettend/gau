@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NULL_SESSION, REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
-import { authMiddleware, createSolidStartGetSession, refreshMiddleware, SolidAuth } from '../../src/solidstart/index'
+import { authMiddleware, createSolidStartGetServerSession, refreshMiddleware, SolidAuth } from '../../src/solidstart/index'
 
 const mockAuth = {
   providerMap: new Map(),
@@ -73,45 +73,54 @@ describe('solidAuth', () => {
   })
 })
 
-describe('createSolidStartGetSession', () => {
+describe('createSolidStartGetServerSession', () => {
   afterEach(() => {
     vi.clearAllMocks()
   })
 
   it('returns NULL_SESSION when no token present', async () => {
-    const getSession = createSolidStartGetSession(mockAuth)
-    const session = await getSession(new Request('http://localhost'))
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
+    const session = await getServerSession(new Request('http://localhost'))
     expect(session).toEqual({ ...NULL_SESSION, providers: [] })
   })
 
-  it('validates session from cookie', async () => {
-    mockAuth.validateSession.mockResolvedValueOnce({ user: { id: '1' }, session: { sub: '1' }, accounts: [] })
-    const getSession = createSolidStartGetSession(mockAuth)
+  it('validates session from cookie and returns full account data', async () => {
+    mockAuth.validateSession.mockResolvedValueOnce({
+      user: { id: '1' },
+      session: { sub: '1' },
+      accounts: [{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }],
+    })
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
     const req = new Request('http://localhost', { headers: { Cookie: `${SESSION_COOKIE_NAME}=cookie-token` } })
-    const session = await getSession(req)
+    const session = await getServerSession(req)
     expect(mockAuth.validateSession).toHaveBeenCalledWith('cookie-token')
-    expect(session).toEqual({ user: { id: '1' }, session: { sub: '1' }, accounts: [], providers: [] })
+    expect(session).toEqual({
+      user: { id: '1' },
+      session: { sub: '1' },
+      accounts: [{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }],
+      providers: [],
+    })
   })
 
   it('validates session from Authorization header', async () => {
     mockAuth.validateSession.mockResolvedValueOnce({ user: { id: '2' }, session: { sub: '2' }, accounts: [] })
-    const getSession = createSolidStartGetSession(mockAuth)
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
     const req = new Request('http://localhost', { headers: { Authorization: 'Bearer header-token' } })
-    const session = await getSession(req)
+    const session = await getServerSession(req)
     expect(mockAuth.validateSession).toHaveBeenCalledWith('header-token')
     expect(session).toEqual({ user: { id: '2' }, session: { sub: '2' }, accounts: [], providers: [] })
   })
 
   it('returns NULL_SESSION when validation fails or returns null', async () => {
     mockAuth.validateSession.mockRejectedValueOnce(new Error('bad token'))
-    const getSession = createSolidStartGetSession(mockAuth)
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
     const req = new Request('http://localhost', { headers: { Authorization: 'Bearer bad' } })
-    const session = await getSession(req)
+    const session = await getServerSession(req)
     expect(mockAuth.validateSession).toHaveBeenCalledWith('bad')
     expect(session).toEqual({ ...NULL_SESSION, providers: [] })
 
     mockAuth.validateSession.mockResolvedValueOnce(null)
-    const session2 = await getSession(new Request('http://localhost', { headers: { Authorization: 'Bearer null-token' } }))
+    const session2 = await getServerSession(new Request('http://localhost', { headers: { Authorization: 'Bearer null-token' } }))
     expect(session2).toEqual({ ...NULL_SESSION, providers: [] })
   })
 })
