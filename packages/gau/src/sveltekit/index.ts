@@ -1,7 +1,7 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit'
-import type { CreateAuthOptions, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
+import type { CreateAuthOptions, GauServerSession, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
 import type { OAuthProvider } from '../oauth'
-import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER } from '../core'
+import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER, toClientSession } from '../core'
 
 export { REFRESHED_TOKEN_HEADER }
 
@@ -10,13 +10,17 @@ type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof c
 /**
  * Creates GET and POST handlers for SvelteKit.
  *
+ * The returned `handle` hook attaches two methods to `event.locals`:
+ * - `getSession()` - Returns client-safe session (no tokens). Safe to serialize to browser.
+ * - `getServerSession()` - Returns full session with access/refresh tokens. Server-only.
+ *
  * @example
  * ```ts
  * // src/routes/api/auth/[...gau]/+server.ts
  * import { SvelteKitAuth } from '@rttnd/gau/sveltekit'
  * import { auth } from '$lib/server/auth'
  *
- * export const { GET, POST } = SvelteKitAuth(auth)
+ * export const { GET, POST, handle } = SvelteKitAuth(auth)
  * ```
  */
 export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
@@ -40,10 +44,11 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
   const sveltekitHandler = (event: RequestEvent) => handler(event.request)
 
   const handle: Handle = async ({ event, resolve }) => {
-    let cached: Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> | null = null;
+    let cachedServer: Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
+    let cachedClient: Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
 
-    (event.locals as any).getSession = (): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> => {
-      return cached ??= (async () => {
+    const getServerSession = (): Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> => {
+      return cachedServer ??= (async () => {
         const { token: sessionToken } = getSessionTokenFromRequest(event.request)
 
         const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
@@ -62,7 +67,13 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
           return { ...NULL_SESSION, providers }
         }
       })()
+    };
+
+    (event.locals as any).getServerSession = getServerSession;
+    (event.locals as any).getSession = (): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> => {
+      return cachedClient ??= getServerSession().then(toClientSession)
     }
+
     return resolve(event)
   }
 

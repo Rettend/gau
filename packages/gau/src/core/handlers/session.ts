@@ -1,5 +1,5 @@
 import type { Auth } from '../createAuth'
-import { json, NULL_SESSION } from '../index'
+import { json, NULL_SESSION, toClientSession } from '../index'
 import { getSessionTokenFromRequest } from '../utils'
 
 export async function handleSession(request: Request, auth: Auth): Promise<Response> {
@@ -16,7 +16,7 @@ export async function handleSession(request: Request, auth: Auth): Promise<Respo
     if (!sessionData)
       return json({ ...NULL_SESSION, providers }, { status: 401 })
 
-    return json({ ...sessionData, providers })
+    return json({ ...toClientSession(sessionData), providers })
   }
   catch (error) {
     console.error('Error validating session:', error)
