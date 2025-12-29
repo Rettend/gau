@@ -89,7 +89,8 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
       return
     }
 
-    event.locals.getSession = () => getSessionFromRequest(event.request)
+    let cached: Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
+    event.locals.getSession = () => cached ??= getSessionFromRequest(event.request)
   }
 }
 

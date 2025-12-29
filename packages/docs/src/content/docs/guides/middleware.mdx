@@ -44,6 +44,36 @@ The base middleware attaches `locals.getSession()` to your request context, lett
   </TabItem>
 </Tabs>
 
+### Eager vs Lazy Loading
+
+The `pathsToPreLoad` parameter controls **when** the session is validated:
+
+**Eager (preload):** Session is validated immediately during middleware, before your route runs.
+```ts
+// Session already resolved when getSession() is called
+const session = await event.locals.getSession() // instant, cached
+```
+
+**Lazy:** Session validation is deferred until `getSession()` is first called.
+```ts
+// Validation happens here, on first call
+const session = await event.locals.getSession()
+// Subsequent calls return the cached result
+const again = await event.locals.getSession() // instant, same promise
+```
+
+<Aside type="note">
+  Both modes memoize the result, so calling `getSession()` multiple times (e.g., in layout + page) only validates once.
+</Aside>
+
+**When to use each:**
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Protected routes (`/dashboard`, `/settings`) | **Eager** - you'll need the session anyway |
+| Public routes (`/`, `/about`, `/pricing`) | **Lazy** - skip validation if page never checks auth |
+| API routes that always check auth | **Eager** - avoid latency in the handler |
+
 ## Refresh middleware
 
 The Refresh middleware adds automatic session refresh:
