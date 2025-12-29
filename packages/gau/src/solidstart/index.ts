@@ -1,7 +1,7 @@
-import type { CreateAuthOptions, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
+import type { CreateAuthOptions, GauServerSession, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
 import type { OAuthProvider } from '../oauth'
 import process from 'node:process'
-import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER } from '../core'
+import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER, toClientSession } from '../core'
 
 export { REFRESHED_TOKEN_HEADER }
 
@@ -34,13 +34,14 @@ export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(options
 }
 
 /**
- * Creates a SolidStart-compatible getSession resolver to validate a session from a Request.
- * This mirrors the SvelteKit integration behaviour and supports both Cookie and Authorization headers.
+ * Creates a SolidStart-compatible getServerSession resolver to validate a session from a Request.
+ * Returns full session data including access tokens - for server-side use only.
+ * @internal
  */
-export function createSolidStartGetSession<const TProviders extends OAuthProvider<any>[]>(auth: AuthInstance<TProviders>) {
-  return async function getSessionFromRequest(
+export function createSolidStartGetServerSession<const TProviders extends OAuthProvider<any>[]>(auth: AuthInstance<TProviders>) {
+  return async function getServerSessionFromRequest(
     request: Request,
-  ): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> {
+  ): Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> {
     const { token: sessionToken } = getSessionTokenFromRequest(request)
 
     const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
@@ -62,12 +63,22 @@ export function createSolidStartGetSession<const TProviders extends OAuthProvide
 }
 
 /**
- * SolidStart middleware factory to attach `locals.getSession` and optionally preload the session.
+ * SolidStart middleware factory to attach `locals.getSession` and `locals.getServerSession`.
  *
- * Usage:
- *   onRequest: [authMiddleware(true, auth)]
- *   onRequest: [authMiddleware(['/protected', '/dashboard'], auth)]
- *   onRequest: [authMiddleware(false, auth)]
+ * - `getSession()` - Returns client-safe session (no tokens). Safe to serialize to browser.
+ * - `getServerSession()` - Returns full session with access/refresh tokens. Server-only.
+ *
+ * @param pathsToPreLoad - Control eager vs lazy session loading:
+ *   - `true` - Preload session on all routes
+ *   - `false` - Lazy load (resolve on first `getSession()` call)
+ *   - `string[]` - Preload only on specific paths
+ *
+ * @example
+ * ```ts
+ * // middleware.ts
+ * export default createMiddleware({
+ *   onRequest: [authMiddleware(true, auth)],
+ * })
  */
 export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
   pathsToPreLoad: string[] | boolean,
@@ -75,7 +86,7 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
 ) {
   const auth = resolveAuth(optionsOrAuth)
 
-  const getSessionFromRequest = createSolidStartGetSession(auth)
+  const getServerSessionFromRequest = createSolidStartGetServerSession(auth)
 
   return async (event: any) => {
     const url = new URL(event.request.url)
@@ -84,12 +95,18 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
       : pathsToPreLoad.includes(url.pathname)
 
     if (shouldPreload) {
-      const preloaded = await getSessionFromRequest(event.request)
-      event.locals.getSession = async () => preloaded
+      const preloaded = await getServerSessionFromRequest(event.request)
+      const clientSession = toClientSession(preloaded)
+      event.locals.getSession = async () => clientSession
+      event.locals.getServerSession = async () => preloaded
       return
     }
 
-    event.locals.getSession = () => getSessionFromRequest(event.request)
+    let cachedServer: Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
+    let cachedClient: Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
+
+    event.locals.getServerSession = () => cachedServer ??= getServerSessionFromRequest(event.request)
+    event.locals.getSession = () => cachedClient ??= event.locals.getServerSession().then(toClientSession)
   }
 }
 
