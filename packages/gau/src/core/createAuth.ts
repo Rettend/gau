@@ -3,7 +3,7 @@ import type { SerializeOptions } from 'cookie'
 import type { SignOptions, VerifyOptions } from '../jwt'
 import type { AuthUser, OAuthProvider, OAuthProviderConfig, ProviderProfileOverrides } from '../oauth'
 import type { Cookies } from './cookies'
-import type { Adapter, GauSession } from './index'
+import type { Adapter, GauServerSession } from './index'
 import { serialize } from 'cookie'
 import { sign, verify } from '../jwt'
 import { DEFAULT_COOKIE_SERIALIZE_OPTIONS, SESSION_COOKIE_NAME } from './cookies'
@@ -204,7 +204,7 @@ export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
   signJWT: <U extends Record<string, unknown>>(payload: U, customOptions?: Partial<SignOptions>) => Promise<string>
   verifyJWT: <U = Record<string, unknown>>(token: string, customOptions?: Partial<VerifyOptions>) => Promise<U | null>
   createSession: (userId: string, data?: Record<string, unknown>, ttl?: number) => Promise<string>
-  validateSession: (token: string) => Promise<GauSession | null>
+  validateSession: (token: string) => Promise<GauServerSession | null>
   /**
    * Issue a session for a user, returning both the token and a Set-Cookie header.
    * Useful for guest login, invite redemption, admin impersonation, etc.
@@ -426,7 +426,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     return { ...result, source }
   }
 
-  async function validateSession(token: string): Promise<GauSession | null> {
+  async function validateSession(token: string): Promise<GauServerSession | null> {
     const payload = await verifyJWT<{ sub: string } & Record<string, unknown>>(token)
     if (!payload)
       return null

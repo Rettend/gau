@@ -24,10 +24,12 @@ export function createSvelteAuth<const TAuth = unknown>({
   baseUrl = '/api/auth',
   scheme = 'gau',
   redirectTo: defaultRedirectTo,
+  session: initialSession,
 }: {
   baseUrl?: string
   scheme?: string
   redirectTo?: string
+  session?: GauSession<ProviderIds<TAuth>>
 } = {}) {
   type CurrentSession = GauSession<ProviderIds<TAuth>>
 
@@ -41,8 +43,8 @@ export function createSvelteAuth<const TAuth = unknown>({
     return client.refreshSession()
   }
 
-  let session: CurrentSession = $state({ ...NULL_SESSION, providers: [] })
-  let isLoading = $state(true)
+  let session: CurrentSession = $state(initialSession ?? { ...NULL_SESSION, providers: [] })
+  let isLoading = $state(!initialSession)
 
   async function replaceUrlSafe(url: string) {
     try {

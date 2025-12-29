@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NULL_SESSION, REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
-import { authMiddleware, createSolidStartGetSession, refreshMiddleware, SolidAuth } from '../../src/solidstart/index'
+import { authMiddleware, createSolidStartGetServerSession, refreshMiddleware, SolidAuth } from '../../src/solidstart/index'
 
 const mockAuth = {
   providerMap: new Map(),
@@ -73,45 +73,54 @@ describe('solidAuth', () => {
   })
 })
 
-describe('createSolidStartGetSession', () => {
+describe('createSolidStartGetServerSession', () => {
   afterEach(() => {
     vi.clearAllMocks()
   })
 
   it('returns NULL_SESSION when no token present', async () => {
-    const getSession = createSolidStartGetSession(mockAuth)
-    const session = await getSession(new Request('http://localhost'))
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
+    const session = await getServerSession(new Request('http://localhost'))
     expect(session).toEqual({ ...NULL_SESSION, providers: [] })
   })
 
-  it('validates session from cookie', async () => {
-    mockAuth.validateSession.mockResolvedValueOnce({ user: { id: '1' }, session: { sub: '1' }, accounts: [] })
-    const getSession = createSolidStartGetSession(mockAuth)
+  it('validates session from cookie and returns full account data', async () => {
+    mockAuth.validateSession.mockResolvedValueOnce({
+      user: { id: '1' },
+      session: { sub: '1' },
+      accounts: [{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }],
+    })
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
     const req = new Request('http://localhost', { headers: { Cookie: `${SESSION_COOKIE_NAME}=cookie-token` } })
-    const session = await getSession(req)
+    const session = await getServerSession(req)
     expect(mockAuth.validateSession).toHaveBeenCalledWith('cookie-token')
-    expect(session).toEqual({ user: { id: '1' }, session: { sub: '1' }, accounts: [], providers: [] })
+    expect(session).toEqual({
+      user: { id: '1' },
+      session: { sub: '1' },
+      accounts: [{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }],
+      providers: [],
+    })
   })
 
   it('validates session from Authorization header', async () => {
     mockAuth.validateSession.mockResolvedValueOnce({ user: { id: '2' }, session: { sub: '2' }, accounts: [] })
-    const getSession = createSolidStartGetSession(mockAuth)
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
     const req = new Request('http://localhost', { headers: { Authorization: 'Bearer header-token' } })
-    const session = await getSession(req)
+    const session = await getServerSession(req)
     expect(mockAuth.validateSession).toHaveBeenCalledWith('header-token')
     expect(session).toEqual({ user: { id: '2' }, session: { sub: '2' }, accounts: [], providers: [] })
   })
 
   it('returns NULL_SESSION when validation fails or returns null', async () => {
     mockAuth.validateSession.mockRejectedValueOnce(new Error('bad token'))
-    const getSession = createSolidStartGetSession(mockAuth)
+    const getServerSession = createSolidStartGetServerSession(mockAuth)
     const req = new Request('http://localhost', { headers: { Authorization: 'Bearer bad' } })
-    const session = await getSession(req)
+    const session = await getServerSession(req)
     expect(mockAuth.validateSession).toHaveBeenCalledWith('bad')
     expect(session).toEqual({ ...NULL_SESSION, providers: [] })
 
     mockAuth.validateSession.mockResolvedValueOnce(null)
-    const session2 = await getSession(new Request('http://localhost', { headers: { Authorization: 'Bearer null-token' } }))
+    const session2 = await getServerSession(new Request('http://localhost', { headers: { Authorization: 'Bearer null-token' } }))
     expect(session2).toEqual({ ...NULL_SESSION, providers: [] })
   })
 })
@@ -144,19 +153,57 @@ describe('authMiddleware', () => {
     expect(mockAuth.validateSession).toHaveBeenCalledTimes(1)
   })
 
-  it('does not preload when path is not included; resolves on demand each call', async () => {
+  it('does not preload when path is not included; memoizes on first call', async () => {
     mockAuth.validateSession
-      .mockResolvedValueOnce({ user: { id: '3' }, session: { sub: '3' }, accounts: [] })
       .mockResolvedValueOnce({ user: { id: '3' }, session: { sub: '3' }, accounts: [] })
     const mw = authMiddleware(['/protected'], mockAuth)
     const event: any = { request: new Request('http://localhost/other', { headers: { Authorization: 'Bearer token-3' } }), locals: {} }
     await mw(event)
     expect(typeof event.locals.getSession).toBe('function')
+    // Validation happens on first call
     const s1 = await event.locals.getSession()
+    // Second call returns memoized result (no re-validation)
     const s2 = await event.locals.getSession()
     expect(s1).toEqual({ user: { id: '3' }, session: { sub: '3' }, accounts: [], providers: [] })
     expect(s2).toEqual(s1)
+    // Only validated once despite two calls
+    expect(mockAuth.validateSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('lazy mode memoizes per-request (different requests have separate cache)', async () => {
+    mockAuth.validateSession
+      .mockResolvedValueOnce({ user: { id: 'user-a' }, session: { sub: 'user-a' }, accounts: [] })
+      .mockResolvedValueOnce({ user: { id: 'user-b' }, session: { sub: 'user-b' }, accounts: [] })
+    const mw = authMiddleware(false, mockAuth)
+
+    // First request
+    const event1: any = { request: new Request('http://localhost/page', { headers: { Authorization: 'Bearer token-a' } }), locals: {} }
+    await mw(event1)
+    const s1 = await event1.locals.getSession()
+    expect(s1.user?.id).toBe('user-a')
+
+    // Second request (separate event, separate cache)
+    const event2: any = { request: new Request('http://localhost/page', { headers: { Authorization: 'Bearer token-b' } }), locals: {} }
+    await mw(event2)
+    const s2 = await event2.locals.getSession()
+    expect(s2.user?.id).toBe('user-b')
+
+    // Each request validated once
     expect(mockAuth.validateSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('lazy mode does not validate until getSession is called', async () => {
+    mockAuth.validateSession.mockResolvedValueOnce({ user: { id: '4' }, session: { sub: '4' }, accounts: [] })
+    const mw = authMiddleware(false, mockAuth)
+    const event: any = { request: new Request('http://localhost/page', { headers: { Authorization: 'Bearer token-4' } }), locals: {} }
+    await mw(event)
+
+    // Middleware ran but getSession not called yet
+    expect(mockAuth.validateSession).not.toHaveBeenCalled()
+
+    // Now call it
+    await event.locals.getSession()
+    expect(mockAuth.validateSession).toHaveBeenCalledTimes(1)
   })
 
   it('returns NULL_SESSION when no token present', async () => {

@@ -9,7 +9,10 @@ import { Tabs, TabItem, Aside } from '@astrojs/starlight/components'
 
 ## Auth middleware
 
-The base middleware attaches `locals.getSession()` to your request context, letting you access the session anywhere in your app.
+The base middleware attaches two methods to your request context:
+
+- **`getSession()`** - Returns client-safe session data.
+- **`getServerSession()`** - Returns the full session including OAuth tokens.
 
 <Tabs syncKey="framework">
   <TabItem label="SvelteKit">
@@ -41,6 +44,66 @@ The base middleware attaches `locals.getSession()` to your request context, lett
     - `true` - Preload session on all routes
     - `false` - Lazy load (resolve on first `getSession()` call)
     - `['/dashboard', '/settings']` - Preload only on specific paths
+  </TabItem>
+</Tabs>
+
+### getSession vs getServerSession
+
+Use `getSession()` for data that will be serialized to the browser:
+
+```ts title="src/api/session.ts"
+const session = await locals.getSession()
+return { session }
+```
+
+Use `getServerSession()` only on the server, like when you need OAuth tokens:
+
+```ts title="src/api/github.ts"
+const { accounts } = await locals.getServerSession()
+const githubAccount = accounts?.find(a => a.provider === 'github')
+
+if (githubAccount?.accessToken) {
+  const res = await fetch('https://api.github.com/user/repos', {
+    headers: { Authorization: `Bearer ${githubAccount.accessToken}` }
+  })
+}
+```
+
+### Eager vs Lazy Loading
+
+<Tabs syncKey="framework">
+  <TabItem label="SvelteKit">
+    SvelteKit is lazy by default.
+  </TabItem>
+
+  <TabItem label="SolidStart">
+    The `pathsToPreLoad` parameter controls **when** the session is validated:
+
+    **Eager (preload):** Session is validated immediately during middleware, before your route runs.
+    ```ts
+    // Session already resolved when getSession() is called
+    const session = await event.locals.getSession() // instant, cached
+    ```
+
+    **Lazy:** Session validation is deferred until `getSession()` is first called.
+    ```ts
+    // Validation happens here, on first call
+    const session = await event.locals.getSession()
+    // Subsequent calls return the cached result
+    const again = await event.locals.getSession() // instant, same promise
+    ```
+
+    <Aside type="note">
+      Both modes memoize the result, so calling `getSession()` multiple times (e.g., in layout + page) only validates once.
+    </Aside>
+
+    **When to use each:**
+
+    | Scenario | Recommendation |
+    |----------|----------------|
+    | Protected routes (`/dashboard`, `/settings`) | **Eager** - you'll need the session anyway |
+    | Public routes (`/`, `/about`, `/pricing`) | **Lazy** - skip validation if page never checks auth |
+    | API routes that always check auth | **Eager** - avoid latency in the handler |
   </TabItem>
 </Tabs>
 
