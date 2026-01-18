@@ -8,6 +8,7 @@ import {
   SESSION_COOKIE_NAME,
 } from '../../../src/core/cookies'
 import { createAuth } from '../../../src/core/createAuth'
+import { ErrorCodes } from '../../../src/core/errors'
 import { handleCallback } from '../../../src/core/handlers/callback'
 import { mockProvider, setup } from '../../handler'
 
@@ -82,10 +83,10 @@ describe('callback handler', () => {
     const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
-    const response = await handleCallback(request, auth, 'mock')
-    expect(response.status).toBe(500)
-    const body = await response.json()
-    expect(body.error).toBe('Failed to create user')
+    await expect(handleCallback(request, auth, 'mock')).rejects.toMatchObject({
+      code: ErrorCodes.USER_CREATE_FAILED,
+      status: 500,
+    })
   })
 
   it('should return 500 if account linking fails', async () => {
@@ -95,10 +96,10 @@ describe('callback handler', () => {
     const request = new Request(`http://localhost/api/auth/callback/mock?code=${code}&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce;`)
 
-    const response = await handleCallback(request, auth, 'mock')
-    expect(response.status).toBe(500)
-    const body = await response.json()
-    expect(body.error).toBe('Failed to link account')
+    await expect(handleCallback(request, auth, 'mock')).rejects.toMatchObject({
+      code: ErrorCodes.ACCOUNT_LINK_FAILED,
+      status: 500,
+    })
   })
 
   it('returns 409 when autoLink=false and verified email already exists', async () => {
@@ -109,10 +110,10 @@ describe('callback handler', () => {
     const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
 
-    const response = await handleCallback(request, auth, 'mock')
-    expect(response.status).toBe(409)
-    const body = await response.json()
-    expect(body.error).toMatch(/already exists/i)
+    await expect(handleCallback(request, auth, 'mock')).rejects.toMatchObject({
+      code: ErrorCodes.EMAIL_ALREADY_EXISTS,
+      status: 409,
+    })
   })
 
   it('stores null email when provider email is unverified to avoid unique collisions', async () => {
@@ -226,10 +227,9 @@ describe('callback handler', () => {
 
   it('should return 400 if provider is not found during callback', async () => {
     const request = new Request('http://localhost/api/auth/callback/unknown-provider?code=c&state=s')
-    const response = await handleCallback(request, auth, 'unknown-provider')
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toBe('Provider not found')
+    await expect(handleCallback(request, auth, 'unknown-provider')).rejects.toMatchObject({
+      code: ErrorCodes.PROVIDER_NOT_FOUND,
+    })
   })
 
   it('should return friendly HTML page for missing code or state (user cancelled)', async () => {
@@ -244,15 +244,18 @@ describe('callback handler', () => {
   it('should return 403 for invalid CSRF token', async () => {
     const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=s')
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=wrong-state`)
-    const response = await handleCallback(request, auth, 'mock')
-    expect(response.status).toBe(403)
+    await expect(handleCallback(request, auth, 'mock')).rejects.toMatchObject({
+      code: ErrorCodes.CSRF_INVALID,
+      status: 403,
+    })
   })
 
   it('should return 400 for missing PKCE verifier', async () => {
     const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=s')
     request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=s`)
-    const response = await handleCallback(request, auth, 'mock')
-    expect(response.status).toBe(400)
+    await expect(handleCallback(request, auth, 'mock')).rejects.toMatchObject({
+      code: ErrorCodes.PKCE_MISSING,
+    })
   })
 
   it('should handle malformed redirectTo in state gracefully', async () => {

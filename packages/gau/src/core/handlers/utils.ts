@@ -11,6 +11,7 @@ import {
   PKCE_COOKIE_NAME,
   PROVIDER_OPTIONS_COOKIE_NAME,
 } from '../cookies'
+import { ErrorCodes, GauError } from '../errors'
 import { json, redirect } from '../index'
 
 export function verifyRequestOrigin(request: Request, trustHosts: 'all' | string[], development: boolean): boolean {
@@ -54,7 +55,7 @@ export async function prepareOAuthRedirect(
 ): Promise<Response> {
   const provider = auth.providerMap.get(providerId)
   if (!provider)
-    return json({ error: 'Provider not found' }, { status: 400 })
+    throw new GauError(ErrorCodes.PROVIDER_NOT_FOUND)
 
   const { state: originalState, codeVerifier } = createOAuthUris()
   const url = new URL(request.url)
@@ -70,7 +71,7 @@ export async function prepareOAuthRedirect(
       parsedRedirect = new URL(redirectTo, url.origin)
     }
     catch {
-      return json({ error: 'Invalid "redirectTo" URL' }, { status: 400 })
+      throw new GauError(ErrorCodes.INVALID_REDIRECT_URL, 'Invalid "redirectTo" URL', { status: 400 })
     }
 
     const redirectHost = parsedRedirect.host
@@ -81,7 +82,7 @@ export async function prepareOAuthRedirect(
     const isHttp = parsedRedirect.protocol === 'http:' || parsedRedirect.protocol === 'https:'
 
     if (isHttp && !isSameHost && !isTrusted)
-      return json({ error: 'Untrusted redirect host' }, { status: 400 })
+      throw new GauError(ErrorCodes.UNTRUSTED_HOST)
   }
 
   const state = redirectTo ? `${originalState}.${btoa(redirectTo)}` : originalState
@@ -96,7 +97,7 @@ export async function prepareOAuthRedirect(
     const providerProfiles = auth.profiles?.[providerId] ?? {}
     const selected = providerProfiles[profileName]
     if (!selected)
-      return json({ error: `Unknown profile "${profileName}" for provider "${providerId}"` }, { status: 400 })
+      throw new GauError(ErrorCodes.UNKNOWN_PROFILE, `Unknown profile "${profileName}" for provider "${providerId}"`, { status: 400 })
     if (selected.redirectUri)
       callbackUri = selected.redirectUri
     if (selected.scopes)
@@ -107,14 +108,14 @@ export async function prepareOAuthRedirect(
     if (tenant != null || prompt != null)
       overrides = { ...(overrides ?? {}), tenant, prompt }
     if (!linkingToken && selected.linkOnly === true)
-      return json({ error: 'This profile is link-only. Please link it to an existing account.' }, { status: 400 })
+      throw new GauError(ErrorCodes.LINK_ONLY_PROVIDER, 'This profile is link-only. Please link it to an existing account.', { status: 400 })
   }
 
   if (promptParam)
     extraParams = { ...(extraParams ?? {}), prompt: promptParam }
 
   if (!linkingToken && (provider.linkOnly === true))
-    return json({ error: 'Sign-in with this provider is disabled. Please link it to an existing account.' }, { status: 400 })
+    throw new GauError(ErrorCodes.LINK_ONLY_PROVIDER)
 
   let authUrl: URL | null
   try {
@@ -131,7 +132,7 @@ export async function prepareOAuthRedirect(
   }
 
   if (!authUrl)
-    return json({ error: 'Could not create authorization URL' }, { status: 500 })
+    throw new GauError(ErrorCodes.AUTHORIZATION_URL_FAILED, 'Could not create authorization URL', { status: 500 })
 
   const requestCookies = parseCookies(request.headers.get('Cookie'))
   const cookies = new Cookies(requestCookies, auth.cookieOptions)
