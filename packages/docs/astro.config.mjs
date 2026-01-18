@@ -52,6 +52,7 @@ export default defineConfig({
               { icon: 'i-ph:user-check-duotone', label: 'Role-Based Access Control', slug: 'guides/role-based-access-control' },
               { icon: 'i-ph:head-circuit-duotone', label: 'Advanced Use Cases', slug: 'guides/advanced' },
               { icon: 'i-ph:plug-duotone', label: 'Hooks', slug: 'guides/hooks' },
+              { icon: 'i-ph:shield-warning-duotone', label: 'Error Handling', slug: 'guides/error-handling' },
               { icon: 'i-ph:shield-check-duotone', label: 'Security', slug: 'guides/security' },
             ],
           },

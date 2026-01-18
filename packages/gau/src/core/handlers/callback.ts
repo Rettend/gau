@@ -11,13 +11,15 @@ import {
   PROVIDER_OPTIONS_COOKIE_NAME,
   SESSION_COOKIE_NAME,
 } from '../cookies'
+import { ErrorCodes, GauError } from '../errors'
 import { maybeMapExternalProfile, runOnAfterLinkAccount, runOnBeforeLinkAccount, runOnOAuthExchange } from '../hooks'
 import { json, redirect } from '../index'
+import { htmlResponse, renderCancelledPage, renderSuccessPage } from '../templates'
 
 export async function handleCallback(request: Request, auth: Auth, providerId: string): Promise<Response> {
   const provider = auth.providerMap.get(providerId)
   if (!provider)
-    return json({ error: 'Provider not found' }, { status: 400 })
+    throw new GauError(ErrorCodes.PROVIDER_NOT_FOUND)
 
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
@@ -37,59 +39,9 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
       }
     }
 
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Authentication Cancelled</title>
-  <style>
-    body {
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-      background-color: #09090b;
-      color: #fafafa;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      text-align: center;
-    }
-    .card {
-      background-color: #18181b;
-      border: 1px solid #27272a;
-      border-radius: 0.75rem;
-      padding: 2rem;
-      max-width: 320px;
-    }
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin: 0 0 0.5rem;
-    }
-    p {
-      margin: 0;
-      color: #a1a1aa;
-    }
-  </style>
-  <script>
-    window.onload = function() {
-      const url = ${JSON.stringify(redirectTo)};
-      window.location.href = url;
-      setTimeout(window.close, 500);
-    };
-  </script>
-</head>
-<body>
-  <div class="card">
-    <h1>Authentication Cancelled</h1>
-    <p>Redirecting you back to the app...</p>
-  </div>
-</body>
-</html>`
-    return new Response(html, {
-      status: 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    })
+    // OAuth was cancelled - show a nice page and redirect back
+    const html = renderCancelledPage({ redirectUrl: redirectTo })
+    return htmlResponse(html)
   }
 
   const requestCookies = parseCookies(request.headers.get('Cookie'))
@@ -114,11 +66,11 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const csrfToken = cookies.get(CSRF_COOKIE_NAME)
 
   if (!csrfToken || csrfToken !== savedState)
-    return json({ error: 'Invalid CSRF token' }, { status: 403 })
+    throw new GauError(ErrorCodes.CSRF_INVALID, { redirectUrl: redirectTo })
 
   const codeVerifier = cookies.get(PKCE_COOKIE_NAME)
   if (!codeVerifier)
-    return json({ error: 'Missing PKCE code verifier' }, { status: 400 })
+    throw new GauError(ErrorCodes.PKCE_MISSING, { redirectUrl: redirectTo })
 
   const callbackUri = cookies.get(CALLBACK_URI_COOKIE_NAME)
   const providerOptionsRaw = cookies.get(PROVIDER_OPTIONS_COOKIE_NAME)
@@ -197,9 +149,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     if (callbackUri)
       cookies.delete(CALLBACK_URI_COOKIE_NAME)
     cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
-    const response = json({ error: 'Sign-in with this provider is disabled. Please link it to an existing account.' }, { status: 400 })
-    cookies.toHeaders().forEach((value, key) => response.headers.append(key, value))
-    return response
+    throw new GauError(ErrorCodes.LINK_ONLY_PROVIDER, { redirectUrl: redirectTo })
   }
 
   let user: User | null = null
@@ -211,16 +161,16 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     user = session!.user
 
     if (!user)
-      return json({ error: 'User not found' }, { status: 404 })
+      throw new GauError(ErrorCodes.USER_NOT_FOUND, { redirectUrl: redirectTo })
 
     if (userFromAccount && userFromAccount.id !== user.id)
-      return json({ error: 'Account already linked to another user' }, { status: 409 })
+      throw new GauError(ErrorCodes.ACCOUNT_ALREADY_LINKED, { redirectUrl: redirectTo })
 
     if (auth.allowDifferentEmails === false) {
       const currentEmail = user.email
       const providerEmail = providerUser.email
       if (currentEmail && providerEmail && currentEmail !== providerEmail)
-        return json({ error: 'Email mismatch between existing account and provider' }, { status: 400 })
+        throw new GauError(ErrorCodes.EMAIL_MISMATCH, { redirectUrl: redirectTo })
     }
 
     if (user) {
@@ -300,7 +250,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
         if (providerUser.email && providerUser.emailVerified === true && auth.autoLink === false) {
           const existingWithSameEmail = await auth.getUserByEmail(providerUser.email)
           if (existingWithSameEmail)
-            return json({ error: 'An account with this email already exists. Sign in with the existing method or link the provider.' }, { status: 409 })
+            throw new GauError(ErrorCodes.EMAIL_ALREADY_EXISTS, { redirectUrl: redirectTo })
         }
 
         let resolvedRole: string | undefined
@@ -322,8 +272,10 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
         })
       }
       catch (error) {
+        if (error instanceof GauError)
+          throw error
         console.error('Failed to create user:', error)
-        return json({ error: 'Failed to create user' }, { status: 500 })
+        throw new GauError(ErrorCodes.USER_CREATE_FAILED, { cause: error, redirectUrl: redirectTo })
       }
     }
   }
@@ -398,7 +350,9 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
         tokens,
       })
       if (pre.allow === false) {
-        const response = pre.response ?? json({ error: 'Linking not allowed' }, { status: 403 })
+        const response = pre.response ?? (() => {
+          throw new GauError(ErrorCodes.LINKING_NOT_ALLOWED, { redirectUrl: redirectTo })
+        })()
         cookies.toHeaders().forEach((value, key) => response.headers.append(key, value))
         return response
       }
@@ -435,7 +389,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     }
     catch (error) {
       console.error('Error linking account:', error)
-      return json({ error: 'Failed to link account' }, { status: 500 })
+      throw new GauError(ErrorCodes.ACCOUNT_LINK_FAILED, { cause: error, redirectUrl: redirectTo })
     }
   }
   else {
@@ -534,58 +488,11 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
       destination.searchParams.set('code', authCode)
     }
     else {
-      return json({ error: 'Missing PKCE challenge' }, { status: 400 })
+      throw new GauError(ErrorCodes.PKCE_CHALLENGE_MISSING, { redirectUrl: redirectTo })
     }
 
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Authentication Complete</title>
-  <style>
-    body {
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-      background-color: #09090b;
-      color: #fafafa;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      text-align: center;
-    }
-    .card {
-      background-color: #18181b;
-      border: 1px solid #27272a;
-      border-radius: 0.75rem;
-      padding: 2rem;
-      max-width: 320px;
-    }
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin: 0 0 0.5rem;
-    }
-    p {
-      margin: 0;
-      color: #a1a1aa;
-    }
-  </style>
-  <script>
-    window.onload = function() {
-      const url = ${JSON.stringify(destination.toString())};
-      window.location.href = url;
-      setTimeout(window.close, 500);
-    };
-  </script>
-</head>
-<body>
-  <div class="card">
-    <h1>Authentication Successful</h1>
-    <p>You can now close this window.</p>
-  </div>
-</body>
-</html>`
+    // Use success page template instead of inline HTML
+    const html = renderSuccessPage({ redirectUrl: destination.toString() })
 
     // Clear temporary cookies (CSRF/PKCE/Callback URI) so they don't linger
     cookies.delete(CSRF_COOKIE_NAME)
@@ -595,10 +502,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
     cookies.delete(CLIENT_CHALLENGE_COOKIE_NAME)
 
-    const response = new Response(html, {
-      status: 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    })
+    const response = htmlResponse(html)
     cookies.toHeaders().forEach((value, key) => {
       response.headers.append(key, value)
     })
