@@ -6,7 +6,6 @@ import {
   PKCE_COOKIE_NAME,
   SESSION_COOKIE_NAME,
 } from '../../../src/core/cookies'
-import { ErrorCodes } from '../../../src/core/errors'
 import { handleSignIn, handleSignOut } from '../../../src/core/handlers/login'
 import { mockProvider, setup } from '../../handler'
 
@@ -74,24 +73,26 @@ describe('login handlers', () => {
     it('should return 500 if auth URL cannot be created', async () => {
       mockProvider.getAuthorizationUrl.mockRejectedValueOnce(new Error('failed to create URL'))
       const request = new Request('http://localhost/api/auth/mock')
-      await expect(handleSignIn(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.AUTHORIZATION_URL_FAILED,
-        status: 500,
-      })
+      const response = await handleSignIn(request, auth, 'mock')
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error).toBe('Could not create authorization URL')
     })
 
     it('should return 400 for invalid redirectTo URL', async () => {
       const request = new Request('http://localhost/api/auth/mock?redirectTo=//invalid-url')
-      await expect(handleSignIn(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.INVALID_REDIRECT_URL,
-      })
+      const response = await handleSignIn(request, auth, 'mock')
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBe('Invalid "redirectTo" URL')
     })
 
     it('should return 400 for untrusted redirectTo host', async () => {
       const request = new Request('http://localhost/api/auth/mock?redirectTo=https://evil.com')
-      await expect(handleSignIn(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNTRUSTED_HOST,
-      })
+      const response = await handleSignIn(request, auth, 'mock')
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBe('Untrusted redirect host')
     })
 
     it('should allow trusted redirectTo host', async () => {
@@ -115,9 +116,10 @@ describe('login handlers', () => {
 
     it('should return 400 for a provider that does not exist', async () => {
       const request = new Request('http://localhost/api/auth/non-existent-provider')
-      await expect(handleSignIn(request, auth, 'non-existent-provider')).rejects.toMatchObject({
-        code: ErrorCodes.PROVIDER_NOT_FOUND,
-      })
+      const response = await handleSignIn(request, auth, 'non-existent-provider')
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBe('Provider not found')
     })
 
     it('should apply profile scopes and redirectUri overrides', async () => {
@@ -142,10 +144,10 @@ describe('login handlers', () => {
     it('should return 400 for unknown profile name', async () => {
       auth.profiles = { mock: { lite: { scopes: ['read:litescope'] } } }
       const request = new Request('http://localhost/api/auth/mock?profile=unknown')
-      await expect(handleSignIn(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNKNOWN_PROFILE,
-        status: 400,
-      })
+      const response = await handleSignIn(request, auth, 'mock')
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toContain('Unknown profile "unknown"')
     })
 
     it('should block sign-in when provider is link-only', async () => {
@@ -153,19 +155,19 @@ describe('login handlers', () => {
       provider.linkOnly = true
 
       const request = new Request('http://localhost/api/auth/mock')
-      await expect(handleSignIn(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.LINK_ONLY_PROVIDER,
-        status: 400,
-      })
+      const response = await handleSignIn(request, auth, 'mock')
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toMatch(/Sign-in with this provider is disabled/i)
     })
 
     it('should block sign-in when selected profile is link-only', async () => {
       auth.profiles = { mock: { locked: { linkOnly: true } } }
       const request = new Request('http://localhost/api/auth/mock?profile=locked')
-      await expect(handleSignIn(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.LINK_ONLY_PROVIDER,
-        status: 400,
-      })
+      const response = await handleSignIn(request, auth, 'mock')
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toMatch(/profile is link-only/i)
     })
 
     it('should forward profile params and query prompt to provider and set provider-options cookie', async () => {

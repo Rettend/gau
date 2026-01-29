@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ErrorCodes } from '../../../src/core/errors'
 import { handleToken } from '../../../src/core/handlers/token'
 
 describe('handleToken', () => {
@@ -10,18 +9,14 @@ describe('handleToken', () => {
 
   it('should return 405 if method is not POST', async () => {
     const request = new Request('http://localhost/token', { method: 'GET' })
-    await expect(handleToken(request, mockAuth)).rejects.toMatchObject({
-      code: ErrorCodes.METHOD_NOT_ALLOWED,
-      status: 405,
-    })
+    const response = await handleToken(request, mockAuth)
+    expect(response.status).toBe(405)
   })
 
   it('should return 400 if body is invalid', async () => {
     const request = new Request('http://localhost/token', { method: 'POST', body: 'invalid-json' })
-    await expect(handleToken(request, mockAuth)).rejects.toMatchObject({
-      code: ErrorCodes.INVALID_REQUEST,
-      status: 400,
-    })
+    const response = await handleToken(request, mockAuth)
+    expect(response.status).toBe(400)
   })
 
   it('should return 400 if code or codeVerifier is missing', async () => {
@@ -29,10 +24,8 @@ describe('handleToken', () => {
       method: 'POST',
       body: JSON.stringify({ code: 'some-code' }),
     })
-    await expect(handleToken(request, mockAuth)).rejects.toMatchObject({
-      code: ErrorCodes.INVALID_REQUEST,
-      status: 400,
-    })
+    const response = await handleToken(request, mockAuth)
+    expect(response.status).toBe(400)
   })
 
   it('should return 400 if code is invalid', async () => {
@@ -41,10 +34,8 @@ describe('handleToken', () => {
       method: 'POST',
       body: JSON.stringify({ code: 'bad-code', codeVerifier: 'verifier' }),
     })
-    await expect(handleToken(request, mockAuth)).rejects.toMatchObject({
-      code: ErrorCodes.TOKEN_EXPIRED,
-      status: 400,
-    })
+    const response = await handleToken(request, mockAuth)
+    expect(response.status).toBe(400)
   })
 
   it('should return 400 if verifier does not match challenge', async () => {
@@ -65,10 +56,9 @@ describe('handleToken', () => {
       method: 'POST',
       body: JSON.stringify({ code: 'good-code', codeVerifier: 'verifier' }),
     })
-    await expect(handleToken(request, mockAuth)).rejects.toMatchObject({
-      code: ErrorCodes.CODE_VERIFIER_INVALID,
-      status: 400,
-    })
+    const response = await handleToken(request, mockAuth)
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Invalid code verifier' })
   })
 
   it('should return session token if valid', async () => {

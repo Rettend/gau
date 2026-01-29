@@ -2,7 +2,6 @@ import type { Mock } from 'vitest'
 import type { Auth } from '../../../src/core/createAuth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SESSION_COOKIE_NAME } from '../../../src/core/cookies'
-import { ErrorCodes } from '../../../src/core/errors'
 import { handleLink, handleUnlink } from '../../../src/core/handlers/link'
 import { setup } from '../../handler'
 
@@ -58,18 +57,22 @@ describe('link handler', () => {
     it('should return 401 for no session token', async () => {
       const request = new Request('http://localhost/api/auth/link/mock')
 
-      await expect(handleLink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNAUTHORIZED,
-      })
+      const response = await handleLink(request, auth, 'mock')
+
+      expect(response.status).toBe(401)
+      const body = await response.json()
+      expect(body.error).toBe('Unauthorized')
     })
 
     it('should return 401 for invalid session token', async () => {
       const request = new Request('http://localhost/api/auth/link/mock')
       request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=invalid-token`)
 
-      await expect(handleLink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNAUTHORIZED,
-      })
+      const response = await handleLink(request, auth, 'mock')
+
+      expect(response.status).toBe(401)
+      const body = await response.json()
+      expect(body.error).toBe('Unauthorized')
     })
 
     it('should return JSON with auth URL when redirect=false', async () => {
@@ -111,9 +114,11 @@ describe('link handler', () => {
       const request = new Request('http://localhost/api/auth/link/mock?redirectTo=http://untrusted.app.com/profile')
       request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=${sessionToken}`)
 
-      await expect(handleLink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNTRUSTED_HOST,
-      })
+      const response = await handleLink(request, auth, 'mock')
+
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBe('Untrusted redirect host')
     })
 
     it('should reject a protocol-relative redirectTo URL', async () => {
@@ -122,9 +127,11 @@ describe('link handler', () => {
       const request = new Request('http://localhost/api/auth/link/mock?redirectTo=//untrusted.app.com/profile')
       request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=${sessionToken}`)
 
-      await expect(handleLink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.INVALID_REDIRECT_URL,
-      })
+      const response = await handleLink(request, auth, 'mock')
+
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBe('Invalid "redirectTo" URL')
     })
 
     it('should apply profile overrides during link', async () => {
@@ -179,10 +186,10 @@ describe('link handler', () => {
       auth.profiles = { mock: { lite: { scopes: ['link:only'] } } }
       const request = new Request('http://localhost/api/auth/link/mock?profile=unknown')
       request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=${sessionToken}`)
-      await expect(handleLink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNKNOWN_PROFILE,
-        status: 400,
-      })
+      const response = await handleLink(request, auth, 'mock')
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toContain('Unknown profile "unknown"')
     })
   })
 
@@ -248,9 +255,11 @@ describe('link handler', () => {
         method: 'POST',
       })
 
-      await expect(handleUnlink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNAUTHORIZED,
-      })
+      const response = await handleUnlink(request, auth, 'mock')
+
+      expect(response.status).toBe(401)
+      const body = await response.json()
+      expect(body.error).toBe('Unauthorized')
     })
 
     it('should return 401 for invalid session token', async () => {
@@ -259,9 +268,11 @@ describe('link handler', () => {
       })
       request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=invalid-token`)
 
-      await expect(handleUnlink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.UNAUTHORIZED,
-      })
+      const response = await handleUnlink(request, auth, 'mock')
+
+      expect(response.status).toBe(401)
+      const body = await response.json()
+      expect(body.error).toBe('Unauthorized')
     })
 
     it('should return 400 when trying to unlink the last account', async () => {
@@ -279,9 +290,11 @@ describe('link handler', () => {
       })
       request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=${sessionToken}`)
 
-      await expect(handleUnlink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.CANNOT_UNLINK_LAST_ACCOUNT,
-      })
+      const response = await handleUnlink(request, auth, 'mock')
+
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBe('Cannot unlink the last account')
     })
 
     it('should return 400 when trying to unlink non-existent provider', async () => {
@@ -304,9 +317,11 @@ describe('link handler', () => {
       })
       request.headers.set('Cookie', `${SESSION_COOKIE_NAME}=${sessionToken}`)
 
-      await expect(handleUnlink(request, auth, 'mock')).rejects.toMatchObject({
-        code: ErrorCodes.ACCOUNT_NOT_LINKED,
-      })
+      const response = await handleUnlink(request, auth, 'mock')
+
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBe('Provider "mock" not linked to this account')
     })
 
     it('should clear email when unlinking account with email', async () => {

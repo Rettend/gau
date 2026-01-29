@@ -122,9 +122,7 @@ export function redirect(url: string, status: 302 | 303 = 302): Response {
 
 export * from './cookies'
 export * from './createAuth'
-export * from './errors'
 export * from './handler'
-export * from './templates'
 export * from './utils'
 
 export const REFRESHED_TOKEN_HEADER = 'X-Refreshed-Token'

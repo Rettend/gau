@@ -31,11 +31,6 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
     ? (optionsOrAuth as AuthInstance<TProviders>)
     : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
 
-  // Set default errorRedirect for SvelteKit (if not already set)
-  // Users should create a page at /auth/error to handle errors
-  if (!auth.errorRedirect)
-    auth.errorRedirect = '/auth/error'
-
   void (async () => {
     try {
       auth.development = (await import('$app/environment')).dev

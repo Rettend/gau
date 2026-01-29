@@ -1,5 +1,4 @@
 import type { Auth } from '../createAuth'
-import { ErrorCodes, GauError } from '../errors'
 import { json, NULL_SESSION, toClientSession } from '../index'
 import { getSessionTokenFromRequest } from '../utils'
 
@@ -21,6 +20,6 @@ export async function handleSession(request: Request, auth: Auth): Promise<Respo
   }
   catch (error) {
     console.error('Error validating session:', error)
-    throw new GauError(ErrorCodes.SESSION_VALIDATION_FAILED, { cause: error })
+    return json({ error: 'Failed to validate session' }, { status: 500 })
   }
 }

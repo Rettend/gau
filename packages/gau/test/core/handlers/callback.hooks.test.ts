@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryAdapter } from '../../../src/adapters'
 import { CALLBACK_URI_COOKIE_NAME, CSRF_COOKIE_NAME, PKCE_COOKIE_NAME } from '../../../src/core/cookies'
 import { createAuth } from '../../../src/core/createAuth'
-import { ErrorCodes } from '../../../src/core/errors'
 import { handleCallback } from '../../../src/core/handlers/callback'
 
 function makeProvider(overrides: Partial<OAuthProvider<'mock'>> = {}): OAuthProvider<'mock'> {
@@ -113,10 +112,10 @@ describe('callback hooks', () => {
     })
 
     const req = makeRequest('state789')
-    await expect(handleCallback(req, auth, 'mock')).rejects.toMatchObject({
-      code: ErrorCodes.LINK_ONLY_PROVIDER,
-      status: 400,
-    })
+    const res = await handleCallback(req, auth, 'mock')
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toMatch(/Sign-in with this provider is disabled/i)
 
     const u = await auth.getUserByAccount('mock', 'provider-user-id')
     expect(u).toBeNull()
@@ -157,10 +156,8 @@ describe('callback hooks', () => {
     })
 
     const req = makeRequest('state1000')
-    await expect(handleCallback(req, auth, 'mock')).rejects.toMatchObject({
-      code: ErrorCodes.LINKING_NOT_ALLOWED,
-      status: 403,
-    })
+    const res = await handleCallback(req, auth, 'mock')
+    expect(res.status).toBe(403)
 
     const u = await auth.getUserByAccount('mock', 'provider-user-id')
     expect(u).toBeNull()

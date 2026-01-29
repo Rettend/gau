@@ -1,27 +1,26 @@
 import type { Auth } from '../createAuth'
-import { ErrorCodes, GauError } from '../errors'
 import { json } from '../index'
 
 export async function handleToken(request: Request, auth: Auth): Promise<Response> {
   if (request.method !== 'POST')
-    throw new GauError(ErrorCodes.METHOD_NOT_ALLOWED)
+    return json({ error: 'Method not allowed' }, { status: 405 })
 
   let body: any
   try {
     body = await request.json()
   }
   catch {
-    throw new GauError(ErrorCodes.INVALID_REQUEST, 'Invalid JSON body', { status: 400 })
+    return json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
   const { code, codeVerifier } = body
 
   if (!code || !codeVerifier)
-    throw new GauError(ErrorCodes.INVALID_REQUEST, 'Missing code or codeVerifier', { status: 400 })
+    return json({ error: 'Missing code or codeVerifier' }, { status: 400 })
 
   const payload = await auth.verifyJWT<{ sub: string, challenge: string }>(code)
   if (!payload)
-    throw new GauError(ErrorCodes.TOKEN_EXPIRED, 'Invalid or expired code')
+    return json({ error: 'Invalid or expired code' }, { status: 400 })
 
   const { sub: userId, challenge } = payload
 
@@ -35,7 +34,7 @@ export async function handleToken(request: Request, auth: Auth): Promise<Respons
     .replace(/=+$/, '')
 
   if (challenge !== expectedChallenge)
-    throw new GauError(ErrorCodes.CODE_VERIFIER_INVALID)
+    return json({ error: 'Invalid code verifier' }, { status: 400 })
 
   const sessionToken = await auth.createSession(userId)
 
