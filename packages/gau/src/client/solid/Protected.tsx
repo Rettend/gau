@@ -26,11 +26,13 @@ export function Protected<const TAuth = unknown>(
     }
 
     return (
-      <Show
-        when={auth.session().user}
-        fallback={isRedirectMode ? <Redirect /> : (Fallback ? <Fallback /> : null)}
-      >
-        {page(auth.session)}
+      <Show when={!auth.isLoading()} fallback={null}>
+        <Show
+          when={auth.session().user}
+          fallback={isRedirectMode ? <Redirect /> : (Fallback ? <Fallback /> : null)}
+        >
+          {page(auth.session)}
+        </Show>
       </Show>
     )
   }
