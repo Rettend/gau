@@ -3,7 +3,6 @@ import type { SerializeOptions } from 'cookie'
 import type { SignOptions, VerifyOptions } from '../jwt'
 import type { AuthUser, OAuthProvider, OAuthProviderConfig, ProviderProfileOverrides } from '../oauth'
 import type { Cookies } from './cookies'
-import type { GauError } from './errors'
 import type { Adapter, GauServerSession } from './index'
 import { serialize } from 'cookie'
 import { sign, verify } from '../jwt'
@@ -141,33 +140,6 @@ export interface CreateAuthOptions<TProviders extends OAuthProvider[]> {
    * Clients can reference a profile by name (e.g. signIn('github', { profile: 'myprofile' })).
    */
   profiles?: ProfilesConfig<TProviders>
-  /**
-   * Custom error handler. Return a Response to override default behavior.
-   * Return undefined to use default handling (errorRedirect or HTML page).
-   *
-   * @example
-   * onError: ({ error, request }) => {
-   *   console.error('Auth error:', error.code, error.message)
-   *   if (error.code === 'CSRF_INVALID') {
-   *     return redirect('/login?error=session_expired')
-   *   }
-   * }
-   */
-  onError?: (context: {
-    error: GauError
-    request: Request
-  }) => Response | Promise<Response | undefined> | undefined
-  /**
-   * URL to redirect user-facing errors to.
-   * Error details passed as query params: ?code=...&message=...&status=...&redirect=...
-   *
-   * If not set, gau renders its built-in error page for user-facing errors,
-   * or returns JSON for API errors.
-   *
-   * @example
-   * errorRedirect: '/auth/error' // Your custom error page
-   */
-  errorRedirect?: string
 }
 
 /**
@@ -276,8 +248,6 @@ export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
     maxAge?: number
   }
   profiles: ResolvedProfiles<TProviders>
-  onError?: CreateAuthOptions<TProviders>['onError']
-  errorRedirect?: string
 }
 
 export interface ProfileDefinition {
@@ -316,8 +286,6 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
   roles: rolesConfig = {},
   cors = true,
   profiles: profilesConfig,
-  onError,
-  errorRedirect,
 }: CreateAuthOptions<TProviders>): Auth<TProviders> {
   const { algorithm = 'ES256', secret, iss, aud, ttl: defaultTTL = 3600 * 24 * 7 } = jwtConfig
   const cookieOptions = { ...DEFAULT_COOKIE_SERIALIZE_OPTIONS, ...cookieConfig }
@@ -548,7 +516,5 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     development: false,
     roles: resolvedRoles,
     cors: resolvedCors,
-    onError,
-    errorRedirect,
   }
 }

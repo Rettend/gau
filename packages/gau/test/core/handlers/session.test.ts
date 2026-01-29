@@ -1,7 +1,6 @@
 import type { Auth } from '../../../src/core/createAuth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SESSION_COOKIE_NAME } from '../../../src/core/cookies'
-import { ErrorCodes } from '../../../src/core/errors'
 import { handleSession } from '../../../src/core/handlers/session'
 import { NULL_SESSION } from '../../../src/core/index'
 import { setup } from '../../handler'
@@ -73,9 +72,9 @@ describe('session handler', () => {
     const request = new Request('http://localhost/api/auth/session', {
       headers: { Authorization: `Bearer ${sessionToken}` },
     })
-    await expect(handleSession(request, auth)).rejects.toMatchObject({
-      code: ErrorCodes.SESSION_VALIDATION_FAILED,
-      status: 500,
-    })
+    const response = await handleSession(request, auth)
+    expect(response.status).toBe(500)
+    const data = await response.json()
+    expect(data.error).toBe('Failed to validate session')
   })
 })
