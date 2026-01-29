@@ -90,7 +90,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
       const s = props.session as Resource<GauSession<ProviderIds<TAuth>>> | undefined
       return s?.loading ?? false
     }
-    return internalSession.loading
+    return !mounted() || internalSession.loading
   })
 
   // Refetch function that works in both modes
