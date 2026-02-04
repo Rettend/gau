@@ -1,9 +1,9 @@
 {
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "rootDir": "../../..",
+    "rootDir": ".",
     "types": ["svelte"],
-    "outDir": "../../../dist",
+    "outDir": "../../../dist/client/svelte",
     "isolatedModules": true
   },
   "include": [

@@ -7,6 +7,7 @@
       "DOM"
     ],
     "moduleDetection": "force",
+    "rootDir": "./src",
     "module": "Preserve",
     "moduleResolution": "bundler",
     "allowJs": true,
