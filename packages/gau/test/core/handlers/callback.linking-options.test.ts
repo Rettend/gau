@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryAdapter } from '../../../src/adapters'
 import { CSRF_COOKIE_NAME, LINKING_TOKEN_COOKIE_NAME, PKCE_COOKIE_NAME } from '../../../src/core/cookies'
 import { createAuth } from '../../../src/core/createAuth'
+import { ErrorCodes } from '../../../src/core/errors'
 import { handleCallback } from '../../../src/core/handlers/callback'
 import { mockProvider } from '../../handler'
 
@@ -57,10 +58,10 @@ describe('callback linking options', () => {
     const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=state')
     request.headers.set('Cookie', `${LINKING_TOKEN_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=state; ${PKCE_COOKIE_NAME}=pkce`)
 
-    const response = await handleCallback(request, auth, 'mock')
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toContain('Email mismatch')
+    await expect(handleCallback(request, auth, 'mock')).rejects.toMatchObject({
+      code: ErrorCodes.EMAIL_MISMATCH,
+      status: 400,
+    })
 
     const linked = await auth.getUserByAccount('mock', 'provider-user-id')
     expect(linked).toBeNull()
