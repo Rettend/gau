@@ -11,6 +11,8 @@ export interface User {
 export interface Session {
   id: string
   sub: string
+  impersonatedBy?: string
+  impersonationExpiresAt?: number
   [key: string]: unknown
 }
 
@@ -124,5 +126,12 @@ export * from './cookies'
 export * from './createAuth'
 export * from './handler'
 export * from './utils'
+
+/**
+ * Helper to check if a session is an impersonation session.
+ */
+export function isImpersonating(session: Session | null): boolean {
+  return session?.impersonatedBy != null
+}
 
 export const REFRESHED_TOKEN_HEADER = 'X-Refreshed-Token'
