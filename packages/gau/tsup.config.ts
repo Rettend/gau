@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 import type { Options } from 'tsup'
-import { $, Glob, write } from 'bun'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { $, Glob, write } from 'bun'
 import { defineConfig } from 'tsup'
 
 const commonConfig = {
@@ -65,6 +65,14 @@ export default defineConfig(async () => {
           $`bun tsgo --project src/client/svelte/tsconfig.json`,
         ])
         console.log('✅ Successfully generated .d.ts files.')
+
+        const dtsGlob = new Glob('src/**/*.d.ts{,.map}')
+        const dtsFiles = await Array.fromAsync(dtsGlob.scan('.'))
+        if (dtsFiles.length > 0) {
+          console.log(`🧹 Cleaning up ${dtsFiles.length} errant .d.ts files from src...`)
+          await Promise.all(dtsFiles.map(f => unlink(f)))
+          console.log('✅ Cleanup complete.')
+        }
         for (const path of svelteComponentEntries) {
           const file = Bun.file(path)
           const outPath = path.replace(/^src/, 'dist/src')
