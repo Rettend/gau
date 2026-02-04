@@ -44,11 +44,6 @@ export const ErrorMessages = {
 
   // Internal Errors
   INTERNAL_ERROR: 'An unexpected error occurred',
-
-  // Impersonation Errors
-  IMPERSONATION_DISABLED: 'Impersonation is not enabled',
-  IMPERSONATION_NOT_ALLOWED: 'You are not allowed to impersonate users',
-  IMPERSONATION_TARGET_PROTECTED: 'Cannot impersonate users with protected roles',
 } as const
 
 /** Error code type derived from ErrorMessages keys */
@@ -80,9 +75,6 @@ export const ErrorStatuses: Partial<Record<ErrorCode, number>> = {
   ACCOUNT_ALREADY_LINKED: 409,
   EMAIL_ALREADY_EXISTS: 409,
   LINKING_NOT_ALLOWED: 403,
-  IMPERSONATION_DISABLED: 403,
-  IMPERSONATION_NOT_ALLOWED: 403,
-  IMPERSONATION_TARGET_PROTECTED: 403,
 }
 
 export interface GauErrorOptions {

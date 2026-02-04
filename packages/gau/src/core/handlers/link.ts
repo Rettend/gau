@@ -1,4 +1,5 @@
 import type { Auth } from '../createAuth'
+import { ErrorCodes, GauError } from '../errors'
 import { json } from '../index'
 import { getSessionTokenFromRequest } from '../utils'
 import { prepareOAuthRedirect } from './utils'
@@ -11,11 +12,11 @@ export async function handleLink(request: Request, auth: Auth, providerId: strin
     sessionToken = url.searchParams.get('token') ?? undefined
 
   if (!sessionToken)
-    return json({ error: 'Unauthorized' }, { status: 401 })
+    throw new GauError(ErrorCodes.UNAUTHORIZED)
 
   const session = await auth.validateSession(sessionToken)
   if (!session)
-    return json({ error: 'Unauthorized' }, { status: 401 })
+    throw new GauError(ErrorCodes.UNAUTHORIZED)
 
   url.searchParams.delete('token')
   const cleanRequest = new Request(url.toString(), request as Request)
@@ -27,20 +28,20 @@ export async function handleUnlink(request: Request, auth: Auth, providerId: str
   const sessionToken = getSessionTokenFromRequest(request).token
 
   if (!sessionToken)
-    return json({ error: 'Unauthorized' }, { status: 401 })
+    throw new GauError(ErrorCodes.UNAUTHORIZED)
 
   const session = await auth.validateSession(sessionToken)
   if (!session || !session.user)
-    return json({ error: 'Unauthorized' }, { status: 401 })
+    throw new GauError(ErrorCodes.UNAUTHORIZED)
 
   const accounts = session.accounts ?? []
 
   if (accounts.length <= 1)
-    return json({ error: 'Cannot unlink the last account' }, { status: 400 })
+    throw new GauError(ErrorCodes.CANNOT_UNLINK_LAST_ACCOUNT)
 
   const accountToUnlink = accounts.find(a => a.provider === providerId)
   if (!accountToUnlink)
-    return json({ error: `Provider "${providerId}" not linked to this account` }, { status: 400 })
+    throw new GauError(ErrorCodes.ACCOUNT_NOT_LINKED, `Provider "${providerId}" not linked`)
 
   await auth.unlinkAccount(providerId, accountToUnlink.providerAccountId)
 
