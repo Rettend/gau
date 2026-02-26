@@ -3,12 +3,11 @@ import type { SerializeOptions } from 'cookie'
 import type { SignOptions, VerifyOptions } from '../jwt'
 import type { AuthUser, OAuthProvider, OAuthProviderConfig, ProviderProfileOverrides } from '../oauth'
 import type { Cookies } from './cookies'
-import type { GauError } from './errors'
 import type { Adapter, GauServerSession } from './index'
-import { serialize } from 'cookie'
+import { parse, serialize } from 'cookie'
 import { sign, verify } from '../jwt'
-import { DEFAULT_COOKIE_SERIALIZE_OPTIONS, SESSION_COOKIE_NAME } from './cookies'
-import { AuthError } from './index'
+import { DEFAULT_COOKIE_SERIALIZE_OPTIONS, SESSION_COOKIE_NAME, SESSION_STASH_COOKIE_NAME } from './cookies'
+import { AuthError, ErrorCodes, GauError } from './index'
 import { getSessionTokenFromRequest } from './utils'
 
 type ProviderId<P> = P extends OAuthProvider<infer T> ? T : never
@@ -19,6 +18,55 @@ export type ProfileName<T, P extends string> = T extends { profiles: infer R }
     ? keyof R[P]
     : never
   : never
+
+export interface ImpersonationConfig {
+  enabled: boolean
+  /** Roles that can impersonate others. Defaults to adminRoles from roles config. */
+  allowedRoles?: string[]
+  /** Roles that cannot be impersonated. Defaults to adminRoles from roles config. */
+  cannotImpersonate?: string[]
+  /** Maximum impersonation duration in seconds. Defaults to 3600 (1 hour). */
+  maxTTL?: number
+  /**
+   * Hook called when impersonation starts.
+   * Use this to log impersonation events.
+   */
+  onImpersonate?: (context: {
+    adminUserId: string
+    targetUserId: string
+    reason?: string
+    timestamp: number
+  }) => void | Promise<void>
+}
+
+type ResolvedImpersonationConfig = Required<Pick<ImpersonationConfig, 'enabled' | 'allowedRoles' | 'cannotImpersonate' | 'maxTTL'>> & Pick<ImpersonationConfig, 'onImpersonate'>
+
+export interface StartImpersonationOptions {
+  /** Session duration in seconds (capped by maxTTL). */
+  ttl?: number
+  /** Reason for impersonation, passed to onImpersonate hook. */
+  reason?: string
+}
+
+export interface ImpersonationResult {
+  /** The impersonation session JWT. */
+  token: string
+  /** Set-Cookie header for the impersonation session. */
+  cookie: string
+  /** Set-Cookie header for stashing the admin's original session. */
+  originalCookie: string
+  /** The maxAge in seconds. */
+  maxAge: number
+}
+
+export interface EndImpersonationResult {
+  /** The restored admin session token. */
+  token: string
+  /** Set-Cookie header for restoring the admin session. */
+  cookie: string
+  /** Array of Set-Cookie headers to clear the stash cookie. */
+  clearCookies: string[]
+}
 
 export interface CreateAuthOptions<TProviders extends OAuthProvider[]> {
   /** The database adapter to use for storing users and accounts. */
@@ -168,11 +216,13 @@ export interface CreateAuthOptions<TProviders extends OAuthProvider[]> {
    * errorRedirect: '/auth/error' // Your custom error page
    */
   errorRedirect?: string
+  /**
+   * User impersonation.
+   * When enabled, admins can impersonate other users for support/debugging.
+   */
+  impersonation?: ImpersonationConfig
 }
 
-/**
- * Options for issuing a session.
- */
 export interface IssueSessionOptions {
   /** Custom claims to include in the session JWT. */
   data?: Record<string, unknown>
@@ -180,9 +230,6 @@ export interface IssueSessionOptions {
   ttl?: number
 }
 
-/**
- * Result of issuing a session.
- */
 export interface IssueSessionResult {
   /** The raw JWT session token (for Bearer auth or storage). */
   token: string
@@ -194,9 +241,6 @@ export interface IssueSessionResult {
   maxAge: number
 }
 
-/**
- * Options for refreshing a session.
- */
 export interface RefreshSessionOptions {
   /** Override the default TTL for the new token. */
   ttl?: number
@@ -207,9 +251,6 @@ export interface RefreshSessionOptions {
   threshold?: number
 }
 
-/**
- * Result of refreshing a session. Extends IssueSessionResult with source information.
- */
 export interface RefreshSessionResult extends IssueSessionResult {
   /**
    * How the original token was provided.
@@ -255,6 +296,24 @@ export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
    * this will refresh it using the provider's refreshAccessToken and persist rotated tokens.
    */
   getAccessToken: (userId: string, providerId: string) => Promise<{ accessToken: string, expiresAt?: number | null } | null>
+  /**
+   * Start impersonating a target user.
+   * Requires impersonation to be enabled and the admin user to have appropriate permissions.
+   *
+   * @param adminUserId - The ID of the user initiating impersonation (must have allowed role)
+   * @param targetUserId - The ID of the user to impersonate
+   * @param options - Optional configuration for the impersonation session
+   * @returns ImpersonationResult with tokens and cookies, or null if impersonation is not allowed
+   */
+  startImpersonation: (adminUserId: string, targetUserId: string, options?: StartImpersonationOptions) => Promise<ImpersonationResult | null>
+  /**
+   * End an active impersonation session and restore the admin's original session.
+   * Extracts the stashed session from the request cookies.
+   *
+   * @param request - The request containing the stashed session cookie
+   * @returns EndImpersonationResult with restored session, or null if no stash found
+   */
+  endImpersonation: (request: Request) => Promise<EndImpersonationResult | null>
   trustHosts: 'all' | string[]
   autoLink: 'verifiedEmail' | 'always' | false
   allowDifferentEmails: boolean
@@ -278,6 +337,7 @@ export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
   profiles: ResolvedProfiles<TProviders>
   onError?: CreateAuthOptions<TProviders>['onError']
   errorRedirect?: string
+  impersonation: ImpersonationConfig | null
 }
 
 export interface ProfileDefinition {
@@ -318,6 +378,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
   profiles: profilesConfig,
   onError,
   errorRedirect,
+  impersonation: impersonationConfig,
 }: CreateAuthOptions<TProviders>): Auth<TProviders> {
   const { algorithm = 'ES256', secret, iss, aud, ttl: defaultTTL = 3600 * 24 * 7 } = jwtConfig
   const cookieOptions = { ...DEFAULT_COOKIE_SERIALIZE_OPTIONS, ...cookieConfig }
@@ -347,6 +408,16 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     adminRoles: rolesConfig.adminRoles ?? ['admin'],
     adminUserIds: rolesConfig.adminUserIds ?? [],
   }
+
+  const resolvedImpersonation: ResolvedImpersonationConfig | null = impersonationConfig?.enabled
+    ? {
+        enabled: true,
+        allowedRoles: impersonationConfig.allowedRoles ?? resolvedRoles.adminRoles,
+        cannotImpersonate: impersonationConfig.cannotImpersonate ?? resolvedRoles.adminRoles,
+        maxTTL: impersonationConfig.maxTTL ?? 3600,
+        onImpersonate: impersonationConfig.onImpersonate,
+      }
+    : null
 
   function buildSignOptions(custom: Partial<SignOptions> = {}): SignOptions {
     const base = { ttl: custom.ttl, iss: custom.iss ?? iss, aud: custom.aud ?? aud, sub: custom.sub }
@@ -520,6 +591,101 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     }
   }
 
+  async function startImpersonation(
+    adminUserId: string,
+    targetUserId: string,
+    options: StartImpersonationOptions = {},
+  ): Promise<ImpersonationResult | null> {
+    if (!resolvedImpersonation)
+      throw new GauError(ErrorCodes.IMPERSONATION_DISABLED)
+
+    const adminUser = await adapter.getUser(adminUserId)
+    if (!adminUser)
+      throw new GauError(ErrorCodes.USER_NOT_FOUND, `Admin user "${adminUserId}" not found`)
+
+    const hasAllowedRole = adminUser.role
+      ? resolvedImpersonation.allowedRoles.includes(adminUser.role)
+      : false
+    const isAdminUserId = resolvedRoles.adminUserIds.includes(adminUserId)
+
+    if (!hasAllowedRole && !isAdminUserId)
+      throw new GauError(ErrorCodes.IMPERSONATION_NOT_ALLOWED)
+
+    const targetUser = await adapter.getUser(targetUserId)
+    if (!targetUser)
+      throw new GauError(ErrorCodes.USER_NOT_FOUND, `Target user "${targetUserId}" not found`)
+
+    if (targetUser.role && resolvedImpersonation.cannotImpersonate.includes(targetUser.role))
+      throw new GauError(ErrorCodes.IMPERSONATION_TARGET_PROTECTED)
+
+    if (resolvedImpersonation.onImpersonate) {
+      await resolvedImpersonation.onImpersonate({
+        adminUserId,
+        targetUserId,
+        reason: options.reason,
+        timestamp: Date.now(),
+      })
+    }
+
+    const ttl = Math.min(options.ttl ?? resolvedImpersonation.maxTTL, resolvedImpersonation.maxTTL)
+    const expiresAt = Math.floor(Date.now() / 1000) + ttl
+
+    const impersonationToken = await createSession(targetUserId, {
+      impersonatedBy: adminUserId,
+      impersonationExpiresAt: expiresAt,
+    }, ttl)
+
+    const cookieOpts: SerializeOptions = {
+      ...cookieOptions,
+      maxAge: ttl,
+    }
+
+    const cookie = serialize(SESSION_COOKIE_NAME, impersonationToken, cookieOpts)
+
+    const stashToken = await signJWT({ adminUserId }, { ttl: resolvedImpersonation.maxTTL * 2 })
+    const stashCookie = serialize(SESSION_STASH_COOKIE_NAME, stashToken, cookieOpts)
+
+    return {
+      token: impersonationToken,
+      cookie,
+      originalCookie: stashCookie,
+      maxAge: ttl,
+    }
+  }
+
+  async function endImpersonation(request: Request): Promise<EndImpersonationResult | null> {
+    const cookieHeader = request.headers.get('cookie')
+    if (!cookieHeader)
+      return null
+
+    const parsedCookies = parse(cookieHeader)
+    const stashToken = parsedCookies[SESSION_STASH_COOKIE_NAME]
+
+    if (!stashToken)
+      return null
+
+    const stashPayload = await verifyJWT<{ adminUserId: string }>(stashToken)
+    if (!stashPayload?.adminUserId)
+      return null
+    const adminUser = await adapter.getUser(stashPayload.adminUserId)
+    if (!adminUser)
+      return null
+
+    const restoredSession = await issueSession(stashPayload.adminUserId)
+
+    const clearStashCookie = serialize(SESSION_STASH_COOKIE_NAME, '', {
+      ...cookieOptions,
+      expires: new Date(0),
+      maxAge: 0,
+    })
+
+    return {
+      token: restoredSession.token,
+      cookie: restoredSession.cookie,
+      clearCookies: [clearStashCookie],
+    }
+  }
+
   return {
     ...adapter,
     providerMap: providerMap as Map<ProviderId<TProviders[number]>, TProviders[number]>,
@@ -550,5 +716,8 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     cors: resolvedCors,
     onError,
     errorRedirect,
+    startImpersonation,
+    endImpersonation,
+    impersonation: resolvedImpersonation,
   }
 }

@@ -50,7 +50,6 @@ export default defineConfig({
               { icon: 'i-ph:rows-duotone', label: 'Middleware', slug: 'guides/middleware' },
               { icon: 'i-ph:folder-lock-duotone', label: 'Protected Routes', slug: 'guides/protected-routes' },
               { icon: 'i-ph:user-check-duotone', label: 'Role-Based Access Control', slug: 'guides/role-based-access-control' },
-              { icon: 'i-ph:head-circuit-duotone', label: 'Advanced Use Cases', slug: 'guides/advanced' },
               { icon: 'i-ph:plug-duotone', label: 'Hooks', slug: 'guides/hooks' },
               { icon: 'i-ph:shield-warning-duotone', label: 'Error Handling', slug: 'guides/error-handling' },
               { icon: 'i-ph:shield-check-duotone', label: 'Security', slug: 'guides/security' },
@@ -93,9 +92,11 @@ export default defineConfig({
             ],
           },
           {
-            label: 'Cookbook',
+            label: 'Advanced',
             items: [
-              { icon: 'i-simple-icons:xbox', label: 'Xbox / Minecraft', slug: 'cookbook/xbox-minecraft' },
+              { icon: 'i-ph:head-circuit-duotone', label: 'Overview', slug: 'advanced' },
+              { icon: 'i-ph:user-switch-duotone', label: 'User Impersonation', slug: 'advanced/user-impersonation' },
+              { icon: 'i-simple-icons:xbox', label: 'Xbox / Minecraft', slug: 'advanced/xbox-minecraft' },
             ],
           },
           {

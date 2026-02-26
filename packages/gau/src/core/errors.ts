@@ -1,7 +1,3 @@
-/**
- * Default messages for each error code.
- * This is the single source of truth for error codes and their messages.
- */
 export const ErrorMessages = {
   // OAuth Flow Errors
   CSRF_INVALID: 'Invalid CSRF token',
@@ -11,7 +7,7 @@ export const ErrorMessages = {
   PROVIDER_NOT_FOUND: 'Provider not found',
   AUTHORIZATION_URL_FAILED: 'Could not create authorization URL',
 
-  // Account/User Errors
+  // User Errors
   USER_NOT_FOUND: 'User not found',
   USER_CREATE_FAILED: 'Failed to create user',
   ACCOUNT_ALREADY_LINKED: 'Account already linked to another user',
@@ -23,7 +19,7 @@ export const ErrorMessages = {
   LINKING_NOT_ALLOWED: 'Linking not allowed',
   LINK_ONLY_PROVIDER: 'Sign-in with this provider is disabled. Please link it to an existing account.',
 
-  // Session/Auth Errors
+  // Session Errors
   UNAUTHORIZED: 'Unauthorized',
   FORBIDDEN: 'Forbidden',
   SESSION_INVALID: 'Invalid session',
@@ -44,15 +40,15 @@ export const ErrorMessages = {
 
   // Internal Errors
   INTERNAL_ERROR: 'An unexpected error occurred',
+
+  // Impersonation Errors
+  IMPERSONATION_DISABLED: 'Impersonation is not enabled',
+  IMPERSONATION_NOT_ALLOWED: 'You are not allowed to impersonate users',
+  IMPERSONATION_TARGET_PROTECTED: 'Cannot impersonate users with protected roles',
 } as const
 
-/** Error code type derived from ErrorMessages keys */
 export type ErrorCode = keyof typeof ErrorMessages
 
-/**
- * Error codes object for developer ergonomics.
- * Usage: `ErrorCodes.CSRF_INVALID` instead of `'CSRF_INVALID'`
- */
 export const ErrorCodes: { [K in ErrorCode]: K } = Object.fromEntries(
   Object.keys(ErrorMessages).map(k => [k, k]),
 ) as { [K in ErrorCode]: K }
@@ -75,6 +71,9 @@ export const ErrorStatuses: Partial<Record<ErrorCode, number>> = {
   ACCOUNT_ALREADY_LINKED: 409,
   EMAIL_ALREADY_EXISTS: 409,
   LINKING_NOT_ALLOWED: 403,
+  IMPERSONATION_DISABLED: 403,
+  IMPERSONATION_NOT_ALLOWED: 403,
+  IMPERSONATION_TARGET_PROTECTED: 403,
 }
 
 export interface GauErrorOptions {
@@ -86,17 +85,6 @@ export interface GauErrorOptions {
   cause?: unknown
 }
 
-/**
- * Structured error class for gau authentication errors.
- * Contains all information needed for error handling and user feedback.
- *
- * @example
- * // Using default message
- * throw new GauError(ErrorCodes.CSRF_INVALID, { status: 403 })
- *
- * // Using custom message
- * throw new GauError(ErrorCodes.PROVIDER_NOT_FOUND, `Provider "${id}" not found`)
- */
 export class GauError extends Error {
   readonly code: ErrorCode
   readonly status: number
@@ -108,7 +96,6 @@ export class GauError extends Error {
     messageOrOptions?: string | GauErrorOptions,
     options?: GauErrorOptions,
   ) {
-    // Handle overloaded signatures
     const message = typeof messageOrOptions === 'string'
       ? messageOrOptions
       : ErrorMessages[code]
@@ -124,9 +111,6 @@ export class GauError extends Error {
     this.cause = opts.cause
   }
 
-  /**
-   * Convert to JSON-serializable object for API responses.
-   */
   toJSON() {
     return {
       error: this.message,
@@ -136,10 +120,6 @@ export class GauError extends Error {
   }
 }
 
-/**
- * Create an error redirect URL with query params.
- * Used when errorRedirect is configured.
- */
 export function createErrorRedirectUrl(baseUrl: string, error: GauError): string {
   const url = new URL(baseUrl, 'http://placeholder')
   url.searchParams.set('code', error.code)
@@ -151,40 +131,17 @@ export function createErrorRedirectUrl(baseUrl: string, error: GauError): string
   return url.pathname + url.search
 }
 
-/**
- * Context passed to error handlers.
- */
 export interface ErrorContext {
   error: GauError
   request: Request
 }
 
-/**
- * Configuration for error handling.
- */
 export interface ErrorHandlerConfig {
   basePath: string
   onError?: (context: ErrorContext) => Response | Promise<Response | undefined> | undefined
   errorRedirect?: string
 }
 
-/**
- * Determine if a request is user-facing (browser OAuth flow)
- * vs API (programmatic fetch).
- *
- * Uses route-based detection (reliable) rather than Accept headers (unreliable).
- *
- * User-facing routes (browser navigates directly):
- *   - GET /:provider         → OAuth sign-in start
- *   - GET /callback/:provider → OAuth callback from provider
- *   - GET /link/:provider    → Account linking start
- *
- * API routes (JS fetch):
- *   - GET /session           → Get current session
- *   - POST /signout          → Sign out
- *   - POST /token            → PKCE token exchange
- *   - POST /unlink/:provider → Unlink account
- */
 export function isUserFacingRequest(request: Request, basePath: string): boolean {
   // POST requests are always API calls
   if (request.method !== 'GET')
@@ -209,15 +166,6 @@ export function isUserFacingRequest(request: Request, basePath: string): boolean
   return false
 }
 
-/**
- * Handle an error according to configuration.
- * Returns the appropriate Response based on context.
- *
- * Priority:
- * 1. Custom onError handler (if returns Response)
- * 2. errorRedirect (for user-facing requests only)
- * 3. Default: HTML error page for user-facing, JSON for API
- */
 export async function handleError(
   context: ErrorContext,
   config: ErrorHandlerConfig,
@@ -236,10 +184,9 @@ export async function handleError(
     }
   }
 
-  // Determine if this is a user-facing request
   const userFacing = isUserFacingRequest(request, config.basePath)
 
-  // 2. Try errorRedirect (only for user-facing requests)
+  // 2. Try errorRedirect for user-facing requests
   if (config.errorRedirect && userFacing) {
     const redirectUrl = createErrorRedirectUrl(config.errorRedirect, error)
     return new Response(null, {
@@ -250,7 +197,6 @@ export async function handleError(
 
   // 3. Default handling
   if (userFacing) {
-    // Import dynamically to avoid circular dependency
     const { renderErrorPage, htmlResponse } = await import('./templates')
     const html = renderErrorPage({
       title: 'Authentication Error',
@@ -261,7 +207,6 @@ export async function handleError(
     return htmlResponse(html, error.status)
   }
 
-  // API response - return JSON
   return new Response(JSON.stringify(error.toJSON()), {
     status: error.status,
     headers: { 'Content-Type': 'application/json; charset=utf-8' },

@@ -128,3 +128,10 @@ export * from './templates'
 export * from './utils'
 
 export const REFRESHED_TOKEN_HEADER = 'X-Refreshed-Token'
+
+/**
+ * Helper to check if a session is an impersonation session.
+ */
+export function isImpersonating(session: Session | null): boolean {
+  return session?.impersonatedBy != null
+}

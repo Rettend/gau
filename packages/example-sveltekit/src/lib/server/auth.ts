@@ -33,6 +33,16 @@ export const auth = createAuth({
     secret: env.AUTH_SECRET,
   },
   trustHosts: 'all',
+  roles: {
+    adminRoles: ['admin'],
+  },
+  impersonation: {
+    enabled: true,
+    onImpersonate: ({ adminUserId, targetUserId, reason }) => {
+      // eslint-disable-next-line no-console
+      console.log(`[IMPERSONATION] ${adminUserId} → ${targetUserId} (reason: ${reason ?? 'none'})`)
+    },
+  },
 })
 
 export type Auth = typeof auth

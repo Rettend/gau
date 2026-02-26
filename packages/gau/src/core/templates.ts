@@ -1,9 +1,3 @@
-/**
- * HTML templates for gau error and success pages.
- * Used for user-facing OAuth flow responses.
- */
-
-/** Shared CSS styles for all gau pages */
 const baseStyles = `
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
@@ -66,10 +60,6 @@ export interface ErrorPageOptions {
   autoClose?: boolean
 }
 
-/**
- * Render a styled error page.
- * Used for user-facing OAuth flow errors.
- */
 export function renderErrorPage(options: ErrorPageOptions): string {
   const {
     title = 'Authentication Error',
@@ -122,10 +112,6 @@ export interface SuccessPageOptions {
   autoClose?: boolean
 }
 
-/**
- * Render a styled success page.
- * Used for OAuth completion (e.g., Tauri deep-link handoff).
- */
 export function renderSuccessPage(options: SuccessPageOptions): string {
   const {
     title = 'Authentication Successful',
@@ -168,10 +154,6 @@ export interface CancelledPageOptions {
   autoClose?: boolean
 }
 
-/**
- * Render a styled cancellation page.
- * Used when user cancels OAuth flow.
- */
 export function renderCancelledPage(options: CancelledPageOptions = {}): string {
   const {
     title = 'Authentication Cancelled',
@@ -203,9 +185,6 @@ export function renderCancelledPage(options: CancelledPageOptions = {}): string 
 </html>`
 }
 
-/**
- * Create an HTML Response with proper headers.
- */
 export function htmlResponse(html: string, status = 200): Response {
   return new Response(html, {
     status,
@@ -213,9 +192,6 @@ export function htmlResponse(html: string, status = 200): Response {
   })
 }
 
-/**
- * Escape HTML special characters to prevent XSS.
- */
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')

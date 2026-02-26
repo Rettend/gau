@@ -1,0 +1,142 @@
+---
+title: User Impersonation
+description: Allow admins or support staff to sign in as other users for debugging or customer support.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Allow admins or support staff to sign in as other users for debugging, customer support, or demonstrations. This is an opt-in feature that requires explicit configuration.
+
+## Configuration
+
+Enable impersonation in your `createAuth` configuration:
+
+```ts title="auth.ts" ins={8-16}
+export const auth = createAuth({
+  adapter,
+  providers,
+  roles: {
+    adminRoles: ['admin'],
+    adminUserIds: ['special-admin-id'],
+  },
+  impersonation: {
+    enabled: true,
+    allowedRoles: ['admin', 'support'], // Who can impersonate (defaults to adminRoles)
+    cannotImpersonate: ['admin'],       // Who cannot be impersonated (defaults to adminRoles)
+    maxTTL: 3600,                       // Max duration in seconds (default: 1 hour)
+    onImpersonate: ({ adminUserId, targetUserId, reason, timestamp }) => {
+      console.log(`Audit: ${adminUserId} impersonated ${targetUserId}: ${reason}`)
+    },
+  },
+})
+```
+
+### Options
+
+- `enabled` - Set to `true` to enable the impersonation feature
+- `allowedRoles` - Array of roles that can impersonate others (defaults to `adminRoles`)
+- `cannotImpersonate` - Array of roles that cannot be impersonated (defaults to `adminRoles`)
+- `maxTTL` - Maximum duration of an impersonation session in seconds (default: 3600)
+- `onImpersonate` - Audit hook called when impersonation starts
+
+## Starting Impersonation
+
+Use the `startImpersonation` method to begin impersonating a user:
+
+```ts title="routes/api/admin/impersonate/+server.ts"
+import { auth } from '$lib/server/auth'
+
+export async function POST({ request, locals }) {
+  const session = await locals.getSession()
+
+  // Verify the requester is an admin
+  if (!session?.user?.isAdmin)
+    return new Response('Forbidden', { status: 403 })
+
+  const { targetUserId, reason } = await request.json()
+
+  // Start impersonation
+  const result = await auth.startImpersonation(session.user.id, targetUserId, {
+    reason,                // Optional: passed to onImpersonate hook
+    ttl: 60 * 30,         // Optional: 30 minutes (capped by maxTTL)
+  })
+
+  if (!result)
+    return new Response('Impersonation failed', { status: 500 })
+
+  // Set both cookies - impersonation session and stash for original session
+  return new Response(JSON.stringify({ success: true }), {
+    headers: [
+      ['Set-Cookie', result.cookie],
+      ['Set-Cookie', result.originalCookie],
+    ],
+  })
+}
+```
+
+### Result
+
+- `token` - The impersonation session JWT containing `impersonatedBy` and `impersonationExpiresAt` claims
+- `cookie` - Set-Cookie header for the impersonation session
+- `originalCookie` - Set-Cookie header to stash the admin's session info
+- `maxAge` - The actual TTL used (capped by maxTTL)
+
+## Detecting Impersonation
+
+Check if the current session is an impersonation session:
+
+```ts title="routes/+layout.server.ts"
+import { isImpersonating } from '@rttnd/gau'
+
+export async function load({ locals }) {
+  const session = await locals.getSession()
+
+  return {
+    user: session?.user,
+    isImpersonating: isImpersonating(session?.session),
+    impersonatedBy: session?.session?.impersonatedBy,
+  }
+}
+```
+
+Use this to show a visual indicator in your UI that the user is in impersonation mode.
+
+## Ending Impersonation
+
+Restore the admin's original session when they're done:
+
+```ts title="routes/api/admin/unimpersonate/+server.ts"
+import { auth } from '$lib/server/auth'
+
+export async function POST({ request }) {
+  const result = await auth.endImpersonation(request)
+
+  if (!result)
+    return new Response('No active impersonation', { status: 400 })
+
+  // Set the restored session cookie and clear the stash
+  const headers = new Headers()
+  headers.set('Set-Cookie', result.cookie)
+  result.clearCookies.forEach(cookie => headers.append('Set-Cookie', cookie))
+
+  return new Response(JSON.stringify({ success: true }), { headers })
+}
+```
+
+### Result
+
+- `token` - The restored admin session JWT
+- `cookie` - Set-Cookie header for the restored session
+- `clearCookies` - Array of Set-Cookie headers to clear the stash cookie
+
+## Security Considerations
+
+<Aside type="caution">
+Always validate admin status in your route handlers before calling `startImpersonation`. The feature performs its own validation, but defense in depth is recommended.
+</Aside>
+
+- Log all impersonation events via the `onImpersonate` hook
+- Set a reasonable `maxTTL` (default 1 hour is recommended)
+- Display a clear visual indicator when impersonation is active
+- Consider requiring additional authentication (e.g., re-entering password) before allowing impersonation
+- Regularly audit impersonation logs for suspicious activity
