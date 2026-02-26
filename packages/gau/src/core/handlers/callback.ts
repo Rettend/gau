@@ -27,7 +27,6 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const error = url.searchParams.get('error')
 
   if (!code || !state || error) {
-    // Try to extract redirect URL from state if available
     let redirectTo = '/'
     if (state && state.includes('.')) {
       try {
@@ -39,7 +38,6 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
       }
     }
 
-    // OAuth was cancelled - show a nice page and redirect back
     const html = renderCancelledPage({ redirectUrl: redirectTo })
     return htmlResponse(html)
   }
@@ -491,10 +489,9 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
       throw new GauError(ErrorCodes.PKCE_CHALLENGE_MISSING, { redirectUrl: redirectTo })
     }
 
-    // Use success page template instead of inline HTML
     const html = renderSuccessPage({ redirectUrl: destination.toString() })
 
-    // Clear temporary cookies (CSRF/PKCE/Callback URI) so they don't linger
+    // Clear temporary cookies
     cookies.delete(CSRF_COOKIE_NAME)
     cookies.delete(PKCE_COOKIE_NAME)
     if (callbackUri)

@@ -17,13 +17,11 @@ export function createHandler(auth: Auth): (request: Request) => Promise<Respons
   const { basePath } = auth
 
   return async function (request: Request): Promise<Response> {
-    // Handle preflight requests early
     if (request.method === 'OPTIONS')
       return handlePreflight(request, auth)
 
     const url = new URL(request.url)
 
-    // Check if request is for this handler
     if (!url.pathname.startsWith(basePath)) {
       const error = new GauError(ErrorCodes.NOT_FOUND)
       const response = await handleError(
@@ -89,7 +87,6 @@ export function createHandler(auth: Auth): (request: Request) => Promise<Respons
       return applyCors(request, response, auth)
     }
     catch (error) {
-      // Handle GauError
       if (error instanceof GauError) {
         const response = await handleError(
           { error, request },

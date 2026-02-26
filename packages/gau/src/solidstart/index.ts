@@ -24,8 +24,6 @@ export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(options
 
   auth.development = process.env.NODE_ENV === 'development'
 
-  // Set default errorRedirect for SolidStart (if not already set)
-  // Users should create a page at /auth/error to handle errors
   if (!auth.errorRedirect)
     auth.errorRedirect = '/auth/error'
 
