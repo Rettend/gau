@@ -1,13 +1,17 @@
 <script lang='ts'>
   import type { Provider } from '$lib/auth'
+  import { env as publicEnv } from '$env/dynamic/public'
   import { endImpersonation, getUsers, startImpersonation, toggleRole } from '$lib/admin.remote'
   import { useAuth } from '$lib/auth'
+  import { offlineDemoLogin } from '$lib/offline.remote'
 
   const auth = useAuth()
 
   $inspect(auth.session)
 
   type ProvidersMeta = Record<Provider, { label: string, icon: string }>
+  type ProviderLists = { linkedProviders: Provider[], unlinkedProviders: Provider[] }
+
   const providers: ProvidersMeta = {
     github: { label: 'GitHub', icon: 'i-ph:github-logo' },
     google: { label: 'Google', icon: 'i-ph:google-logo-bold' },
@@ -16,24 +20,29 @@
     discord: { label: 'Discord', icon: 'i-ph:discord-logo-bold' },
   }
 
-  const { linkedProviders, unlinkedProviders } = $derived.by(() => {
-    if (auth.session?.user) {
-      const linkedProviders = (auth.session.accounts?.map(a => a.provider) ?? []) as Provider[]
-      const all = auth.session.providers ?? []
-      const unlinkedProviders = all.filter(p => !linkedProviders.includes(p))
-
+  const { linkedProviders, unlinkedProviders } = $derived.by<ProviderLists>(() => {
+    const allProviders = (auth.session?.providers ?? []) as Provider[]
+    if (!auth.session?.user) {
       return {
-        linkedProviders,
-        unlinkedProviders,
+        linkedProviders: [],
+        unlinkedProviders: allProviders,
       }
     }
+
+    const linked = (auth.session.accounts ?? []).map((account: { provider: Provider }) => account.provider)
+    const unlinked = allProviders.filter((provider: Provider) => !linked.includes(provider))
+
     return {
-      linkedProviders: [] as Provider[],
-      unlinkedProviders: auth.session?.providers ?? [],
+      linkedProviders: linked,
+      unlinkedProviders: unlinked,
     }
   })
 
   let impersonating = $state(false)
+  let offlineLoginPending = $state(false)
+  let offlineLoginError = $state<string | null>(null)
+
+  const offlineDemoEnabled = publicEnv.PUBLIC_ENABLE_OFFLINE_DEMO_LOGIN === 'true'
 
   const users = $derived(auth.session?.user?.isAdmin ? getUsers() : null)
 
@@ -65,6 +74,22 @@
     catch (err) {
       console.error('End impersonation failed:', err)
     }
+  }
+
+  async function handleOfflineDemoLogin() {
+    offlineLoginPending = true
+    offlineLoginError = null
+    try {
+      const result = await offlineDemoLogin()
+      if (!result.success)
+        throw new Error(result.error)
+
+      await auth.refresh()
+    }
+    catch (err) {
+      offlineLoginError = err instanceof Error ? err.message : 'Offline demo login failed.'
+    }
+    offlineLoginPending = false
   }
 </script>
 
@@ -169,12 +194,12 @@
           <div class='flex gap-4'>
             {#each linkedProviders as provider}
               <div class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 items-center justify-center'>
-                <div class={`${providers[provider]?.icon} size-5`}></div>
-                <p>{providers[provider]?.label ?? provider}</p>
+                <div class={`${providers[provider as Provider]?.icon} size-5`}></div>
+                <p>{providers[provider as Provider]?.label ?? provider}</p>
                 <button
                   class='i-ph:x-bold transition-colors hover:text-red-500'
                   aria-label='Unlink account'
-                  onclick={() => auth.unlinkAccount(provider)}
+                  onclick={() => auth.unlinkAccount(provider as Provider)}
                 >
                 </button>
               </div>
@@ -188,10 +213,10 @@
               {#each unlinkedProviders as provider}
                 <button
                   class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
-                  onclick={() => auth.linkAccount(provider)}
+                  onclick={() => auth.linkAccount(provider as Provider)}
                 >
-                  <div class={`${providers[provider]?.icon} size-5`}></div>
-                  <p>{providers[provider]?.label ?? provider}</p>
+                  <div class={`${providers[provider as Provider]?.icon} size-5`}></div>
+                  <p>{providers[provider as Provider]?.label ?? provider}</p>
                 </button>
               {/each}
             </div>
@@ -201,17 +226,29 @@
     {:else}
       <div class='flex flex-col gap-4 items-center'>
         <span class='text-lg tracking-wider'>Sign In</span>
+        {#if offlineDemoEnabled}
+          <button
+            class='text-cyan-200 px-4 py-2 border border-cyan-900/30 rounded bg-cyan-900/20 transition-all duration-200 hover:border-cyan-800/50 hover:bg-cyan-900/40 disabled:opacity-50'
+            onclick={handleOfflineDemoLogin}
+            disabled={offlineLoginPending}
+          >
+            {offlineLoginPending ? 'Signing in...' : 'Offline Demo Login'}
+          </button>
+        {/if}
         <div class='flex gap-4 justify-center'>
           {#each unlinkedProviders as provider}
             <button
               class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
-              onclick={() => auth.signIn(provider)}
+              onclick={() => auth.signIn(provider as Provider)}
             >
-              <div class={`${providers[provider]?.icon} size-5`}></div>
-              <p>{providers[provider]?.label ?? provider}</p>
+              <div class={`${providers[provider as Provider]?.icon} size-5`}></div>
+              <p>{providers[provider as Provider]?.label ?? provider}</p>
             </button>
           {/each}
         </div>
+        {#if offlineLoginError}
+          <p class='text-sm text-red-400'>{offlineLoginError}</p>
+        {/if}
       </div>
     {/if}
   </div>
