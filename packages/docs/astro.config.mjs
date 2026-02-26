@@ -56,13 +56,6 @@ export default defineConfig({
             ],
           },
           {
-            label: 'Advanced',
-            items: [
-              { icon: 'i-ph:head-circuit-duotone', label: 'Overview', slug: 'advanced' },
-              { icon: 'i-ph:user-switch-duotone', label: 'User Impersonation', slug: 'advanced/user-impersonation' },
-            ],
-          },
-          {
             label: 'Framework Integrations',
             items: [
               { icon: 'i-ph:puzzle-piece-duotone', label: 'Integrations', slug: 'integrations' },
@@ -99,9 +92,11 @@ export default defineConfig({
             ],
           },
           {
-            label: 'Cookbook',
+            label: 'Advanced',
             items: [
-              { icon: 'i-simple-icons:xbox', label: 'Xbox / Minecraft', slug: 'cookbook/xbox-minecraft' },
+              { icon: 'i-ph:head-circuit-duotone', label: 'Overview', slug: 'advanced' },
+              { icon: 'i-ph:user-switch-duotone', label: 'User Impersonation', slug: 'advanced/user-impersonation' },
+              { icon: 'i-simple-icons:xbox', label: 'Xbox / Minecraft', slug: 'advanced/xbox-minecraft' },
             ],
           },
           {
