@@ -107,6 +107,33 @@ describe('svelteKitAuth', () => {
       expect(session).toEqual({ user: { id: '2' }, session: { sub: '2' }, accounts: [], providers: [] })
     })
 
+    it('getSession should hide session id while getServerSession keeps it', async () => {
+      const event = {
+        locals: {},
+        request: new Request('http://localhost', {
+          headers: { Authorization: 'Bearer token-with-id' },
+        }),
+      } as RequestEvent
+      const resolve = vi.fn()
+      mockAuth.validateSession.mockResolvedValueOnce({
+        user: { id: '3' },
+        session: { id: 'jwt-token', sub: '3', iat: 111, exp: 222 },
+        accounts: [{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }],
+      })
+
+      await handle({ event, resolve })
+
+      const serverSession = await (event.locals as any).getServerSession()
+      const clientSession = await (event.locals as any).getSession()
+
+      expect(serverSession.session).toEqual({ id: 'jwt-token', sub: '3', iat: 111, exp: 222 })
+      expect(serverSession.accounts).toEqual([{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }])
+      expect(clientSession.session).toEqual({ sub: '3', iat: 111, exp: 222 })
+      expect(clientSession.session).not.toHaveProperty('id')
+      expect(clientSession.accounts).toEqual([{ provider: 'github', providerAccountId: '123' }])
+      expect(mockAuth.validateSession).toHaveBeenCalledTimes(1)
+    })
+
     it('getSession should return null if validation fails', async () => {
       const event = {
         locals: {},

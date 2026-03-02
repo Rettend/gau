@@ -24,7 +24,7 @@ export interface ClientAccount {
  */
 export interface GauSession<TProviders extends string = string> {
   user: User | null
-  session: Session | null
+  session: Omit<Session, 'id'> | null
   accounts?: ClientAccount[] | null
   providers?: TProviders[]
 }
@@ -50,9 +50,12 @@ export const NULL_SESSION = {
 export function toClientSession<TProviders extends string = string>(
   serverSession: GauServerSession<TProviders>,
 ): GauSession<TProviders> {
+  const safeSession: Omit<Session, 'id'> | null = serverSession.session
+    && (({ id: _id, ...rest }) => rest)(serverSession.session)
+
   return {
     user: serverSession.user,
-    session: serverSession.session,
+    session: safeSession,
     accounts: serverSession.accounts?.map(acc => ({
       provider: acc.provider,
       providerAccountId: acc.providerAccountId,
