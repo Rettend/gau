@@ -470,8 +470,8 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
 
   // For Tauri, we can't set a cookie on a custom protocol or a different host,
   // so we pass the token in the URL. Additionally, return a small HTML page
-  // that immediately navigates to the deep-link and attempts to close the window,
-  // so the external OAuth tab does not stay open.
+  // that navigates to the deep-link and then closes after browser handoff
+  // signals, which avoids racing first-run deep-link permission prompts.
   if (forceToken || (!forceCookie && (isCustomScheme || isCrossHost))) {
     const destination = new URL(redirectUrl)
     const clientChallenge = cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)

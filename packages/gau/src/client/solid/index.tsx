@@ -5,6 +5,7 @@ import { isServer } from 'solid-js/web'
 import { NULL_SESSION } from '../../core'
 import { isTauri } from '../../runtimes/tauri'
 import { createAuthClient } from '../vanilla'
+import { installSolidStartFetchBridge } from './solidStartFetchBridge'
 
 interface AuthContextValue<TAuth = unknown> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>
@@ -40,6 +41,9 @@ interface AuthProviderProps<TAuth = unknown> extends ParentProps {
 export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAuth>) {
   const scheme = untrack(() => props.scheme ?? 'gau')
   const baseUrl = untrack(() => props.baseUrl ?? '/api/auth')
+
+  if (!isServer && isTauri())
+    installSolidStartFetchBridge()
 
   const client = createAuthClient<TAuth>({
     baseUrl,
@@ -171,19 +175,22 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     }
 
     let disposed = false
+    let unlisten: (() => void) | undefined
     void (async () => {
       const { startAuthBridge } = await import('../../runtimes/tauri')
-      const unlisten = await startAuthBridge(baseUrl, scheme, async (token) => {
+      const maybeUnlisten = await startAuthBridge(baseUrl, scheme, async (token) => {
         await client.applySessionToken(token)
         await doRefetch()
       })
       if (disposed)
-        unlisten?.()
-      else if (unlisten)
-        onCleanup(() => unlisten())
+        maybeUnlisten?.()
+      else
+        unlisten = maybeUnlisten ?? undefined
     })()
     onCleanup(() => {
       disposed = true
+      unlisten?.()
+      unlisten = undefined
     })
   })
 
