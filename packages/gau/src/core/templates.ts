@@ -71,12 +71,15 @@ export function renderErrorPage(options: ErrorPageOptions): string {
     autoClose = true,
   } = options
 
+  const closeScript = redirectUrl ? renderAutoCloseScript('url', autoClose) : ''
+
   const redirectScript = redirectUrl && autoRedirect
     ? `
     window.onload = function() {
       setTimeout(function() {
-        window.location.href = ${JSON.stringify(redirectUrl)};
-        ${autoClose ? 'setTimeout(window.close, 500);' : ''}
+        const url = ${JSON.stringify(redirectUrl)};
+        ${closeScript}
+        window.location.href = url;
       }, ${redirectDelay});
     };
     `
@@ -120,6 +123,8 @@ export function renderSuccessPage(options: SuccessPageOptions): string {
     autoClose = true,
   } = options
 
+  const closeScript = renderAutoCloseScript('url', autoClose)
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -129,8 +134,8 @@ export function renderSuccessPage(options: SuccessPageOptions): string {
   <script>
     window.onload = function() {
       const url = ${JSON.stringify(redirectUrl)};
+      ${closeScript}
       window.location.href = url;
-      ${autoClose ? 'setTimeout(window.close, 500);' : ''}
     };
   </script>
 </head>
@@ -162,6 +167,8 @@ export function renderCancelledPage(options: CancelledPageOptions = {}): string 
     autoClose = true,
   } = options
 
+  const closeScript = renderAutoCloseScript('url', autoClose)
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -171,8 +178,8 @@ export function renderCancelledPage(options: CancelledPageOptions = {}): string 
   <script>
     window.onload = function() {
       const url = ${JSON.stringify(redirectUrl)};
+      ${closeScript}
       window.location.href = url;
-      ${autoClose ? 'setTimeout(window.close, 500);' : ''}
     };
   </script>
 </head>
@@ -199,4 +206,64 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+function renderAutoCloseScript(redirectTargetExpression: string, autoClose: boolean): string {
+  if (!autoClose)
+    return ''
+
+  return `
+      (function() {
+        let closeScheduled = false;
+        const closeWindow = function() {
+          window.close();
+        };
+        const scheduleClose = function(delay) {
+          if (closeScheduled)
+            return;
+          closeScheduled = true;
+          setTimeout(closeWindow, delay);
+        };
+
+        let protocol = '';
+        try {
+          protocol = new URL(${redirectTargetExpression}, window.location.href).protocol;
+        }
+        catch {}
+
+        const isWebProtocol = protocol === 'http:' || protocol === 'https:';
+        if (isWebProtocol) {
+          scheduleClose(500);
+          return;
+        }
+
+        const closeAfterHandoff = function() {
+          if (document.visibilityState === 'hidden')
+            scheduleClose(200);
+        };
+        const closeAfterBlurFallback = function() {
+          setTimeout(function() {
+            if (closeScheduled)
+              return;
+            if (typeof document.hasFocus === 'function' && !document.hasFocus())
+              scheduleClose(200);
+          }, 700);
+        };
+        const closeAfterInitialDelay = function() {
+          setTimeout(function() {
+            if (closeScheduled)
+              return;
+            if (typeof document.hasFocus === 'function' && !document.hasFocus())
+              scheduleClose(0);
+          }, 500);
+        };
+
+        document.addEventListener('visibilitychange', closeAfterHandoff);
+        window.addEventListener('pagehide', function() {
+          scheduleClose(0);
+        }, { once: true });
+        window.addEventListener('blur', closeAfterBlurFallback, { once: true });
+        closeAfterInitialDelay();
+      })();
+    `
 }

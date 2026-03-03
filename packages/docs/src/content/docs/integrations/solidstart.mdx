@@ -150,12 +150,24 @@ This guide shows how to integrate `gau` with SolidStart, using Drizzle (SQLite o
       </TabItem>
     </Tabs>
 
-    <Aside type="note">
+    <Aside type="note" title="Different Origins">
       If your frontend and backend are on different hosts, set `baseUrl` to the full URL of your backend's auth API. Use envs to set it for development and production.
 
       ```tsx
       <AuthProvider baseUrl={import.meta.env.VITE_API_URL}>
       ```
+    </Aside>
+
+    <Aside type="note" title="Tauri + Server Functions">
+      When using SolidStart server functions with Tauri, `gau`'s Solid client automatically bridges `/_server` requests to:
+
+      - add `Authorization: Bearer <token>` from local storage
+      - persist refreshed tokens from `X-Refreshed-Token`
+
+      For deployments where the app and backend are on different origins (for example a packaged Tauri app calling a Cloudflare Worker), set:
+
+      - `AuthProvider.baseUrl` to your auth endpoint (for example `https://example.com/api/auth`)
+      - `SERVER_BASE_URL` to your backend/server-functions origin (for example `https://example.com`)
     </Aside>
 
     Next, to get full TypeScript support for your provider IDs, create a typed `useAuth` hook. This is a great practice as you only have to type it once.
