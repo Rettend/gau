@@ -53,12 +53,14 @@
       "import": "./dist/src/client/svelte/index.svelte.js"
     },
     "./client/svelte/Protected.svelte": {
-      "types": "./dist/src/client/svelte/Protected/index.svelte",
-      "import": "./dist/src/client/svelte/Protected/index.svelte"
+      "types": "./dist/src/client/svelte/Protected/index.svelte.d.ts",
+      "svelte": "./dist/src/client/svelte/Protected/index.svelte",
+      "default": "./dist/src/client/svelte/Protected/index.svelte"
     },
     "./client/svelte/AuthProvider.svelte": {
-      "types": "./dist/src/client/svelte/AuthProvider/index.svelte",
-      "import": "./dist/src/client/svelte/AuthProvider/index.svelte"
+      "types": "./dist/src/client/svelte/AuthProvider/index.svelte.d.ts",
+      "svelte": "./dist/src/client/svelte/AuthProvider/index.svelte",
+      "default": "./dist/src/client/svelte/AuthProvider/index.svelte"
     },
     "./core": {
       "types": "./dist/src/core/index.d.ts",
@@ -176,6 +178,7 @@
     "drizzle-orm": "^0.45.1",
     "eslint": "^9.39.2",
     "solid-js": "^1.9.10",
+    "svelte2tsx": "^0.7.51",
     "vitest": "^4.0.16"
   }
 }

@@ -1,9 +1,13 @@
 /* eslint-disable no-console */
 import type { Options } from 'tsup'
+import { createRequire } from 'node:module'
 import { mkdir, unlink } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { $, Glob, write } from 'bun'
+import { emitDts } from 'svelte2tsx'
 import { defineConfig } from 'tsup'
+
+const require = createRequire(import.meta.url)
 
 const commonConfig = {
   format: ['esm'],
@@ -30,6 +34,23 @@ function toEntryObject(paths: string[]) {
     acc[entryName] = path
     return acc
   }, {})
+}
+
+async function generateSvelteDeclarations() {
+  const currentCwd = process.cwd()
+  process.chdir(resolve('src/client/svelte'))
+
+  try {
+    await emitDts({
+      libRoot: '.',
+      declarationDir: '../../../dist/src/client/svelte',
+      tsconfig: 'tsconfig.json',
+      svelteShimsPath: require.resolve('svelte2tsx/svelte-shims-v4.d.ts'),
+    })
+  }
+  finally {
+    process.chdir(currentCwd)
+  }
 }
 
 export default defineConfig(async () => {
@@ -62,8 +83,9 @@ export default defineConfig(async () => {
         await Promise.all([
           $`bun tsgo --project tsconfig.json --outDir dist/src`,
           $`bun tsgo --project src/client/solid/tsconfig.json`,
-          $`bun tsgo --project src/client/svelte/tsconfig.json`,
         ])
+        console.log('⚡️ Generating Svelte .d.ts files with svelte2tsx...')
+        await generateSvelteDeclarations()
         console.log('✅ Successfully generated .d.ts files.')
 
         const dtsGlob = new Glob('src/**/*.d.ts{,.map}')

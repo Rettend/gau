@@ -14,8 +14,8 @@ export interface Session {
   [key: string]: unknown
 }
 
-export interface ClientAccount {
-  provider: string
+export interface ClientAccount<TProviders extends string = string> {
+  provider: TProviders
   providerAccountId: string
 }
 
@@ -25,7 +25,7 @@ export interface ClientAccount {
 export interface GauSession<TProviders extends string = string> {
   user: User | null
   session: Omit<Session, 'id'> | null
-  accounts?: ClientAccount[] | null
+  accounts?: ClientAccount<TProviders>[] | null
   providers?: TProviders[]
 }
 
@@ -57,7 +57,7 @@ export function toClientSession<TProviders extends string = string>(
     user: serverSession.user,
     session: safeSession,
     accounts: serverSession.accounts?.map(acc => ({
-      provider: acc.provider,
+      provider: acc.provider as TProviders,
       providerAccountId: acc.providerAccountId,
     })) ?? null,
     providers: serverSession.providers,
