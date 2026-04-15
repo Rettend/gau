@@ -5,6 +5,7 @@ import { BROWSER } from 'esm-env'
 import { getContext, onMount, setContext } from 'svelte'
 import { NULL_SESSION } from '../../core'
 import { isTauri } from '../../runtimes/tauri'
+import { createSharedAuthFlow } from '../shared/authFlow'
 import { createAuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> {
@@ -35,6 +36,7 @@ export function createSvelteAuth<const TAuth = unknown>({
 
   const client = createAuthClient<TAuth>({
     baseUrl,
+    scheme,
   })
 
   const fetchSession = async (): Promise<CurrentSession> => {
@@ -42,6 +44,17 @@ export function createSvelteAuth<const TAuth = unknown>({
       return { ...NULL_SESSION, providers: [] }
     return client.refreshSession()
   }
+
+  const authFlow = createSharedAuthFlow<TAuth>({
+    client,
+    defaultRedirectTo,
+    isBrowser: BROWSER,
+    isTauri: BROWSER && isTauri(),
+    getOrigin: () => window.location.origin,
+    getHref: () => window.location.href,
+    navigate: (url) => { window.location.href = url },
+    replaceUrl: url => replaceUrlSafe(url),
+  })
 
   let session: CurrentSession = $state(initialSession ?? { ...NULL_SESSION, providers: [] })
   let isLoading = $state(!initialSession)
@@ -56,61 +69,36 @@ export function createSvelteAuth<const TAuth = unknown>({
     }
   }
 
-  async function signIn<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    const inTauri = isTauri()
-    let finalRedirectTo = redirectTo ?? defaultRedirectTo
-
-    if (inTauri) {
-      const { signInWithTauri } = await import('../../runtimes/tauri')
-      await signInWithTauri<TAuth, P, typeof profile>(provider, baseUrl, scheme, finalRedirectTo, profile)
-      return
-    }
-
-    if (!finalRedirectTo && BROWSER)
-      finalRedirectTo = window.location.origin
-
-    const url = await client.signIn<P, typeof profile>(provider, { redirectTo: finalRedirectTo, profile })
-    if (BROWSER)
-      window.location.href = url
+  async function signIn<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
+    await authFlow.signIn(provider, options)
   }
 
-  async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    if (isTauri()) {
-      const { linkAccountWithTauri } = await import('../../runtimes/tauri')
-      await linkAccountWithTauri<TAuth, P, typeof profile>(provider, baseUrl, scheme, redirectTo, profile)
-      return
-    }
-
-    let finalRedirectTo = redirectTo ?? defaultRedirectTo
-    if (!finalRedirectTo && BROWSER)
-      finalRedirectTo = window.location.href
-
-    const url = await client.linkAccount<P, typeof profile>(provider, { redirectTo: finalRedirectTo, profile })
-    if (BROWSER)
-      window.location.href = url
+  async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
+    await authFlow.linkAccount(provider, options)
   }
 
   async function unlinkAccount(provider: ProviderIds<TAuth>) {
     const ok = await client.unlinkAccount(provider)
-    if (ok)
-      session = await fetchSession()
-    else
+    if (!ok)
       console.error('Failed to unlink account')
   }
 
   async function signOut() {
     await client.signOut()
-    session = await fetchSession()
   }
 
   onMount(() => {
     if (!BROWSER)
       return
 
+    const unsubscribe = client.onSessionChange((next) => {
+      session = next
+    })
+
     void (async () => {
-      const handled = await client.handleRedirectCallback(async url => replaceUrlSafe(url))
+      const handled = await authFlow.handleRedirectCallback()
       if (!handled)
-        session = await fetchSession()
+        await fetchSession()
 
       isLoading = false
     })()
@@ -118,24 +106,20 @@ export function createSvelteAuth<const TAuth = unknown>({
     let cleanup: (() => void) | void
     let disposed = false
 
-    if (!isTauri())
-      return
-
-    void (async () => {
-      const { startAuthBridge } = await import('../../runtimes/tauri')
-      const unlisten = await startAuthBridge(baseUrl, scheme, async (token) => {
-        await client.applySessionToken(token)
-        session = await fetchSession()
-      })
-      if (disposed)
-        unlisten?.()
-      else
-        cleanup = unlisten
-    })()
+    if (isTauri()) {
+      void (async () => {
+        const unlisten = await client.startTauriBridge()
+        if (disposed)
+          unlisten?.()
+        else
+          cleanup = unlisten
+      })()
+    }
 
     return () => {
       disposed = true
       cleanup?.()
+      unsubscribe()
     }
   })
 

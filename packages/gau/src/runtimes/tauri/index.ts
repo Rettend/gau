@@ -23,6 +23,27 @@ function resolveOrigin(baseUrl: string): string | null {
   }
 }
 
+function resolveAbsoluteBase(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).toString().replace(/\/$/, '')
+  }
+  catch {
+    if (BROWSER && typeof window !== 'undefined') {
+      try {
+        return new URL(baseUrl, window.location.origin).toString().replace(/\/$/, '')
+      }
+      catch {
+        return baseUrl
+      }
+    }
+    return baseUrl
+  }
+}
+
+function resolveTauriRedirect(redirectOverride: string | undefined, scheme: string) {
+  return redirectOverride ?? `${scheme}://oauth/callback`
+}
+
 export async function signInWithTauri<const TAuth = unknown, P extends ProviderIds<TAuth> = ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(
   provider: P,
   baseUrl: string,
@@ -34,32 +55,7 @@ export async function signInWithTauri<const TAuth = unknown, P extends ProviderI
     return
 
   const { openUrl } = await import('@tauri-apps/plugin-opener')
-
-  function resolveAbsoluteBase(base: string): string {
-    try {
-      const u = new URL(base)
-      return u.toString().replace(/\/$/, '')
-    }
-    catch {
-      if (BROWSER && typeof window !== 'undefined') {
-        try {
-          const u = new URL(base, window.location.origin)
-          return u.toString().replace(/\/$/, '')
-        }
-        catch {
-          return base
-        }
-      }
-      return base
-    }
-  }
-
-  let redirectTo: string
-
-  if (redirectOverride)
-    redirectTo = redirectOverride
-  else
-    redirectTo = `${scheme}://oauth/callback`
+  const redirectTo = resolveTauriRedirect(redirectOverride, scheme)
 
   const { codeVerifier, codeChallenge } = await generatePKCE()
   localStorage.setItem('gau-pkce-verifier', codeVerifier)
@@ -69,8 +65,7 @@ export async function signInWithTauri<const TAuth = unknown, P extends ProviderI
   if (profile)
     params.set('profile', String(profile))
   params.set('code_challenge', codeChallenge)
-  const resolvedBase = resolveAbsoluteBase(baseUrl)
-  const authUrl = `${resolvedBase}/${provider}?${params.toString()}`
+  const authUrl = `${resolveAbsoluteBase(baseUrl)}/${provider}?${params.toString()}`
   await openUrl(authUrl)
 }
 
@@ -141,12 +136,7 @@ export async function linkAccountWithTauri<const TAuth = unknown, P extends Prov
 
   const { openUrl } = await import('@tauri-apps/plugin-opener')
 
-  let redirectTo: string
-
-  if (redirectOverride)
-    redirectTo = redirectOverride
-  else
-    redirectTo = `${scheme}://oauth/callback`
+  const redirectTo = resolveTauriRedirect(redirectOverride, scheme)
 
   const token = getSessionToken()
   if (!token) {
@@ -159,25 +149,7 @@ export async function linkAccountWithTauri<const TAuth = unknown, P extends Prov
   params.set('token', token)
   if (profile)
     params.set('profile', String(profile))
-  const resolvedBase = (() => {
-    try {
-      const u = new URL(baseUrl)
-      return u.toString().replace(/\/$/, '')
-    }
-    catch {
-      if (BROWSER && typeof window !== 'undefined') {
-        try {
-          const u = new URL(baseUrl, window.location.origin)
-          return u.toString().replace(/\/$/, '')
-        }
-        catch {
-          return baseUrl
-        }
-      }
-      return baseUrl
-    }
-  })()
-  const linkUrl = `${resolvedBase}/link/${provider}?${params.toString()}`
+  const linkUrl = `${resolveAbsoluteBase(baseUrl)}/link/${provider}?${params.toString()}`
   await openUrl(linkUrl)
 }
 
