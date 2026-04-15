@@ -1,218 +1,43 @@
 # gau
 
-**gau** is a flexible, self-hostable OAuth2.1 library similar to Auth.js, built with first-class Tauri support.
+## Workspace
 
-## Core Philosophy
+- Use `bun` only. The repo pins `bun@1.3.5`, and CI installs with `bun install --frozen-lockfile`.
+- This is a Bun workspace, but root `build`, `check`, `check:test`, `test`, `test:pg`, and `dev` target `packages/gau`. Root `lint` is the exception: it runs `eslint . --fix` across the whole repo (eslint is very very slow, never use it).
+- CI only runs `bun run test` (the fast Vitest project). If you change types, packaging, docs, or example apps, run the relevant checks yourself.
 
-- **Everything-agnostic**: Framework, runtime, and database agnostic
-- **Web Standards**: Uses Web Crypto and Fetch APIs exclusively
-- **Self-hostable**: No docker and stuff, run anywhere
-- **TypeScript-first**: Fully typed with strong type inference
+## Package Map
 
-## Architecture
+- `packages/gau` is the published library.
+- `packages/gau/src/core` is the framework-agnostic auth engine and HTTP handler.
+- `packages/gau/src/adapters` exports `drizzle` and `memory`; `oauth` holds providers; `client` holds vanilla/Svelte/Solid helpers; `sveltekit`, `solidstart`, and `runtimes/tauri` are integration layers.
+- `packages/gau/test` mirrors `packages/gau/src`.
+- `packages/docs` is the Astro/Starlight docs site.
+- `packages/example-*` are standalone apps; root scripts do not verify them.
 
-```txt
-packages/gau/src/
-├── core/           # Framework-agnostic auth logic
-├── adapters/       # Database adapters (Drizzle: SQLite, PostgreSQL, MySQL)
-├── oauth/          # OAuth providers (GitHub, Google, Discord, Facebook, Microsoft)
-├── jwt/            # JWT signing/verification (ES256, HS256)
-├── client/         # Frontend client helpers (Svelte, SolidJS, Vanilla)
-├── sveltekit/      # SvelteKit integration
-├── solidstart/     # SolidStart integration
-└── runtimes/       # Runtime-specific code (Bun, Tauri)
-```
+## Library Shape
 
-## Key Concepts
+- `packages/gau/src/index.ts` only re-exports `./core`; adapters, providers, clients, and framework integrations are consumed through subpath exports in `packages/gau/package.json`.
+- `src/core/createAuth.ts` and `src/core/handler.ts` are the real engine. `src/sveltekit` and `src/solidstart` mostly wrap `createHandler(auth)` and attach framework-specific session helpers.
+- `createHandler` owns the auth route surface: `GET /session`, `GET /link/:provider`, `GET /callback/:provider`, `GET /:provider`, `POST /signout`, `POST /token`, `POST /unlink/:provider`.
+- Preserve the server/client session split: `GauServerSession` may include linked-account tokens, while `toClientSession()` strips sensitive account data and removes `session.id` before serialization.
+- Tauri-specific login/link/token bridge logic lives under `src/runtimes/tauri`; Svelte and Solid clients call into it when `isTauri()` is true.
 
-### 1. `createAuth(options)` - Core Factory
+## Commands
 
-Creates the auth instance with all configuration:
+- Default library verification: `bun run check && bun run test`
+- Add `bun run test:pg` when touching the Postgres Drizzle adapter.
+- Add `bun run build` when changing public exports, build logic, or client entrypoints.
+- Single fast test file: `bunx vitest --project fast packages/gau/test/core/createAuth.test.ts`
+- PG adapter test file: `bunx vitest --project pg packages/gau/test/adapters/drizzle/pg.test.ts`
+- Docs/examples use package-local scripts, e.g. `bun --cwd packages/docs run check` or `bun --cwd packages/example-sveltekit run check`
 
-```ts
-const auth = createAuth({
-  adapter, // Database adapter (required)
-  providers, // OAuth providers array (required)
-  basePath, // API route prefix (default: '/api/auth')
-  jwt: { secret }, // JWT config with secret
-  cookies: {}, // Cookie configuration
-  roles: {}, // Role-based access control config
-  profiles: {}, // Provider-specific profile overrides
-  // Hooks:
-  onOAuthExchange, // Intercept OAuth callback
-  mapExternalProfile, // Transform provider user data
-  onBeforeLinkAccount,
-  onAfterLinkAccount
-})
-```
+## Repo Quirks
 
-### 2. `createHandler(auth)` - Request Handler
-
-Returns a `(Request) => Promise<Response>` function handling these routes:
-
-- `GET /:provider` - Start OAuth flow
-- `GET /callback/:provider` - OAuth callback
-- `GET /link/:provider` - Link additional account
-- `GET /session` - Get current session
-- `POST /signout` - Sign out
-- `POST /token` - Exchange token
-- `POST /unlink/:provider` - Unlink account
-
-### 3. Session Strategy
-
-- **Cookie-based**: Default for web apps, uses `gau_session` cookie
-- **Token-based**: For mobile/Tauri apps, uses Bearer token
-- Sessions are JWTs containing `sub` (user ID) and custom claims
-
-### 4. `issueSession(userId, options?)` - Programmatic Sessions
-
-Issue a session for any user without OAuth flow. Returns both token and Set-Cookie header:
-
-```ts
-const { token, cookie, cookieName, maxAge } = await auth.issueSession(userId, {
-  data: { isGuest: true }, // Custom claims
-  ttl: 3600 // Override default TTL
-})
-
-// Web: Set cookie in response
-response.headers.set('Set-Cookie', cookie)
-
-// Mobile/Tauri: Use Bearer token
-fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-```
-
-Use cases: guest login, invite redemption, admin impersonation, device claiming.
-
-### 5. `refreshSession(token, options?)` - Extend Sessions
-
-Refresh an existing session, issuing a new token with extended TTL. Preserves custom claims:
-
-```ts
-const refreshed = await auth.refreshSession(token, {
-  ttl: 3600, // Override TTL
-  threshold: 0.5 // Only refresh if past 50% of TTL
-})
-if (refreshed)
-  response.headers.set('Set-Cookie', refreshed.cookie)
-```
-
-Returns `null` if token is invalid/expired/below threshold or user no longer exists.
-
-### 6. Automatic Account Linking
-
-Users can link multiple OAuth providers to one account. Controlled by:
-
-- `autoLink`: `'verifiedEmail'` | `'always'` | `'never'`
-- `allowDifferentEmails`: Allow linking accounts with different emails
-- `updateUserInfoOnLink`: Update user profile when linking
-
-## Core Interfaces
-
-```ts
-interface User {
-  id: string
-  name?: string | null
-  email?: string | null
-  emailVerified?: boolean | null
-  image?: string | null
-  role?: string | null
-}
-
-interface Session {
-  id: string
-  sub: string // User ID
-  [key: string]: unknown
-}
-
-interface Adapter {
-  getUser
-  getUserByEmail
-  getUserByAccount
-  getAccounts
-  getUserAndAccounts
-  createUser
-  updateUser
-  deleteUser
-  linkAccount
-  unlinkAccount
-  updateAccount
-}
-```
-
-## Framework Integrations
-
-### SvelteKit
-
-```ts
-// src/routes/api/auth/[...gau]/+server.ts
-import { SvelteKitAuth } from '@rttnd/gau/sveltekit'
-
-export const { GET, POST, handle } = SvelteKitAuth(auth)
-
-// Client: use createSvelteAuth() or useAuth()
-```
-
-### SolidStart
-
-```ts
-import { SolidStartAuth } from '@rttnd/gau/solidstart'
-
-export const { GET, POST } = SolidStartAuth(auth)
-
-// Client: use createSolidAuth() or useAuth()
-```
-
-### Vanilla/Bun/ElysiaJS
-
-```ts
-import { createHandler } from '@rttnd/gau/core'
-
-const handler = createHandler(auth)
-Bun.serve({ fetch: handler })
-```
-
-## Database Adapters
-
-Currently supports Drizzle ORM with:
-
-- SQLite (better-sqlite3, libSQL/Turso)
-- PostgreSQL (pg, pglite)
-- MySQL (planned)
-
-Memory adapter available for testing.
-
-## OAuth Providers
-
-Built-in: `GitHub`, `Google`, `Discord`, `Facebook`, `Microsoft`
-
-Each provider implements:
-
-```ts
-interface OAuthProvider {
-  id: string
-  getAuthorizationUrl: (state, codeVerifier, options) => any
-  validateCallback: (code, codeVerifier, redirectUri) => any
-  refreshAccessToken?: (refreshToken) => any
-}
-```
-
-## Tauri Support
-
-Special handling for desktop and mobile apps:
-
-- Deep linking callback via custom URI scheme
-- Token-based session strategy
-- Works with `@tauri-apps/api` and plugins
-
-## File Naming Conventions
-
-- `*.svelte.ts` - Svelte 5 runes files
-- Test files in `packages/gau/test/` mirror src structure
-- Examples in `packages/example-*`
-
-## Testing
-
-Uses Vitest with projects:
-
-- `fast` - Quick unit tests (SQLite)
-- `pg` - PostgreSQL integration tests
+- `packages/gau` typechecking uses `tsgo`, not `tsc`. `bun run check` also runs the separate client tsconfigs under `src/client/solid` and `src/client/svelte`; plain `tsc` misses those.
+- `bun run lint` and package-local `lint` scripts use `--fix`. Do not use lint as a read-only verifier.
+- `vitest.config.ts` has two projects: `fast` runs every test except `packages/gau/test/adapters/drizzle/pg.test.ts`; `pg` runs only that file.
+- The `pg` suite uses in-memory `@electric-sql/pglite`, so it does not require an external Postgres service.
+- `packages/gau/tsup.config.ts` builds every `src/**/index.{ts,tsx,svelte,svelte.ts}` entry, generates declarations with `bun tsgo` plus `svelte2tsx`, and copies `.svelte` components into `dist`. New public entrypoints need both an `index.*` file and a matching `packages/gau/package.json` `exports` entry.
+- `bun run test:all` also lints `coverage.json`, so that file will be regenerated/modified.
+- Auth `POST` routes enforce origin checks via `trustHosts`; development only auto-trusts `localhost` and `127.0.0.1`.
