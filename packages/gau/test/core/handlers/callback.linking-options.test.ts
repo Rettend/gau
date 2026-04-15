@@ -103,6 +103,25 @@ describe('callback linking options', () => {
     expect(linked?.id).toBe(existing.id)
   })
 
+  it('reuses the linking session across the callback flow', async () => {
+    const auth = createAuth({
+      adapter: MemoryAdapter(),
+      providers: [mockProvider],
+      jwt: { secret: 's', algorithm: 'HS256' },
+    })
+
+    const existing = await auth.createUser({ email: 'user@provider.com' })
+    const sessionToken = await auth.createSession(existing.id)
+    const validateSessionSpy = vi.spyOn(auth, 'validateSession')
+
+    const request = new Request('http://localhost/api/auth/callback/mock?code=c&state=state')
+    request.headers.set('Cookie', `${LINKING_TOKEN_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=state; ${PKCE_COOKIE_NAME}=pkce`)
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect([200, 302]).toContain(response.status)
+    expect(validateSessionSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('updates missing name/image when updateUserInfoOnLink is true', async () => {
     const auth = createAuth({
       adapter: MemoryAdapter(),

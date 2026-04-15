@@ -16,6 +16,153 @@ import { maybeMapExternalProfile, runOnAfterLinkAccount, runOnBeforeLinkAccount,
 import { json, redirect } from '../index'
 import { htmlResponse, renderCancelledPage, renderSuccessPage } from '../templates'
 
+type Session = Awaited<ReturnType<Auth['validateSession']>>
+type TokenSnapshot = {
+  accessToken: string | null
+  refreshToken: string | null
+  expiresAt: number | undefined
+  tokenType: string | null
+  scope: string | null
+  idToken: string | null
+}
+
+function appendCookieHeaders(response: Response, cookies: Cookies): Response {
+  cookies.toHeaders().forEach((value, key) => response.headers.append(key, value))
+  return response
+}
+
+function clearTemporaryCookies(cookies: Cookies, callbackUri?: string | null, options: { clientChallenge?: boolean } = {}): void {
+  cookies.delete(CSRF_COOKIE_NAME)
+  cookies.delete(PKCE_COOKIE_NAME)
+  if (callbackUri)
+    cookies.delete(CALLBACK_URI_COOKIE_NAME)
+  cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
+  if (options.clientChallenge)
+    cookies.delete(CLIENT_CHALLENGE_COOKIE_NAME)
+}
+
+function parseRedirectTarget(encodedRedirect?: string): string {
+  try {
+    return atob(encodedRedirect ?? '') || '/'
+  }
+  catch {
+    return '/'
+  }
+}
+
+function parseCallbackState(state: string): { savedState: string, redirectTo: string } {
+  if (!state.includes('.'))
+    return { savedState: state, redirectTo: '/' }
+
+  const [savedState = state, encodedRedirect] = state.split('.')
+  return {
+    savedState,
+    redirectTo: parseRedirectTarget(encodedRedirect),
+  }
+}
+
+function resolveCancelledRedirectTarget(state: string | null): string {
+  if (!state || !state.includes('.'))
+    return '/'
+
+  return parseRedirectTarget(state.split('.')[1])
+}
+
+async function resolveLinkingSession(auth: Auth, linkingToken: string | undefined): Promise<{ isLinking: boolean, session: Session }> {
+  if (!linkingToken)
+    return { isLinking: false, session: null }
+
+  return {
+    isLinking: true,
+    session: await auth.validateSession(linkingToken),
+  }
+}
+
+function readOptionalToken<T>(read: () => T, fallback: T): T {
+  try {
+    return read()
+  }
+  catch {
+    return fallback
+  }
+}
+
+function normalizeTokens(tokens: any, fallback?: Partial<TokenSnapshot>, options: { requireAccessToken?: boolean } = {}): TokenSnapshot {
+  return {
+    accessToken: options.requireAccessToken
+      ? tokens.accessToken()
+      : readOptionalToken(() => tokens.accessToken() ?? fallback?.accessToken ?? null, fallback?.accessToken ?? null),
+    refreshToken: readOptionalToken(() => tokens.refreshToken(), fallback?.refreshToken ?? null),
+    expiresAt: readOptionalToken(() => {
+      const expiresAtDate = tokens.accessTokenExpiresAt()
+      return expiresAtDate ? Math.floor(expiresAtDate.getTime() / 1000) : fallback?.expiresAt ?? undefined
+    }, fallback?.expiresAt ?? undefined),
+    tokenType: readOptionalToken(() => tokens.tokenType?.() ?? fallback?.tokenType ?? null, fallback?.tokenType ?? null),
+    scope: readOptionalToken(() => tokens.scopes()?.join(' ') ?? fallback?.scope ?? null, fallback?.scope ?? null),
+    idToken: readOptionalToken(() => tokens.idToken(), fallback?.idToken ?? null),
+  }
+}
+
+async function buildFinalResponse(
+  request: Request,
+  auth: Auth,
+  user: User,
+  redirectTo: string,
+  sessionToken: string,
+  url: URL,
+  cookies: Cookies,
+  callbackUri?: string | null,
+): Promise<Response> {
+  const requestUrl = new URL(request.url)
+  const redirectUrl = new URL(redirectTo, request.url)
+
+  const forceToken = auth.sessionStrategy === 'token'
+  const forceCookie = auth.sessionStrategy === 'cookie'
+
+  const isCustomScheme = redirectUrl.protocol !== 'http:' && redirectUrl.protocol !== 'https:'
+  const isCrossHost = requestUrl.host !== redirectUrl.host
+
+  if (forceToken || (!forceCookie && (isCustomScheme || isCrossHost))) {
+    const destination = new URL(redirectUrl)
+    const clientChallenge = cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)
+
+    if (!clientChallenge)
+      throw new GauError(ErrorCodes.PKCE_CHALLENGE_MISSING, { redirectUrl: redirectTo })
+
+    const authCode = await auth.signJWT({
+      sub: user.id,
+      challenge: clientChallenge,
+    }, { ttl: 60 })
+
+    destination.searchParams.set('code', authCode)
+
+    clearTemporaryCookies(cookies, callbackUri, { clientChallenge: true })
+    return appendCookieHeaders(htmlResponse(renderSuccessPage({ redirectUrl: destination.toString() })), cookies)
+  }
+
+  cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+    maxAge: auth.jwt.ttl,
+    sameSite: auth.development ? 'lax' : 'none',
+    secure: !auth.development,
+  })
+  clearTemporaryCookies(cookies, callbackUri)
+
+  const response = url.searchParams.get('redirect') === 'false'
+    ? json({
+        user: {
+          ...user,
+          isAdmin: Boolean(
+            (user.role && auth.roles.adminRoles.includes(user.role))
+            || auth.roles.adminUserIds.includes(user.id),
+          ),
+          accounts: await auth.getAccounts(user.id),
+        },
+      })
+    : redirect(redirectTo)
+
+  return appendCookieHeaders(response, cookies)
+}
+
 export async function handleCallback(request: Request, auth: Auth, providerId: string): Promise<Response> {
   const provider = auth.providerMap.get(providerId)
   if (!provider)
@@ -27,39 +174,13 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const error = url.searchParams.get('error')
 
   if (!code || !state || error) {
-    let redirectTo = '/'
-    if (state && state.includes('.')) {
-      try {
-        const encodedRedirect = state.split('.')[1]
-        redirectTo = atob(encodedRedirect ?? '') || '/'
-      }
-      catch {
-        redirectTo = '/'
-      }
-    }
-
-    const html = renderCancelledPage({ redirectUrl: redirectTo })
-    return htmlResponse(html)
+    return htmlResponse(renderCancelledPage({ redirectUrl: resolveCancelledRedirectTarget(state) }))
   }
 
   const requestCookies = parseCookies(request.headers.get('Cookie'))
   const cookies = new Cookies(requestCookies, auth.cookieOptions)
 
-  let savedState: string | undefined
-  let redirectTo = '/'
-  if (state.includes('.')) {
-    const [originalSavedState, encodedRedirect] = state.split('.')
-    savedState = originalSavedState
-    try {
-      redirectTo = atob(encodedRedirect ?? '') || '/'
-    }
-    catch {
-      redirectTo = '/'
-    }
-  }
-  else {
-    savedState = state
-  }
+  const { savedState, redirectTo } = parseCallbackState(state)
 
   const csrfToken = cookies.get(CSRF_COOKIE_NAME)
 
@@ -86,26 +207,16 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   if (linkingToken)
     cookies.delete(LINKING_TOKEN_COOKIE_NAME)
 
-  const isLinking = !!linkingToken
+  const { isLinking, session: linkingSession } = await resolveLinkingSession(auth, linkingToken ?? undefined)
 
-  if (isLinking) {
-    const session = await auth.validateSession(linkingToken!)
-    if (!session) {
-      cookies.delete(CSRF_COOKIE_NAME)
-      cookies.delete(PKCE_COOKIE_NAME)
-      if (callbackUri)
-        cookies.delete(CALLBACK_URI_COOKIE_NAME)
-      cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
-      const response = redirect(redirectTo)
-      cookies.toHeaders().forEach((value, key) => response.headers.append(key, value))
-      return response
-    }
+  if (isLinking && !linkingSession) {
+    clearTemporaryCookies(cookies, callbackUri, { clientChallenge: true })
+    return appendCookieHeaders(redirect(redirectTo), cookies)
   }
 
   const { user: rawProviderUser, tokens } = await provider.validateCallback(code, codeVerifier, callbackUri ?? undefined, providerOverrides)
 
   {
-    const session = isLinking ? await auth.validateSession(linkingToken!) : null
     const hookResult = await runOnOAuthExchange(auth, {
       request,
       providerId,
@@ -118,17 +229,11 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
       providerUser: rawProviderUser,
       tokens,
       isLinking,
-      sessionUserId: session?.user?.id,
+      sessionUserId: linkingSession?.user?.id,
     })
     if (hookResult.handled) {
-      cookies.delete(CSRF_COOKIE_NAME)
-      cookies.delete(PKCE_COOKIE_NAME)
-      if (callbackUri)
-        cookies.delete(CALLBACK_URI_COOKIE_NAME)
-      cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
-      const response = hookResult.response
-      cookies.toHeaders().forEach((value, key) => response.headers.append(key, value))
-      return response
+      clearTemporaryCookies(cookies, callbackUri, { clientChallenge: true })
+      return appendCookieHeaders(hookResult.response, cookies)
     }
   }
 
@@ -142,11 +247,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
 
   // Enforce provider-level link-only when not linking (profile-level enforced at redirect time)
   if (!isLinking && (auth.providerMap.get(providerId)?.linkOnly === true)) {
-    cookies.delete(CSRF_COOKIE_NAME)
-    cookies.delete(PKCE_COOKIE_NAME)
-    if (callbackUri)
-      cookies.delete(CALLBACK_URI_COOKIE_NAME)
-    cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
+    clearTemporaryCookies(cookies, callbackUri)
     throw new GauError(ErrorCodes.LINK_ONLY_PROVIDER, { redirectUrl: redirectTo })
   }
 
@@ -155,8 +256,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const userFromAccount = await auth.getUserByAccount(providerId, providerUser.id)
 
   if (isLinking) {
-    const session = await auth.validateSession(linkingToken)
-    user = session!.user
+    user = linkingSession!.user
 
     if (!user)
       throw new GauError(ErrorCodes.USER_NOT_FOUND, { redirectUrl: redirectTo })
@@ -313,32 +413,6 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   }
 
   if (!userFromAccount) {
-    // GitHub sometimes doesn't return these which causes arctic to throw an error
-    let refreshToken: string | null
-    try {
-      refreshToken = tokens.refreshToken()
-    }
-    catch {
-      refreshToken = null
-    }
-
-    let expiresAt: number | undefined
-    try {
-      const expiresAtDate = tokens.accessTokenExpiresAt()
-      if (expiresAtDate)
-        expiresAt = Math.floor(expiresAtDate.getTime() / 1000)
-    }
-    catch {
-    }
-
-    let idToken: string | null
-    try {
-      idToken = tokens.idToken()
-    }
-    catch {
-      idToken = null
-    }
-
     {
       const pre = await runOnBeforeLinkAccount(auth, {
         request,
@@ -351,30 +425,24 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
         const response = pre.response ?? (() => {
           throw new GauError(ErrorCodes.LINKING_NOT_ALLOWED, { redirectUrl: redirectTo })
         })()
-        cookies.toHeaders().forEach((value, key) => response.headers.append(key, value))
-        return response
+        clearTemporaryCookies(cookies, callbackUri, { clientChallenge: true })
+        return appendCookieHeaders(response, cookies)
       }
     }
 
     try {
-      let scope: string | null
-      try {
-        scope = tokens.scopes()?.join(' ') ?? null
-      }
-      catch {
-        scope = null
-      }
+      const normalizedTokens = normalizeTokens(tokens, undefined, { requireAccessToken: true })
 
       await auth.linkAccount({
         userId: user.id,
         provider: providerId,
         providerAccountId: providerUser.id,
-        accessToken: tokens.accessToken(),
-        refreshToken,
-        expiresAt,
-        tokenType: tokens.tokenType?.() ?? null,
-        scope,
-        idToken,
+        accessToken: normalizedTokens.accessToken,
+        refreshToken: normalizedTokens.refreshToken,
+        expiresAt: normalizedTokens.expiresAt,
+        tokenType: normalizedTokens.tokenType,
+        scope: normalizedTokens.scope,
+        idToken: normalizedTokens.idToken,
       })
       await runOnAfterLinkAccount(auth, {
         request,
@@ -397,50 +465,25 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
       const existing = accounts.find(a => a.provider === providerId && a.providerAccountId === providerUser.id)
 
       if (existing && auth.updateAccount) {
-        let refreshToken: string | null
-        try {
-          refreshToken = tokens.refreshToken()
-        }
-        catch {
-          refreshToken = existing.refreshToken ?? null
-        }
-
-        let expiresAt: number | undefined
-        try {
-          const expiresAtDate = tokens.accessTokenExpiresAt()
-          if (expiresAtDate)
-            expiresAt = Math.floor(expiresAtDate.getTime() / 1000)
-        }
-        catch {
-          expiresAt = existing.expiresAt ?? undefined
-        }
-
-        let idToken: string | null
-        try {
-          idToken = tokens.idToken()
-        }
-        catch {
-          idToken = existing.idToken ?? null
-        }
-
-        let scope: string | null
-        try {
-          scope = tokens.scopes()?.join(' ') ?? existing.scope ?? null
-        }
-        catch {
-          scope = existing.scope ?? null
-        }
+        const normalizedTokens = normalizeTokens(tokens, {
+          accessToken: existing.accessToken ?? null,
+          refreshToken: existing.refreshToken ?? null,
+          expiresAt: existing.expiresAt ?? undefined,
+          tokenType: existing.tokenType ?? null,
+          scope: existing.scope ?? null,
+          idToken: existing.idToken ?? null,
+        })
 
         await auth.updateAccount({
           userId: user!.id,
           provider: providerId,
           providerAccountId: providerUser.id,
-          accessToken: tokens.accessToken() ?? existing.accessToken ?? undefined,
-          refreshToken,
-          expiresAt: expiresAt ?? existing.expiresAt ?? undefined,
-          tokenType: tokens.tokenType?.() ?? existing.tokenType ?? null,
-          scope,
-          idToken,
+          accessToken: normalizedTokens.accessToken ?? undefined,
+          refreshToken: normalizedTokens.refreshToken,
+          expiresAt: normalizedTokens.expiresAt,
+          tokenType: normalizedTokens.tokenType,
+          scope: normalizedTokens.scope,
+          idToken: normalizedTokens.idToken,
         })
         await runOnAfterLinkAccount(auth, {
           request,
@@ -458,83 +501,5 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   }
 
   const sessionToken = await auth.createSession(user.id)
-
-  const requestUrl = new URL(request.url)
-  const redirectUrl = new URL(redirectTo, request.url)
-
-  const forceToken = auth.sessionStrategy === 'token'
-  const forceCookie = auth.sessionStrategy === 'cookie'
-
-  const isCustomScheme = redirectUrl.protocol !== 'http:' && redirectUrl.protocol !== 'https:'
-  const isCrossHost = requestUrl.host !== redirectUrl.host
-
-  // For Tauri, we can't set a cookie on a custom protocol or a different host,
-  // so we pass the token in the URL. Additionally, return a small HTML page
-  // that navigates to the deep-link and then closes after browser handoff
-  // signals, which avoids racing first-run deep-link permission prompts.
-  if (forceToken || (!forceCookie && (isCustomScheme || isCrossHost))) {
-    const destination = new URL(redirectUrl)
-    const clientChallenge = cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)
-
-    if (clientChallenge) {
-      // PKCE
-      const authCode = await auth.signJWT({
-        sub: user.id,
-        challenge: clientChallenge,
-      }, { ttl: 60 })
-
-      destination.searchParams.set('code', authCode)
-    }
-    else {
-      throw new GauError(ErrorCodes.PKCE_CHALLENGE_MISSING, { redirectUrl: redirectTo })
-    }
-
-    const html = renderSuccessPage({ redirectUrl: destination.toString() })
-
-    // Clear temporary cookies
-    cookies.delete(CSRF_COOKIE_NAME)
-    cookies.delete(PKCE_COOKIE_NAME)
-    if (callbackUri)
-      cookies.delete(CALLBACK_URI_COOKIE_NAME)
-    cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
-    cookies.delete(CLIENT_CHALLENGE_COOKIE_NAME)
-
-    const response = htmlResponse(html)
-    cookies.toHeaders().forEach((value, key) => {
-      response.headers.append(key, value)
-    })
-    return response
-  }
-
-  cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-    maxAge: auth.jwt.ttl,
-    sameSite: auth.development ? 'lax' : 'none',
-    secure: !auth.development,
-  })
-  cookies.delete(CSRF_COOKIE_NAME)
-  cookies.delete(PKCE_COOKIE_NAME)
-  if (callbackUri)
-    cookies.delete(CALLBACK_URI_COOKIE_NAME)
-  cookies.delete(PROVIDER_OPTIONS_COOKIE_NAME)
-
-  const redirectParam = url.searchParams.get('redirect')
-
-  let response: Response
-  if (redirectParam === 'false') {
-    const accounts = await auth.getAccounts(user.id)
-    const isAdmin = Boolean(
-      (user.role && auth.roles.adminRoles.includes(user.role))
-      || auth.roles.adminUserIds.includes(user.id),
-    )
-    response = json({ user: { ...user, isAdmin, accounts } })
-  }
-  else {
-    response = redirect(redirectTo)
-  }
-
-  cookies.toHeaders().forEach((value, key) => {
-    response.headers.append(key, value)
-  })
-
-  return response
+  return buildFinalResponse(request, auth, user, redirectTo, sessionToken, url, cookies, callbackUri)
 }
