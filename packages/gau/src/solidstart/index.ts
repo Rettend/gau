@@ -1,11 +1,11 @@
-import type { CreateAuthOptions, GauServerSession, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
+import type { CreateAuthOptions, RefreshSessionOptions } from '../core'
 import type { OAuthProvider } from '../oauth'
 import process from 'node:process'
-import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER, toClientSession } from '../core'
+import { createHandler, REFRESHED_TOKEN_HEADER } from '../core'
+import type { AuthInstance } from '../core/serverSession'
+import { createRequestSessionCache, resolveAuth, resolveServerSession } from '../core/serverSession'
 
 export { REFRESHED_TOKEN_HEADER }
-
-type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof createAuth<TProviders>>
 
 /**
  * Creates GET and POST handlers for SolidStart.
@@ -42,27 +42,7 @@ export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(options
  * @internal
  */
 export function createSolidStartGetServerSession<const TProviders extends OAuthProvider<any>[]>(auth: AuthInstance<TProviders>) {
-  return async function getServerSessionFromRequest(
-    request: Request,
-  ): Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> {
-    const { token: sessionToken } = getSessionTokenFromRequest(request)
-
-    const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
-
-    if (!sessionToken)
-      return { ...NULL_SESSION, providers }
-
-    try {
-      const validated = await auth.validateSession(sessionToken)
-      if (!validated)
-        return { ...NULL_SESSION, providers }
-
-      return { ...validated, providers }
-    }
-    catch {
-      return { ...NULL_SESSION, providers }
-    }
-  }
+  return async (request: Request) => resolveServerSession(auth, request)
 }
 
 /**
@@ -89,7 +69,7 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
 ) {
   const auth = resolveAuth(optionsOrAuth)
 
-  const getServerSessionFromRequest = createSolidStartGetServerSession(auth)
+  const getServerSession = createSolidStartGetServerSession(auth)
 
   return async (event: any) => {
     const url = new URL(event.request.url)
@@ -98,28 +78,17 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
       : pathsToPreLoad.includes(url.pathname)
 
     if (shouldPreload) {
-      const preloaded = await getServerSessionFromRequest(event.request)
-      const clientSession = toClientSession(preloaded)
-      event.locals.getSession = async () => clientSession
-      event.locals.getServerSession = async () => preloaded
+      const preloaded = await getServerSession(event.request)
+      const sessionCache = createRequestSessionCache(auth, event.request, preloaded)
+      event.locals.getSession = sessionCache.getSession
+      event.locals.getServerSession = sessionCache.getServerSession
       return
     }
 
-    let cachedServer: Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
-    let cachedClient: Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
-
-    event.locals.getServerSession = () => cachedServer ??= getServerSessionFromRequest(event.request)
-    event.locals.getSession = () => cachedClient ??= event.locals.getServerSession().then(toClientSession)
+    const sessionCache = createRequestSessionCache(auth, event.request)
+    event.locals.getServerSession = sessionCache.getServerSession
+    event.locals.getSession = sessionCache.getSession
   }
-}
-
-function resolveAuth<const TProviders extends OAuthProvider<any>[]>(
-  optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
-): AuthInstance<TProviders> {
-  const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
-  return isInstance
-    ? (optionsOrAuth as AuthInstance<TProviders>)
-    : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
 }
 
 /**

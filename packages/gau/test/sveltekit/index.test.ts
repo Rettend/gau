@@ -22,6 +22,7 @@ vi.mock('../../src/core', async (importOriginal) => {
 
 describe('svelteKitAuth', () => {
   afterEach(() => {
+    mockAuth.providerMap = new Map()
     vi.clearAllMocks()
   })
 
@@ -71,6 +72,27 @@ describe('svelteKitAuth', () => {
       await handle({ event, resolve })
       const session = await (event.locals as any).getSession()
       expect(session).toEqual({ ...NULL_SESSION, providers: [] })
+    })
+
+    it('getSession should include configured providers in null-session fallback', async () => {
+      const authInstance = {
+        ...mockAuth,
+        providerMap: new Map([['github', {}], ['google', {}]]),
+      } as any
+      const { handle: localHandle } = SvelteKitAuth(authInstance)
+
+      const event = {
+        locals: {},
+        request: new Request('http://localhost', { headers: new Headers() }),
+      } as RequestEvent
+      const resolve = vi.fn()
+
+      await localHandle({ event, resolve })
+
+      await expect((event.locals as any).getSession()).resolves.toEqual({
+        ...NULL_SESSION,
+        providers: ['github', 'google'],
+      })
     })
 
     it('getSession should validate session from cookie', async () => {
@@ -132,6 +154,42 @@ describe('svelteKitAuth', () => {
       expect(clientSession.session).not.toHaveProperty('id')
       expect(clientSession.accounts).toEqual([{ provider: 'github', providerAccountId: '123' }])
       expect(mockAuth.validateSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('getSession should preserve configured providers while sanitizing the client session', async () => {
+      const authInstance = {
+        ...mockAuth,
+        providerMap: new Map([['github', {}], ['google', {}]]),
+        signJWT: vi.fn(),
+        validateSession: vi.fn().mockResolvedValue({
+          user: { id: '4' },
+          session: { id: 'jwt-token', sub: '4', iat: 111, exp: 222 },
+          accounts: [{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }],
+        }),
+      } as any
+      const { handle: localHandle } = SvelteKitAuth(authInstance)
+
+      const event = {
+        locals: {},
+        request: new Request('http://localhost', {
+          headers: { Authorization: 'Bearer token-with-providers' },
+        }),
+      } as RequestEvent
+      const resolve = vi.fn()
+
+      await localHandle({ event, resolve })
+
+      const serverSession = await (event.locals as any).getServerSession()
+      const clientSession = await (event.locals as any).getSession()
+
+      expect(serverSession.session).toEqual({ id: 'jwt-token', sub: '4', iat: 111, exp: 222 })
+      expect(serverSession.accounts).toEqual([{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }])
+      expect(serverSession.providers).toEqual(['github', 'google'])
+      expect(clientSession.session).toEqual({ sub: '4', iat: 111, exp: 222 })
+      expect(clientSession.session).not.toHaveProperty('id')
+      expect(clientSession.accounts).toEqual([{ provider: 'github', providerAccountId: '123' }])
+      expect(clientSession.providers).toEqual(['github', 'google'])
+      expect(authInstance.validateSession).toHaveBeenCalledTimes(1)
     })
 
     it('getSession should return null if validation fails', async () => {
