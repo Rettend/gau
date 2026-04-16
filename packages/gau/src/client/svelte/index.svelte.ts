@@ -3,9 +3,9 @@ import type { GauSession, ProfileName, ProviderIds } from '../../core'
 import { replaceState } from '$app/navigation'
 import { BROWSER } from 'esm-env'
 import { getContext, onMount, setContext } from 'svelte'
-import { NULL_SESSION } from '../../core'
 import { isTauri } from '../../runtimes/tauri'
 import { createSharedAuthFlow } from '../shared/authFlow'
+import { createEmptyClientSession, createSharedClientLifecycle } from '../shared/lifecycle'
 import { createAuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> {
@@ -41,9 +41,12 @@ export function createSvelteAuth<const TAuth = unknown>({
 
   const fetchSession = async (): Promise<CurrentSession> => {
     if (!BROWSER)
-      return { ...NULL_SESSION, providers: [] }
+      return createEmptyClientSession()
     return client.refreshSession()
   }
+
+  let session: CurrentSession = $state(initialSession ?? createEmptyClientSession())
+  let isLoading = $state(!initialSession)
 
   const authFlow = createSharedAuthFlow<TAuth>({
     client,
@@ -56,8 +59,15 @@ export function createSvelteAuth<const TAuth = unknown>({
     replaceUrl: url => replaceUrlSafe(url),
   })
 
-  let session: CurrentSession = $state(initialSession ?? { ...NULL_SESSION, providers: [] })
-  let isLoading = $state(!initialSession)
+  const lifecycle = createSharedClientLifecycle<TAuth>({
+    client,
+    authFlow,
+    isBrowser: BROWSER,
+    isTauri: BROWSER && isTauri(),
+    refresh: async () => { session = await fetchSession() },
+    onSession: next => { session = next },
+    onReady: () => { isLoading = false },
+  })
 
   async function replaceUrlSafe(url: string) {
     try {
@@ -78,50 +88,14 @@ export function createSvelteAuth<const TAuth = unknown>({
   }
 
   async function unlinkAccount(provider: ProviderIds<TAuth>) {
-    const ok = await client.unlinkAccount(provider)
-    if (!ok)
-      console.error('Failed to unlink account')
+    await lifecycle.unlinkAccount(provider)
   }
 
   async function signOut() {
     await client.signOut()
   }
 
-  onMount(() => {
-    if (!BROWSER)
-      return
-
-    const unsubscribe = client.onSessionChange((next) => {
-      session = next
-    })
-
-    void (async () => {
-      const handled = await authFlow.handleRedirectCallback()
-      if (!handled)
-        await fetchSession()
-
-      isLoading = false
-    })()
-
-    let cleanup: (() => void) | void
-    let disposed = false
-
-    if (isTauri()) {
-      void (async () => {
-        const unlisten = await client.startTauriBridge()
-        if (disposed)
-          unlisten?.()
-        else
-          cleanup = unlisten
-      })()
-    }
-
-    return () => {
-      disposed = true
-      cleanup?.()
-      unsubscribe()
-    }
-  })
+  onMount(() => lifecycle.mount())
 
   const contextValue: AuthContextValue<TAuth> = {
     get session() {

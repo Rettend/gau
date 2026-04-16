@@ -1,10 +1,10 @@
 import type { Accessor, ParentProps, Resource } from 'solid-js'
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
-import { createContext, createMemo, createResource, createSignal, onCleanup, onMount, untrack, useContext } from 'solid-js'
+import { createContext, createMemo, createSignal, onCleanup, onMount, untrack, useContext } from 'solid-js'
 import { isServer } from 'solid-js/web'
-import { NULL_SESSION } from '../../core'
 import { isTauri } from '../../runtimes/tauri'
 import { createSharedAuthFlow } from '../shared/authFlow'
+import { createEmptyClientSession, createSharedClientLifecycle } from '../shared/lifecycle'
 import { createAuthClient } from '../vanilla'
 import { installSolidStartFetchBridge } from './solidStartFetchBridge'
 
@@ -56,19 +56,14 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
 
   // For CSR-only mode: signal to trigger client-side refetch after hydration
   const [mounted, setMounted] = createSignal(false)
+  const [isRefreshing, setIsRefreshing] = createSignal(false)
+  const [isReady, setIsReady] = createSignal(false)
 
-  // Internal resource for CSR-only mode
-  const fetchSession = async (isMounted: boolean): Promise<GauSession<ProviderIds<TAuth>>> => {
-    if (isServer || !isMounted)
-      return { ...NULL_SESSION, providers: [] }
+  const fetchSession = async (): Promise<GauSession<ProviderIds<TAuth>>> => {
+    if (isServer)
+      return createEmptyClientSession()
     return client.refreshSession()
   }
-
-  const [internalSession, { refetch: internalRefetch }] = createResource<GauSession<ProviderIds<TAuth>>, boolean>(
-    mounted,
-    fetchSession,
-    { initialValue: { ...NULL_SESSION, providers: [] } },
-  )
 
   // For SSR mode: track refreshed session after client-side mutations
   const [clientOverride, setClientOverride] = createSignal<GauSession<ProviderIds<TAuth>> | null>(null)
@@ -91,11 +86,11 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     // SSR mode: use external session
     if (hasExternalSession()) {
       const ext = props.session!()
-      return clientOverride() ?? ext ?? { ...NULL_SESSION, providers: [] }
+      return clientOverride() ?? ext ?? createEmptyClientSession()
     }
 
-    // CSR mode: use internal resource
-    return clientSession() ?? internalSession()
+    // CSR mode: use client-managed session state
+    return clientSession() ?? createEmptyClientSession()
   })
 
   const isLoading = createMemo(() => {
@@ -104,19 +99,20 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
       const s = props.session as Resource<GauSession<ProviderIds<TAuth>>> | undefined
       return s?.loading ?? false
     }
-    return !mounted() || (clientSession() === null && internalSession.loading)
+    return !mounted() || !isReady() || (clientSession() === null && isRefreshing())
   })
 
   // Refetch function that works in both modes
   const refetch = async () => {
-    const refreshed = hasExternalSession()
-      ? await client.refreshSession()
-      : await internalRefetch()
-
-    if (refreshed)
+    setIsRefreshing(true)
+    try {
+      const refreshed = await fetchSession()
       setResolvedSession(refreshed)
-
-    return refreshed
+      return refreshed
+    }
+    finally {
+      setIsRefreshing(false)
+    }
   }
 
   const authFlow = createSharedAuthFlow<TAuth>({
@@ -129,6 +125,16 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     navigate: (url) => { window.location.href = url },
   })
 
+  const lifecycle = createSharedClientLifecycle<TAuth>({
+    client,
+    authFlow,
+    isBrowser: !isServer,
+    isTauri: !isServer && isTauri(),
+    refresh: async () => { await refetch() },
+    onSession: next => { setResolvedSession(next) },
+    onReady: () => { setIsReady(true) },
+  })
+
   async function signIn<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
     await authFlow.signIn(provider, options)
   }
@@ -138,9 +144,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   }
 
   async function unlinkAccount(provider: ProviderIds<TAuth>) {
-    const ok = await client.unlinkAccount(provider)
-    if (!ok)
-      console.error('Failed to unlink account')
+    await lifecycle.unlinkAccount(provider)
   }
 
   const signOut = async () => {
@@ -153,31 +157,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     if (!untrack(hasExternalSession))
       setMounted(true)
 
-    const unsubscribe = client.onSessionChange((next) => {
-      setResolvedSession(next)
-    })
-
-    if (!isTauri()) {
-      void authFlow.handleRedirectCallback()
-      onCleanup(unsubscribe)
-      return
-    }
-
-    let disposed = false
-    let unlisten: (() => void) | undefined
-    void (async () => {
-      const maybeUnlisten = await client.startTauriBridge()
-      if (disposed)
-        maybeUnlisten?.()
-      else
-        unlisten = maybeUnlisten ?? undefined
-    })()
-    onCleanup(() => {
-      disposed = true
-      unsubscribe()
-      unlisten?.()
-      unlisten = undefined
-    })
+    onCleanup(lifecycle.mount())
   })
 
   return (
