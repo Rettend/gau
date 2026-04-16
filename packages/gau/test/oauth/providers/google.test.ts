@@ -33,12 +33,25 @@ describe('google Provider', () => {
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
     redirectUri: 'http://localhost:5173/api/auth/callback/google',
+    params: { access_type: 'offline', prompt: 'consent' },
   })
 
   it('should create an authorization URL', async () => {
     const url = await provider.getAuthorizationUrl('state', 'code-verifier')
     expect(url.toString()).toContain('https://accounts.google.com/o/oauth2/v2/auth')
     expect(url.toString()).toContain('mock=true')
+    expect(url.searchParams.get('access_type')).toBe('offline')
+    expect(url.searchParams.get('prompt')).toBe('consent')
+  })
+
+  it('merges provider params with per-call params', async () => {
+    const url = await provider.getAuthorizationUrl('state', 'code-verifier', {
+      params: { prompt: 'select_account', login_hint: 'user@example.com' },
+    })
+
+    expect(url.searchParams.get('access_type')).toBe('offline')
+    expect(url.searchParams.get('prompt')).toBe('select_account')
+    expect(url.searchParams.get('login_hint')).toBe('user@example.com')
   })
 
   it('should validate the callback and return user data', async () => {

@@ -1,5 +1,5 @@
 import type { AuthUser, OAuthProvider, OAuthProviderConfig } from '../index'
-import { CodeChallengeMethod, OAuth2Client } from 'arctic'
+import { createOAuthAuthorizationUrl, createOAuthClientResolver } from '../utils'
 
 const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize'
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token'
@@ -70,31 +70,24 @@ async function getUser(accessToken: string): Promise<AuthUser> {
 }
 
 export function GitHub(config: OAuthProviderConfig): OAuthProvider<'github', OAuthProviderConfig> {
-  const defaultClient = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri ?? null)
-
-  function getClient(redirectUri?: string): OAuth2Client {
-    if (!redirectUri || redirectUri === config.redirectUri)
-      return defaultClient
-
-    return new OAuth2Client(config.clientId, config.clientSecret, redirectUri)
-  }
+  const getClient = createOAuthClientResolver(config)
 
   return {
     id: 'github',
     linkOnly: config.linkOnly,
     requiresRedirectUri: true,
 
-    async getAuthorizationUrl(state: string, codeVerifier: string, options?: { scopes?: string[], redirectUri?: string, params?: Record<string, string>, overrides?: any }) {
-      const client = getClient(options?.redirectUri)
+    async getAuthorizationUrl(state, codeVerifier, options) {
       const scopes = options?.scopes ?? config.scope ?? ['read:user', 'user:email']
-      const url = await client.createAuthorizationURLWithPKCE(GITHUB_AUTH_URL, state, CodeChallengeMethod.S256, codeVerifier, scopes)
-      if (options?.params) {
-        for (const [k, v] of Object.entries(options.params)) {
-          if (v != null)
-            url.searchParams.set(k, String(v))
-        }
-      }
-      return url
+      return createOAuthAuthorizationUrl({
+        client: getClient(options?.redirectUri),
+        authorizationUrl: GITHUB_AUTH_URL,
+        state,
+        codeVerifier,
+        scopes,
+        configParams: config.params,
+        params: options?.params,
+      })
     },
 
     async validateCallback(code: string, codeVerifier: string, redirectUri?: string) {

@@ -1,5 +1,5 @@
 import type { AuthUser, OAuthProvider, OAuthProviderConfig } from '../index'
-import { CodeChallengeMethod, OAuth2Client } from 'arctic'
+import { createOAuthAuthorizationUrl, createOAuthClientResolver } from '../utils'
 
 const FB_GRAPH_ME_URL = 'https://graph.facebook.com/me'
 const FB_AUTH_URL = 'https://www.facebook.com/dialog/oauth'
@@ -41,13 +41,7 @@ async function getUser(accessToken: string): Promise<AuthUser> {
 }
 
 export function Facebook(config: OAuthProviderConfig): OAuthProvider<'facebook', OAuthProviderConfig> {
-  const defaultClient = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri ?? null)
-
-  function getClient(redirectUri?: string): OAuth2Client {
-    if (!redirectUri || redirectUri === config.redirectUri)
-      return defaultClient
-    return new OAuth2Client(config.clientId, config.clientSecret, redirectUri)
-  }
+  const getClient = createOAuthClientResolver(config)
 
   return {
     id: 'facebook',
@@ -55,23 +49,16 @@ export function Facebook(config: OAuthProviderConfig): OAuthProvider<'facebook',
     requiresRedirectUri: true,
 
     async getAuthorizationUrl(state, codeVerifier, options) {
-      const client = getClient(options?.redirectUri)
       const scopes = options?.scopes ?? config.scope ?? ['email', 'public_profile']
-      const url = await client.createAuthorizationURLWithPKCE(
-        FB_AUTH_URL,
+      return createOAuthAuthorizationUrl({
+        client: getClient(options?.redirectUri),
+        authorizationUrl: FB_AUTH_URL,
         state,
-        CodeChallengeMethod.S256,
         codeVerifier,
         scopes,
-      )
-      const mergedParams = { ...(config.params ?? {}), ...(options?.params ?? {}) }
-      if (Object.keys(mergedParams).length) {
-        for (const [k, v] of Object.entries(mergedParams)) {
-          if (v != null)
-            url.searchParams.set(k, String(v))
-        }
-      }
-      return url
+        configParams: config.params,
+        params: options?.params,
+      })
     },
 
     async validateCallback(code, codeVerifier, redirectUri) {

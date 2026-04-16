@@ -38,12 +38,15 @@ describe('facebook Provider', () => {
   const provider = Facebook({
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
+    params: { display: 'page', auth_type: 'reauthenticate' },
   })
 
   it('should create an authorization URL', async () => {
     const url = await provider.getAuthorizationUrl('state', 'code-verifier')
     expect(url.toString()).toContain('https://www.facebook.com/dialog/oauth')
     expect(url.toString()).toContain('mock=true')
+    expect(url.searchParams.get('display')).toBe('page')
+    expect(url.searchParams.get('auth_type')).toBe('reauthenticate')
   })
 
   it('should validate the callback and return user data', async () => {
@@ -62,6 +65,8 @@ describe('facebook Provider', () => {
     const url = await provider.getAuthorizationUrl('state', 'code-verifier', { params: { display: 'popup' } })
     expect(url.toString()).toContain('https://www.facebook.com/dialog/oauth')
     expect(url.toString()).toContain('mock=true')
+    expect(url.searchParams.get('display')).toBe('popup')
+    expect(url.searchParams.get('auth_type')).toBe('reauthenticate')
   })
 
   it('handles picture as string in response', async () => {

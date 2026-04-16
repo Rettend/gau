@@ -33,6 +33,7 @@ describe('microsoft Provider', () => {
   const provider = Microsoft({
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
+    params: { login_hint: 'default@example.com', prompt: 'consent' },
   })
 
   beforeEach(() => {
@@ -73,16 +74,28 @@ describe('microsoft Provider', () => {
     const url = await provider.getAuthorizationUrl('state', 'code-verifier')
     expect(url.toString()).toContain('https://login.microsoftonline.com/common/oauth2/v2.0/authorize')
     expect(url.toString()).toContain('mock=true')
+    expect(url.searchParams.get('login_hint')).toBe('default@example.com')
+    expect(url.searchParams.get('prompt')).toBe('consent')
   })
 
   it('applies prompt and params and tenant overrides in authorization URL', async () => {
     const url = await provider.getAuthorizationUrl('state', 'cv', {
       params: { prompt: 'login', foo: 'bar' },
       overrides: { tenant: 'organizations' },
-    } as any)
+    })
     expect(url.toString()).toContain('/organizations/oauth2/v2.0/authorize')
     expect(url.searchParams.get('prompt')).toBe('login')
     expect(url.searchParams.get('foo')).toBe('bar')
+    expect(url.searchParams.get('login_hint')).toBe('default@example.com')
+  })
+
+  it('lets prompt override win over merged params', async () => {
+    const url = await provider.getAuthorizationUrl('state', 'cv', {
+      params: { prompt: 'login' },
+      overrides: { prompt: 'select_account' },
+    })
+
+    expect(url.searchParams.get('prompt')).toBe('select_account')
   })
 
   describe('validateCallback', () => {

@@ -1,5 +1,5 @@
-import type { AuthUser, OAuthProvider, OAuthProviderConfig, RefreshedTokens } from '../index'
-import { CodeChallengeMethod, OAuth2Client } from 'arctic'
+import type { AuthUser, OAuthProvider, OAuthProviderConfig } from '../index'
+import { createOAuthAuthorizationUrl, createOAuthClientResolver, mergeOAuthParams, refreshOAuthAccessToken } from '../utils'
 
 // https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc
 const MICROSOFT_USER_INFO_URL = 'https://graph.microsoft.com/v1.0/me'
@@ -114,39 +114,31 @@ export function Microsoft(config: MicrosoftConfig): OAuthProvider<'microsoft', M
     tokenURL: `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`,
   })
 
-  const defaultClient = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri ?? null)
-
-  function getClient(redirectUri?: string): OAuth2Client {
-    if (!redirectUri || redirectUri === config.redirectUri)
-      return defaultClient
-
-    return new OAuth2Client(config.clientId, config.clientSecret, redirectUri)
-  }
+  const getClient = createOAuthClientResolver(config)
 
   return {
     id: 'microsoft',
     linkOnly: config.linkOnly,
     requiresRedirectUri: true,
 
-    async getAuthorizationUrl(state: string, codeVerifier: string, options?: { scopes?: string[], redirectUri?: string, params?: Record<string, string>, overrides?: Partial<Pick<MicrosoftConfig, 'tenant' | 'prompt'>> }) {
-      const client = getClient(options?.redirectUri)
+    async getAuthorizationUrl(state, codeVerifier, options) {
       const scopes = options?.scopes ?? config.scope ?? ['openid', 'profile', 'email', 'User.Read']
       const effectiveTenant: MicrosoftConfig['tenant'] = options?.overrides?.tenant ?? config.tenant ?? 'common'
       const { authURL } = getEndpoints(effectiveTenant)
-      const url = await client.createAuthorizationURLWithPKCE(authURL, state, CodeChallengeMethod.S256, codeVerifier, scopes)
-      const prompt = options?.overrides?.prompt ?? options?.params?.prompt ?? config.prompt
-      if (prompt)
-        url.searchParams.set('prompt', prompt)
-      const mergedParams = { ...(config.params ?? {}), ...(options?.params ?? {}) }
-      if (Object.keys(mergedParams).length) {
-        for (const [k, v] of Object.entries(mergedParams)) {
-          if (k === 'prompt')
-            continue
-          if (v != null)
-            url.searchParams.set(k, String(v))
-        }
-      }
-      return url
+      const params = mergeOAuthParams(config.params, options?.params)
+      const prompt = options?.overrides?.prompt ?? params.prompt ?? config.prompt
+
+      return createOAuthAuthorizationUrl({
+        client: getClient(options?.redirectUri),
+        authorizationUrl: authURL,
+        state,
+        codeVerifier,
+        scopes,
+        configParams: config.params,
+        params: options?.params,
+        omitParamKeys: ['prompt'],
+        extraParams: prompt ? { prompt } : undefined,
+      })
     },
 
     async validateCallback(code: string, codeVerifier: string, redirectUri?: string, overrides?: Partial<Pick<MicrosoftConfig, 'tenant'>>) {
@@ -158,38 +150,16 @@ export function Microsoft(config: MicrosoftConfig): OAuthProvider<'microsoft', M
       return { tokens, user }
     },
 
-    async refreshAccessToken(refreshToken: string, options?: { overrides?: Partial<Pick<MicrosoftConfig, 'tenant'>> }): Promise<RefreshedTokens> {
+    async refreshAccessToken(refreshToken, options) {
       const effectiveTenant: MicrosoftConfig['tenant'] = options?.overrides?.tenant ?? config.tenant ?? 'common'
       const { tokenURL } = getEndpoints(effectiveTenant)
-      const body = new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        scope: (config.scope ?? ['openid', 'profile', 'email', 'User.Read']).join(' '),
+      return refreshOAuthAccessToken({
+        tokenUrl: tokenURL,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        refreshToken,
+        scopes: options?.scopes ?? config.scope ?? ['openid', 'profile', 'email', 'User.Read'],
       })
-      const res = await fetch(tokenURL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body,
-      })
-      const json = await res.json() as any
-      if (!res.ok)
-        throw json
-
-      const expiresIn: number | undefined = json.expires_in
-      const expiresAt = typeof expiresIn === 'number' ? Math.floor(Date.now() / 1000) + Math.floor(expiresIn) : undefined
-
-      return {
-        accessToken: json.access_token,
-        refreshToken: json.refresh_token ?? refreshToken,
-        expiresAt: expiresAt ?? null,
-        idToken: json.id_token ?? null,
-        tokenType: json.token_type ?? null,
-        scope: json.scope ?? null,
-      }
     },
   }
 }

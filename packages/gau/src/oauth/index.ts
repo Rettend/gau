@@ -15,6 +15,19 @@ export interface OAuthProviderConfig {
   params?: Record<string, string>
 }
 
+export interface OAuthAuthorizationOptions<C = OAuthProviderConfig> {
+  scopes?: string[]
+  redirectUri?: string
+  params?: Record<string, string>
+  overrides?: ProviderProfileOverrides<C>
+}
+
+export interface OAuthRefreshOptions<C = OAuthProviderConfig> {
+  redirectUri?: string
+  scopes?: string[]
+  overrides?: ProviderProfileOverrides<C>
+}
+
 export interface RefreshedTokens {
   accessToken: string
   refreshToken?: string | null
@@ -42,7 +55,7 @@ export interface OAuthProvider<T extends string = string, C = OAuthProviderConfi
   getAuthorizationUrl: (
     state: string,
     codeVerifier: string,
-    options?: { scopes?: string[], redirectUri?: string, params?: Record<string, string>, overrides?: ProviderProfileOverrides<C> },
+    options?: OAuthAuthorizationOptions<C>,
   ) => Promise<URL>
   validateCallback: (
     code: string,
@@ -52,6 +65,6 @@ export interface OAuthProvider<T extends string = string, C = OAuthProviderConfi
   ) => Promise<{ tokens: OAuth2Tokens, user: AuthUser }>
   refreshAccessToken?: (
     refreshToken: string,
-    options?: { redirectUri?: string, scopes?: string[], overrides?: ProviderProfileOverrides<C> },
+    options?: OAuthRefreshOptions<C>,
   ) => Promise<RefreshedTokens>
 }
