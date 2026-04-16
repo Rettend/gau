@@ -1,5 +1,5 @@
 import type { Adapter } from '../../core/index'
-import type { AccountsTable, UsersTable } from './sqlite'
+import type { AccountsTable, UsersTable } from './shared'
 import { is } from 'drizzle-orm'
 import { MySqlDatabase } from 'drizzle-orm/mysql-core'
 import { PgDatabase } from 'drizzle-orm/pg-core'
