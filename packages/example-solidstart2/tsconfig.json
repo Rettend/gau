@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@solidjs/web": ["./node_modules/@solidjs/web"],
+      "@solidjs/web/*": ["./node_modules/@solidjs/web/*"],
+      "solid-js": ["./node_modules/solid-js"],
+      "solid-js/*": ["./node_modules/solid-js/*"],
+      "~/*": ["./src/*"]
+    },
+    "types": ["@solidjs/start/env", "vite/client", "node"],
+    "allowJs": true,
+    "strict": true,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "vite.config.ts", "drizzle.config.ts"]
+}

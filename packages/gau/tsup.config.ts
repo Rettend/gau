@@ -60,11 +60,12 @@ export default defineConfig(async () => {
   allEntries = allEntries.filter(e => !/\.test\.(?:ts|tsx|svelte|svelte\.ts)$/.test(e))
 
   const solidEntries = allEntries.filter(e => /src[\\/]client[\\/]solid[\\/]index\.(?:ts|tsx)$/.test(e))
+  const solid2Entries = allEntries.filter(e => /src[\\/]client[\\/]solid2[\\/]index\.(?:ts|tsx)$/.test(e))
   const svelteTsEntries = allEntries.filter(e => /src[\\/]client[\\/]svelte[\\/].*\.svelte\.ts$/.test(e))
   const svelteComponentEntries = allEntries.filter(e => /src[\\/]client[\\/]svelte[\\/].*\.svelte$/.test(e))
 
   const otherEntries = allEntries.filter(
-    e => !solidEntries.includes(e) && !svelteTsEntries.includes(e) && !svelteComponentEntries.includes(e),
+    e => !solidEntries.includes(e) && !solid2Entries.includes(e) && !svelteTsEntries.includes(e) && !svelteComponentEntries.includes(e),
   )
 
   return [
@@ -83,6 +84,7 @@ export default defineConfig(async () => {
         await Promise.all([
           $`bun tsgo --project tsconfig.json --outDir dist/src`,
           $`bun tsgo --project src/client/solid/tsconfig.json`,
+          $`bun tsgo --project src/client/solid2/tsconfig.json`,
         ])
         console.log('⚡️ Generating Svelte .d.ts files with svelte2tsx...')
         await generateSvelteDeclarations()
@@ -116,6 +118,26 @@ export default defineConfig(async () => {
       esbuildOptions(options) {
         options.jsx = 'preserve'
         options.jsxImportSource = 'solid-js'
+      },
+      outExtension() {
+        return { js: '.jsx' }
+      },
+    },
+    {
+      ...commonConfig,
+      entry: toEntryObject(solid2Entries),
+      tsconfig: 'src/client/solid2/tsconfig.json',
+      splitting: false,
+      external: [
+        '@solidjs/router',
+        '@solidjs/web',
+        '@tauri-apps/plugin-opener',
+        '@tauri-apps/api/event',
+        'solid-js',
+      ],
+      esbuildOptions(options) {
+        options.jsx = 'preserve'
+        options.jsxImportSource = '@solidjs/web'
       },
       outExtension() {
         return { js: '.jsx' }

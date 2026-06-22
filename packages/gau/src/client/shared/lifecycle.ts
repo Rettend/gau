@@ -1,5 +1,10 @@
 import type { GauSession, ProviderIds } from '../../core'
-import { NULL_SESSION } from '../../core'
+
+const EMPTY_CLIENT_SESSION = {
+  user: null,
+  session: null,
+  accounts: null,
+} as const
 
 interface SharedLifecycleClient<TAuth = unknown> {
   onSessionChange: (listener: (session: GauSession<ProviderIds<TAuth>>) => void) => () => void
@@ -23,7 +28,7 @@ interface SharedClientLifecycleOptions<TAuth = unknown> {
 }
 
 export function createEmptyClientSession<TProviders extends string = string>(): GauSession<TProviders> {
-  return { ...NULL_SESSION, providers: [] }
+  return { ...EMPTY_CLIENT_SESSION, providers: [] }
 }
 
 export function createSharedClientLifecycle<const TAuth = unknown>({

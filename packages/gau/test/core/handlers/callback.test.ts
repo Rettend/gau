@@ -334,6 +334,31 @@ describe('callback handler', () => {
     expect(linked!.email ?? null).toBeNull()
   })
 
+  it('skips self-healing email promotion when the verified email belongs to another user', async () => {
+    const accountUser = await auth.createUser({ email: null, name: 'Google User', emailVerified: null })
+    const emailUser = await auth.createUser({ email: 'user@provider.com', name: 'Email User', emailVerified: true })
+    await auth.linkAccount({
+      userId: accountUser.id,
+      provider: 'mock',
+      providerAccountId: 'provider-user-id',
+      accessToken: 'old-access-token',
+    })
+
+    const state = 'state-email-owner'
+    const request = new Request(`http://localhost/api/auth/callback/mock?code=c&state=${state}`)
+    request.headers.set('Cookie', `${CSRF_COOKIE_NAME}=${state}; ${PKCE_COOKIE_NAME}=pkce; ${CALLBACK_URI_COOKIE_NAME}=uri`)
+
+    const response = await handleCallback(request, auth, 'mock')
+    expect([200, 302]).toContain(response.status)
+
+    const linked = await auth.getUserByAccount('mock', 'provider-user-id')
+    expect(linked?.id).toBe(accountUser.id)
+
+    const updatedAccountUser = await auth.getUser(accountUser.id)
+    expect(updatedAccountUser?.email ?? null).toBeNull()
+    expect(await auth.getUserByEmail('user@provider.com')).toMatchObject({ id: emailUser.id })
+  })
+
   it('should return 400 if provider is not found during callback', async () => {
     const request = new Request('http://localhost/api/auth/callback/unknown-provider?code=c&state=s')
     await expect(handleCallback(request, auth, 'unknown-provider')).rejects.toMatchObject({

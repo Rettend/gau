@@ -386,11 +386,15 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     const update: Partial<User> & { id: string } = { id: user.id }
     let needsUpdate = false
 
-    // user has no primary email. promote the provider's email but only if it's verified.
+    // user has no primary email. promote the provider's email but only if it's verified
+    // and does not already belong to another user.
     if (!currentEmail && providerEmailVerified === true) {
-      update.email = providerEmail
-      update.emailVerified = true
-      needsUpdate = true
+      const existingEmailUser = await auth.getUserByEmail(providerEmail)
+      if (!existingEmailUser || existingEmailUser.id === user.id) {
+        update.email = providerEmail
+        update.emailVerified = true
+        needsUpdate = true
+      }
     }
     // user has an unverified primary email, and the provider confirms this same email is verified.
     else if (
