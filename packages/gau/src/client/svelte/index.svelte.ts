@@ -1,22 +1,15 @@
-import type { GauSession, ProfileName, ProviderIds } from '../../core'
+import type { GauSession, ProviderIds } from '../../core'
+import type { ClientAuthControls } from '../shared/clientAuth'
 // @ts-expect-error svelte-kit
 import { replaceState } from '$app/navigation'
 import { BROWSER } from 'esm-env'
 import { getContext, onMount, setContext } from 'svelte'
-import { isTauri } from '../../runtimes/tauri'
-import { createSharedAuthFlow } from '../shared/authFlow'
-import { createEmptyClientSession, createSharedClientLifecycle } from '../shared/lifecycle'
+import { createClientAuth, createEmptyClientSession } from '../shared/clientAuth'
 import { createAuthClient } from '../vanilla'
 
-interface AuthContextValue<TAuth = unknown> {
+interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: GauSession<ProviderIds<TAuth>>
   isLoading: boolean
-  signIn: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
-  linkAccount: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
-  unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
-  signOut: () => Promise<void>
-  refresh: () => Promise<void>
-  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 }
 
 const AUTH_CONTEXT_KEY = Symbol('gau-auth')
@@ -39,34 +32,15 @@ export function createSvelteAuth<const TAuth = unknown>({
     scheme,
   })
 
-  const fetchSession = async (): Promise<CurrentSession> => {
-    if (!BROWSER)
-      return createEmptyClientSession()
-    return client.refreshSession()
-  }
-
   let session: CurrentSession = $state(initialSession ?? createEmptyClientSession())
   let isLoading = $state(!initialSession)
 
-  const authFlow = createSharedAuthFlow<TAuth>({
+  const auth = createClientAuth<TAuth>({
     client,
-    defaultRedirectTo,
-    isBrowser: BROWSER,
-    isTauri: BROWSER && isTauri(),
-    getOrigin: () => window.location.origin,
-    getHref: () => window.location.href,
-    navigate: (url) => { window.location.href = url },
-    replaceUrl: url => replaceUrlSafe(url),
-  })
-
-  const lifecycle = createSharedClientLifecycle<TAuth>({
-    client,
-    authFlow,
-    isBrowser: BROWSER,
-    isTauri: BROWSER && isTauri(),
-    refresh: async () => { session = await fetchSession() },
-    onSession: next => { session = next },
+    redirectTo: defaultRedirectTo,
+    setSession: next => { session = next },
     onReady: () => { isLoading = false },
+    replaceUrl: url => replaceUrlSafe(url),
   })
 
   async function replaceUrlSafe(url: string) {
@@ -79,23 +53,7 @@ export function createSvelteAuth<const TAuth = unknown>({
     }
   }
 
-  async function signIn<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    await authFlow.signIn(provider, options)
-  }
-
-  async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    await authFlow.linkAccount(provider, options)
-  }
-
-  async function unlinkAccount(provider: ProviderIds<TAuth>) {
-    await lifecycle.unlinkAccount(provider)
-  }
-
-  async function signOut() {
-    await client.signOut()
-  }
-
-  onMount(() => lifecycle.mount())
+  onMount(auth.mount)
 
   const contextValue: AuthContextValue<TAuth> = {
     get session() {
@@ -104,12 +62,7 @@ export function createSvelteAuth<const TAuth = unknown>({
     get isLoading() {
       return isLoading
     },
-    signIn,
-    linkAccount,
-    unlinkAccount,
-    signOut,
-    refresh: async () => { session = await fetchSession() },
-    fetch: client.fetch,
+    ...auth.controls,
   }
 
   setContext(AUTH_CONTEXT_KEY, contextValue)
