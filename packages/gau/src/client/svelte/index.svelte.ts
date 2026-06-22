@@ -38,7 +38,7 @@ export function createSvelteAuth<const TAuth = unknown>({
   const auth = createClientAuth<TAuth>({
     client,
     redirectTo: defaultRedirectTo,
-    setSession: next => { session = next },
+    setSession: (next) => { session = next },
     onReady: () => { isLoading = false },
     replaceUrl: url => replaceUrlSafe(url),
   })

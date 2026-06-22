@@ -1,9 +1,10 @@
-import { nitroV2Plugin } from '@solidjs/vite-plugin-nitro-2'
-import { solidStart } from '@solidjs/start/config'
+import type { Alias, Plugin } from 'vite'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { solidStart } from '@solidjs/start/config'
+import { nitroV2Plugin } from '@solidjs/vite-plugin-nitro-2'
 import UnoCSS from 'unocss/vite'
-import { defineConfig, loadEnv, type Alias, type Plugin } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 const solidPackages = ['solid-js', '@solidjs/signals', '@solidjs/web'] as const
 const envDir = fileURLToPath(new URL('.', import.meta.url))

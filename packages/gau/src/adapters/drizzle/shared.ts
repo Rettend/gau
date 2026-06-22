@@ -32,24 +32,24 @@ type UpdateAccountData = Partial<Account> & {
   providerAccountId: string
 }
 
-type AdapterHooks<
+interface AdapterHooks<
   U extends UsersTable,
   A extends AccountsTable,
-> = {
-  getUser(id: string): Promise<InferSelectModel<U> | undefined>
-  getUserByEmail(email: string): Promise<InferSelectModel<U> | undefined>
-  getUserByAccount(provider: string, providerAccountId: string): Promise<InferSelectModel<U> | undefined>
-  getAccounts(userId: string): Promise<InferSelectModel<A>[]>
-  getUserAndAccounts(userId: string): Promise<{
+> {
+  getUser: (id: string) => Promise<InferSelectModel<U> | undefined>
+  getUserByEmail: (email: string) => Promise<InferSelectModel<U> | undefined>
+  getUserByAccount: (provider: string, providerAccountId: string) => Promise<InferSelectModel<U> | undefined>
+  getAccounts: (userId: string) => Promise<InferSelectModel<A>[]>
+  getUserAndAccounts: (userId: string) => Promise<{
     user: InferSelectModel<U> | null | undefined
     accounts: InferSelectModel<A>[]
   } | null>
-  createUser(id: string, data: InferInsertModel<U>): Promise<InferSelectModel<U> | undefined>
-  linkAccount(data: InferInsertModel<A>): Promise<void>
-  unlinkAccount(provider: string, providerAccountId: string): Promise<void>
-  updateAccount(data: UpdateAccountData): Promise<void>
-  updateUser(id: string, data: Partial<InferInsertModel<U>>): Promise<InferSelectModel<U> | undefined>
-  deleteUser(id: string): Promise<void>
+  createUser: (id: string, data: InferInsertModel<U>) => Promise<InferSelectModel<U> | undefined>
+  linkAccount: (data: InferInsertModel<A>) => Promise<void>
+  unlinkAccount: (provider: string, providerAccountId: string) => Promise<void>
+  updateAccount: (data: UpdateAccountData) => Promise<void>
+  updateUser: (id: string, data: Partial<InferInsertModel<U>>) => Promise<InferSelectModel<U> | undefined>
+  deleteUser: (id: string) => Promise<void>
 }
 
 export function createDrizzleAdapter<

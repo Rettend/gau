@@ -1,8 +1,8 @@
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import type { PgDatabase, PgTable } from 'drizzle-orm/pg-core'
+import type { AccountsTable, UsersTable } from './shared'
 import { and, eq } from 'drizzle-orm'
 import { createDrizzleAdapter } from './shared'
-import type { AccountsTable, UsersTable } from './shared'
 
 export type { AccountsTable, UsersTable } from './shared'
 
@@ -71,10 +71,10 @@ export function PostgresDrizzleAdapter<
         return null
 
       return {
-        user: (rows[0] as { users?: InferSelectModel<U> } | undefined)?.users!,
+        user: (rows[0] as unknown as { users: InferSelectModel<U> }).users,
         accounts: rows
-        .map((r: { accounts?: DBAccount } | undefined) => r?.accounts)
-        .filter(Boolean) as DBAccount[],
+          .map((r: { accounts?: DBAccount } | undefined) => r?.accounts)
+          .filter(Boolean) as DBAccount[],
       }
     },
 

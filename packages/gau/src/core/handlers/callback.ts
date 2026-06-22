@@ -17,7 +17,7 @@ import { json, redirect } from '../index'
 import { htmlResponse, renderCancelledPage, renderSuccessPage } from '../templates'
 
 type Session = Awaited<ReturnType<Auth['validateSession']>>
-type TokenSnapshot = {
+interface TokenSnapshot {
   accessToken: string | null
   refreshToken: string | null
   expiresAt: number | undefined
@@ -173,9 +173,8 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
 
-  if (!code || !state || error) {
+  if (!code || !state || error)
     return htmlResponse(renderCancelledPage({ redirectUrl: resolveCancelledRedirectTarget(state) }))
-  }
 
   const requestCookies = parseCookies(request.headers.get('Cookie'))
   const cookies = new Cookies(requestCookies, auth.cookieOptions)

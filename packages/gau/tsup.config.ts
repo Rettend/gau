@@ -1,8 +1,9 @@
 /* eslint-disable no-console */
 import type { Options } from 'tsup'
-import { createRequire } from 'node:module'
 import { mkdir, unlink } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
+import process from 'node:process'
 import { $, Glob, write } from 'bun'
 import { emitDts } from 'svelte2tsx'
 import { defineConfig } from 'tsup'

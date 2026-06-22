@@ -1,8 +1,8 @@
 import type { CreateAuthOptions, RefreshSessionOptions } from '../core'
+import type { AuthInstance } from '../core/serverSession'
 import type { OAuthProvider } from '../oauth'
 import process from 'node:process'
 import { createHandler, REFRESHED_TOKEN_HEADER } from '../core'
-import type { AuthInstance } from '../core/serverSession'
 import { createRequestSessionCache, resolveAuth, resolveServerSession } from '../core/serverSession'
 
 export { REFRESHED_TOKEN_HEADER }

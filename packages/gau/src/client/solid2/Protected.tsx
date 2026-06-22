@@ -1,9 +1,9 @@
-import type { Accessor } from 'solid-js'
 import type { JSX } from '@solidjs/web'
+import type { Accessor } from 'solid-js'
 import type { GauSession, ProviderIds } from '../../core'
 import { useNavigate } from '@solidjs/router'
-import { onSettled, Show } from 'solid-js'
 import { isServer } from '@solidjs/web'
+import { onSettled, Show } from 'solid-js'
 import { useAuth } from './index'
 
 function onClientReady(fn: () => void | (() => void)) {

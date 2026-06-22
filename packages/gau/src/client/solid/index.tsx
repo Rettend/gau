@@ -92,10 +92,10 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
 
   const auth = createClientAuth<TAuth>({
     client,
-    redirectTo: props.redirectTo,
+    redirectTo: untrack(() => props.redirectTo),
     setSession: setResolvedSession,
     onReady: () => { setIsReady(true) },
-    onRefreshing: refreshing => { setIsRefreshing(refreshing) },
+    onRefreshing: (refreshing) => { setIsRefreshing(refreshing) },
   })
 
   onMount(() => {

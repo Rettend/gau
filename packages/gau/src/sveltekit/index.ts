@@ -1,8 +1,8 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit'
 import type { CreateAuthOptions, RefreshSessionOptions } from '../core'
+import type { AuthInstance } from '../core/serverSession'
 import type { OAuthProvider } from '../oauth'
 import { createHandler, REFRESHED_TOKEN_HEADER } from '../core'
-import type { AuthInstance } from '../core/serverSession'
 import { createRequestSessionCache, resolveAuth } from '../core/serverSession'
 
 export { REFRESHED_TOKEN_HEADER }

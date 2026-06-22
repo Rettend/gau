@@ -1,8 +1,8 @@
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
+import type { AccountsTable, UsersTable } from './shared'
 import { and, eq } from 'drizzle-orm'
 import { createDrizzleAdapter } from './shared'
-import type { AccountsTable, UsersTable } from './shared'
 import { transaction } from './transaction'
 
 export type { AccountsTable, UsersTable } from './shared'
@@ -65,8 +65,8 @@ export function SQLiteDrizzleAdapter<
       return {
         user: result[0]!.users,
         accounts: result
-        .map(row => row.accounts)
-        .filter(Boolean) as DBAccount[],
+          .map(row => row.accounts)
+          .filter(Boolean) as DBAccount[],
       }
     },
 

@@ -13,6 +13,7 @@ export default antfu({
     'no-console': 'warn',
     'curly': ['warn', 'multi-or-nest', 'consistent'],
     'antfu/no-top-level-await': 'off',
+    'style/max-statements-per-line': ['error', { max: 2 }],
   },
   ignores: [
     '**/build/**',
