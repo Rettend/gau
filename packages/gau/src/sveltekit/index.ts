@@ -1,11 +1,11 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit'
-import type { CreateAuthOptions, GauServerSession, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
+import type { CreateAuthOptions, RefreshSessionOptions } from '../core'
+import type { AuthInstance } from '../core/serverSession'
 import type { OAuthProvider } from '../oauth'
-import { createAuth, createHandler, getSessionTokenFromRequest, NULL_SESSION, REFRESHED_TOKEN_HEADER, toClientSession } from '../core'
+import { createHandler, REFRESHED_TOKEN_HEADER } from '../core'
+import { createRequestSessionCache, resolveAuth } from '../core/serverSession'
 
 export { REFRESHED_TOKEN_HEADER }
-
-type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof createAuth<TProviders>>
 
 /**
  * Creates GET and POST handlers for SvelteKit.
@@ -24,12 +24,7 @@ type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof c
  * ```
  */
 export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
-  // TODO: Duck-type to check if we have an instance or raw options
-  const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
-
-  const auth = isInstance
-    ? (optionsOrAuth as AuthInstance<TProviders>)
-    : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
+  const auth = resolveAuth(optionsOrAuth)
 
   if (!auth.errorRedirect)
     auth.errorRedirect = '/auth/error'
@@ -47,35 +42,10 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
   const sveltekitHandler = (event: RequestEvent) => handler(event.request)
 
   const handle: Handle = async ({ event, resolve }) => {
-    let cachedServer: Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
-    let cachedClient: Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> | null = null
+    const { getServerSession, getSession } = createRequestSessionCache(auth, event.request)
 
-    const getServerSession = (): Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> => {
-      return cachedServer ??= (async () => {
-        const { token: sessionToken } = getSessionTokenFromRequest(event.request)
-
-        const providers = Array.from(auth.providerMap.keys()) as ProviderIds<AuthInstance<TProviders>>[]
-
-        if (!sessionToken)
-          return { ...NULL_SESSION, providers }
-
-        try {
-          const validated = await auth.validateSession(sessionToken)
-          if (!validated)
-            return { ...NULL_SESSION, providers }
-
-          return { ...validated, providers }
-        }
-        catch {
-          return { ...NULL_SESSION, providers }
-        }
-      })()
-    };
-
-    (event.locals as any).getServerSession = getServerSession;
-    (event.locals as any).getSession = (): Promise<GauSession<ProviderIds<AuthInstance<TProviders>>>> => {
-      return cachedClient ??= getServerSession().then(toClientSession)
-    }
+    ;(event.locals as any).getServerSession = getServerSession
+    ;(event.locals as any).getSession = getSession
 
     return resolve(event)
   }
@@ -86,15 +56,6 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
     OPTIONS: sveltekitHandler,
     handle,
   }
-}
-
-function resolveAuth<const TProviders extends OAuthProvider<any>[]>(
-  optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
-): AuthInstance<TProviders> {
-  const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
-  return isInstance
-    ? (optionsOrAuth as AuthInstance<TProviders>)
-    : createAuth(optionsOrAuth as CreateAuthOptions<TProviders>)
 }
 
 /**

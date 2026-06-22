@@ -42,12 +42,25 @@ describe('gitHub Provider', () => {
   const provider = GitHub({
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
+    params: { allow_signup: 'true', login: 'base-user' },
   })
 
   it('should create an authorization URL', async () => {
     const url = await provider.getAuthorizationUrl('state', 'code-verifier')
     expect(url.toString()).toContain('https://github.com/login/oauth/authorize')
     expect(url.toString()).toContain('mock=true')
+    expect(url.searchParams.get('allow_signup')).toBe('true')
+    expect(url.searchParams.get('login')).toBe('base-user')
+  })
+
+  it('merges provider params with per-call params', async () => {
+    const url = await provider.getAuthorizationUrl('state', 'code-verifier', {
+      params: { allow_signup: 'false', prompt: 'consent' },
+    })
+
+    expect(url.searchParams.get('allow_signup')).toBe('false')
+    expect(url.searchParams.get('login')).toBe('base-user')
+    expect(url.searchParams.get('prompt')).toBe('consent')
   })
 
   it('should validate the callback and return user data', async () => {

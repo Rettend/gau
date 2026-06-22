@@ -34,6 +34,7 @@ describe('vanilla client', () => {
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -144,10 +145,13 @@ describe('vanilla client', () => {
       .mockResolvedValueOnce(makeJsonResponse(sessionPayload('u5'))) // refreshSession
 
     const client = createAuthClient({ baseUrl })
+    const listener = vi.fn()
+    client.onSessionChange(listener)
     const ok = await client.unlinkAccount('github')
     expect(ok).toBe(true)
     expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/unlink/github`, { method: 'POST', credentials: 'include' })
     expect(fetchSpy).toHaveBeenNthCalledWith(2, `${baseUrl}/session`, { credentials: 'include' })
+    expect(listener).toHaveBeenCalledWith(sessionPayload('u5'))
   })
 
   it('unlinkAccount: returns false on non-OK', async () => {
@@ -157,17 +161,20 @@ describe('vanilla client', () => {
     expect(ok).toBe(false)
   })
 
-  it('signOut: clears token, POSTs without Authorization, then refreshes session', async () => {
+  it('signOut: sends Authorization before clearing token, then refreshes session', async () => {
     sessionToken = 'to-clear'
     fetchSpy
       .mockResolvedValueOnce({ ok: true }) // POST signout
-      .mockResolvedValueOnce(makeJsonResponse(sessionPayload('u6'))) // refreshSession
+      .mockResolvedValueOnce(makeJsonResponse({ user: null, session: null, accounts: null, providers: [] })) // refreshSession
 
     const client = createAuthClient({ baseUrl })
+    const listener = vi.fn()
+    client.onSessionChange(listener)
     await client.signOut()
     expect(sessionToken).toBeNull()
-    expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/signout`, { method: 'POST', credentials: 'include' })
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/signout`, { method: 'POST', headers: { Authorization: 'Bearer to-clear' } })
     expect(fetchSpy).toHaveBeenNthCalledWith(2, `${baseUrl}/session`, { credentials: 'include' })
+    expect(listener).toHaveBeenCalledWith({ user: null, session: null, accounts: null, providers: [] })
   })
 
   it('signIn uses Tauri helper when environment is Tauri', async () => {
@@ -232,6 +239,37 @@ describe('vanilla client', () => {
     expect(startAuthBridgeSpy).not.toHaveBeenCalled()
 
     isTauriSpy.mockReturnValue(false)
+  })
+
+  it('handleRedirectCallback applies token, notifies listeners, and cleans URL with one refresh', async () => {
+    const replaceState = vi.fn()
+    vi.stubGlobal('window', {
+      location: {
+        hash: '#token=redirect-token',
+        pathname: '/callback',
+        search: '?from=oauth',
+      },
+      history: {
+        replaceState,
+      },
+    })
+
+    fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('redirect-user')))
+
+    const client = createAuthClient({ baseUrl })
+    const listener = vi.fn()
+    client.onSessionChange(listener)
+
+    await expect(client.handleRedirectCallback()).resolves.toBe(true)
+
+    expect(mockStoreSessionToken).toHaveBeenCalledWith('redirect-token')
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${baseUrl}/session`,
+      { headers: { Authorization: 'Bearer redirect-token' } },
+    )
+    expect(listener).toHaveBeenCalledWith(sessionPayload('redirect-user'))
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/callback?from=oauth')
   })
 
   describe('client.fetch', () => {

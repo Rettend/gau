@@ -1,47 +1,20 @@
-import type { AnyColumn, InferInsertModel, InferSelectModel, Table } from 'drizzle-orm'
+import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import type { PgDatabase, PgTable } from 'drizzle-orm/pg-core'
-import type { Account, Adapter, NewAccount, NewUser, User } from '../../core'
+import type { AccountsTable, UsersTable } from './shared'
 import { and, eq } from 'drizzle-orm'
+import { createDrizzleAdapter } from './shared'
 
-export type UsersTable = Table & {
-  id: AnyColumn
-  name: AnyColumn
-  email: AnyColumn
-  image: AnyColumn
-  emailVerified: AnyColumn
-  role?: AnyColumn
-  createdAt: AnyColumn
-  updatedAt: AnyColumn
-}
-
-export type AccountsTable = Table & {
-  userId: AnyColumn
-  type: AnyColumn
-  provider: AnyColumn
-  providerAccountId: AnyColumn
-  refreshToken: AnyColumn
-  accessToken: AnyColumn
-  expiresAt: AnyColumn
-  tokenType: AnyColumn
-  scope: AnyColumn
-  idToken: AnyColumn
-  sessionState?: AnyColumn
-}
+export type { AccountsTable, UsersTable } from './shared'
 
 export function PostgresDrizzleAdapter<
   DB extends PgDatabase<any, any, any>,
   U extends UsersTable,
   A extends AccountsTable,
->(db: DB, Users: U, Accounts: A): Adapter {
-  type DBUser = InferSelectModel<U>
+>(db: DB, Users: U, Accounts: A) {
   type DBAccount = InferSelectModel<A>
-  type DBInsertUser = InferInsertModel<U>
   type DBInsertAccount = InferInsertModel<A>
 
-  const toUser = (row: DBUser | undefined | null): User | null =>
-    row ? ({ ...(row as any) }) : null
-
-  return {
+  return createDrizzleAdapter(Users, {
     async getUser(id) {
       const rows = await db
         .select()
@@ -49,7 +22,7 @@ export function PostgresDrizzleAdapter<
         .where(eq(Users.id, id))
         .limit(1)
         .execute()
-      return toUser(rows[0] as DBUser | undefined)
+      return rows[0] as InferSelectModel<U> | undefined
     },
 
     async getUserByEmail(email) {
@@ -59,7 +32,7 @@ export function PostgresDrizzleAdapter<
         .where(eq(Users.email, email))
         .limit(1)
         .execute()
-      return toUser(rows[0] as DBUser | undefined)
+      return rows[0] as InferSelectModel<U> | undefined
     },
 
     async getUserByAccount(provider, providerAccountId) {
@@ -73,8 +46,8 @@ export function PostgresDrizzleAdapter<
         ))
         .limit(1)
         .execute()
-      const row = rows[0] as { users?: DBUser } | undefined
-      return toUser(row?.users)
+      const row = rows[0] as { users?: InferSelectModel<U> } | undefined
+      return row?.users
     },
 
     async getAccounts(userId) {
@@ -83,7 +56,7 @@ export function PostgresDrizzleAdapter<
         .from(Accounts as unknown as PgTable)
         .where(eq(Accounts.userId, userId))
         .execute()
-      return rows as unknown as Account[]
+      return rows as DBAccount[]
     },
 
     async getUserAndAccounts(userId) {
@@ -97,42 +70,28 @@ export function PostgresDrizzleAdapter<
       if (!rows.length)
         return null
 
-      const user = toUser((rows[0] as { users?: DBUser } | undefined)?.users) as User
-      const accounts = (rows
-        .map((r: { accounts?: DBAccount } | undefined) => r?.accounts)
-        .filter(Boolean) as DBAccount[]) as unknown as Account[]
-
-      return { user, accounts }
+      return {
+        user: (rows[0] as unknown as { users: InferSelectModel<U> }).users,
+        accounts: rows
+          .map((r: { accounts?: DBAccount } | undefined) => r?.accounts)
+          .filter(Boolean) as DBAccount[],
+      }
     },
 
-    async createUser(data: NewUser) {
-      const id = data.id ?? crypto.randomUUID()
+    async createUser(_id, data) {
       const [inserted] = await db
         .insert(Users)
-        .values({
-          ...data,
-          id,
-          name: data.name ?? null,
-          email: data.email ?? null,
-          image: data.image ?? null,
-          emailVerified: data.emailVerified ?? null,
-          ...(Users.role ? { role: data.role ?? null } : {}),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as DBInsertUser)
+        .values(data)
         .returning()
         .execute()
 
-      return toUser(inserted) as User
+      return inserted
     },
 
-    async linkAccount(data: NewAccount) {
+    async linkAccount(data) {
       await db
         .insert(Accounts)
-        .values({
-          type: 'oauth',
-          ...data,
-        } as DBInsertAccount)
+        .values(data as DBInsertAccount)
         .execute()
     },
 
@@ -165,19 +124,15 @@ export function PostgresDrizzleAdapter<
         .execute()
     },
 
-    async updateUser(partial) {
-      const { id, ...rest } = partial
+    async updateUser(id, data) {
       const [updated] = await db
         .update(Users)
-        .set({
-          ...rest,
-          updatedAt: new Date(),
-        } as Partial<DBInsertUser>)
+        .set(data)
         .where(eq(Users.id, id))
         .returning()
         .execute()
 
-      return toUser(updated) as User
+      return updated
     },
 
     async deleteUser(id) {
@@ -186,5 +141,5 @@ export function PostgresDrizzleAdapter<
         .where(eq(Users.id, id))
         .execute()
     },
-  }
+  })
 }

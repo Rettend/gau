@@ -65,10 +65,25 @@ describe('callback hooks', () => {
     })
 
     const req = makeRequest()
+    req.headers.set('Cookie', [
+      `${CSRF_COOKIE_NAME}=state123`,
+      `${PKCE_COOKIE_NAME}=pkce`,
+      `${CALLBACK_URI_COOKIE_NAME}=uri`,
+      `__gau-provider-options=${btoa(JSON.stringify({ params: {}, overrides: {} }))}`,
+      `__gau-client-challenge=challenge`,
+    ].join('; '))
+
     const res = await handleCallback(req, auth, 'mock')
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body).toEqual({ ok: true })
+
+    const cookies = res.headers.getSetCookie()
+    expect(cookies.some(c => c.startsWith(CSRF_COOKIE_NAME) && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith(PKCE_COOKIE_NAME) && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith(CALLBACK_URI_COOKIE_NAME) && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-provider-options=') && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-client-challenge=') && c.includes('Max-Age=0'))).toBe(true)
 
     const u = await auth.getUserByAccount('mock', 'provider-user-id')
     expect(u).toBeNull()
@@ -134,10 +149,25 @@ describe('callback hooks', () => {
     })
 
     const req = makeRequest('state999')
+    req.headers.set('Cookie', [
+      `${CSRF_COOKIE_NAME}=state999`,
+      `${PKCE_COOKIE_NAME}=pkce`,
+      `${CALLBACK_URI_COOKIE_NAME}=uri`,
+      `__gau-provider-options=${btoa(JSON.stringify({ params: {}, overrides: {} }))}`,
+      `__gau-client-challenge=challenge`,
+    ].join('; '))
+
     const res = await handleCallback(req, auth, 'mock')
     expect(res.status).toBe(418)
     const text = await res.text()
     expect(text).toBe('blocked')
+
+    const cookies = res.headers.getSetCookie()
+    expect(cookies.some(c => c.startsWith(CSRF_COOKIE_NAME) && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith(PKCE_COOKIE_NAME) && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith(CALLBACK_URI_COOKIE_NAME) && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-provider-options=') && c.includes('Max-Age=0'))).toBe(true)
+    expect(cookies.some(c => c.startsWith('__gau-client-challenge=') && c.includes('Max-Age=0'))).toBe(true)
 
     expect(onBefore).toHaveBeenCalledTimes(1)
 

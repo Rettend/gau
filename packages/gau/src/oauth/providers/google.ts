@@ -1,5 +1,5 @@
-import type { AuthUser, OAuthProvider, OAuthProviderConfig, RefreshedTokens } from '../index'
-import { CodeChallengeMethod, OAuth2Client } from 'arctic'
+import type { AuthUser, OAuthProvider, OAuthProviderConfig } from '../index'
+import { createOAuthAuthorizationUrl, createOAuthClientResolver, refreshOAuthAccessToken } from '../utils'
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -34,31 +34,24 @@ async function getUser(accessToken: string): Promise<AuthUser> {
 }
 
 export function Google(config: OAuthProviderConfig): OAuthProvider<'google'> {
-  const defaultClient = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri ?? null)
-
-  function getClient(redirectUri?: string): OAuth2Client {
-    if (!redirectUri || redirectUri === config.redirectUri)
-      return defaultClient
-
-    return new OAuth2Client(config.clientId, config.clientSecret, redirectUri)
-  }
+  const getClient = createOAuthClientResolver(config)
 
   return {
     id: 'google',
     linkOnly: config.linkOnly,
     requiresRedirectUri: true,
 
-    async getAuthorizationUrl(state: string, codeVerifier: string, options?: { scopes?: string[], redirectUri?: string, params?: Record<string, string>, overrides?: any }) {
-      const client = getClient(options?.redirectUri)
+    async getAuthorizationUrl(state, codeVerifier, options) {
       const scopes = options?.scopes ?? config.scope ?? ['openid', 'email', 'profile']
-      const url = await client.createAuthorizationURLWithPKCE(GOOGLE_AUTH_URL, state, CodeChallengeMethod.S256, codeVerifier, scopes)
-      if (options?.params) {
-        for (const [k, v] of Object.entries(options.params)) {
-          if (v != null)
-            url.searchParams.set(k, String(v))
-        }
-      }
-      return url
+      return createOAuthAuthorizationUrl({
+        client: getClient(options?.redirectUri),
+        authorizationUrl: GOOGLE_AUTH_URL,
+        state,
+        codeVerifier,
+        scopes,
+        configParams: config.params,
+        params: options?.params,
+      })
     },
 
     async validateCallback(code: string, codeVerifier: string, redirectUri?: string) {
@@ -68,35 +61,13 @@ export function Google(config: OAuthProviderConfig): OAuthProvider<'google'> {
       return { tokens, user }
     },
 
-    async refreshAccessToken(refreshToken: string): Promise<RefreshedTokens> {
-      const body = new URLSearchParams({
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
+    async refreshAccessToken(refreshToken) {
+      return refreshOAuthAccessToken({
+        tokenUrl: GOOGLE_TOKEN_URL,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        refreshToken,
       })
-      const res = await fetch(GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body,
-      })
-      const json = await res.json() as any
-      if (!res.ok)
-        throw json
-
-      const expiresIn: number | undefined = json.expires_in
-      const expiresAt = typeof expiresIn === 'number' ? Math.floor(Date.now() / 1000) + Math.floor(expiresIn) : undefined
-
-      return {
-        accessToken: json.access_token,
-        refreshToken: json.refresh_token ?? refreshToken,
-        expiresAt: expiresAt ?? null,
-        idToken: json.id_token ?? null,
-        tokenType: json.token_type ?? null,
-        scope: json.scope ?? null,
-      }
     },
   }
 }

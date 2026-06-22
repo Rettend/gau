@@ -48,6 +48,10 @@
       "solid": "./dist/src/client/solid/index.jsx",
       "types": "./dist/src/client/solid/index.d.ts"
     },
+    "./client/solid2": {
+      "solid": "./dist/src/client/solid2/index.jsx",
+      "types": "./dist/src/client/solid2/index.d.ts"
+    },
     "./client/svelte": {
       "types": "./dist/src/client/svelte/index.svelte.d.ts",
       "import": "./dist/src/client/svelte/index.svelte.js"
@@ -105,7 +109,7 @@
     "dev": "bun run --watch index.ts",
     "build": "bun --bun tsup",
     "lint": "bun --bun eslint . --fix",
-    "check": "tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p src/client/solid/tsconfig.json && tsgo --noEmit -p src/client/svelte/tsconfig.json",
+    "check": "tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p src/client/solid/tsconfig.json && tsgo --noEmit -p src/client/solid2/tsconfig.json && tsgo --noEmit -p src/client/svelte/tsconfig.json",
     "check:test": "tsgo --noEmit -p tsconfig.test.json",
     "update": "taze latest -wr",
     "test": "vitest --project fast",
@@ -114,18 +118,22 @@
     "test:ui": "vitest --project fast --ui"
   },
   "peerDependencies": {
-    "@solidjs/router": "^0.15.3",
+    "@solidjs/router": "^0.15.3 || ^0.16.0 || >=0.17.0-next.0 <1.0.0",
+    "@solidjs/web": ">=2.0.0-beta.14 <3.0.0",
     "@sveltejs/kit": "^2.25.1",
     "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.3.0",
     "@tauri-apps/plugin-shell": "^2.3.0",
     "drizzle-orm": "^0.44.3",
-    "solid-js": "^1.9.7",
+    "solid-js": "^1.9.7 || >=2.0.0-beta.14 <3.0.0",
     "svelte": "^5.41.1",
     "typescript": "^5.8.3"
   },
   "peerDependenciesMeta": {
     "@solidjs/router": {
+      "optional": true
+    },
+    "@solidjs/web": {
       "optional": true
     },
     "@sveltejs/kit": {
@@ -164,6 +172,7 @@
     "@electric-sql/pglite": "^0.3.14",
     "@libsql/client": "^0.15.15",
     "@solidjs/router": "^0.15.4",
+    "@solidjs/web": "2.0.0-beta.14",
     "@sveltejs/kit": "^2.49.2",
     "@tauri-apps/api": "^2.9.1",
     "@tauri-apps/plugin-opener": "^2.5.2",
@@ -178,6 +187,7 @@
     "drizzle-orm": "^0.45.1",
     "eslint": "^9.39.2",
     "solid-js": "^1.9.10",
+    "solid-js-2": "npm:solid-js@2.0.0-beta.14",
     "svelte2tsx": "^0.7.51",
     "vitest": "^4.0.16"
   }

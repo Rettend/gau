@@ -156,8 +156,8 @@ export function createAuthClient<const TAuth = unknown>({ baseUrl, scheme = 'gau
   }
 
   async function signOut(): Promise<void> {
-    clearSessionToken()
     const token = getSessionToken()
+    clearSessionToken()
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined
     await fetch(`${baseUrl}/signout`, token ? { method: 'POST', headers } : { method: 'POST', credentials: 'include' })
     await refreshSession()

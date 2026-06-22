@@ -52,12 +52,23 @@ describe('discord Provider', () => {
   const provider = Discord({
     clientId: 'test-client-id',
     clientSecret: 'test-client-secret',
+    params: { prompt: 'consent' },
   })
 
   it('should create an authorization URL', async () => {
     const url = await provider.getAuthorizationUrl('state', 'code-verifier')
     expect(url.toString()).toContain('https://discord.com/api/oauth2/authorize')
     expect(url.toString()).toContain('mock=true')
+    expect(url.searchParams.get('prompt')).toBe('consent')
+  })
+
+  it('merges provider params with per-call params', async () => {
+    const url = await provider.getAuthorizationUrl('state', 'code-verifier', {
+      params: { prompt: 'none', permissions: '8' },
+    })
+
+    expect(url.searchParams.get('prompt')).toBe('none')
+    expect(url.searchParams.get('permissions')).toBe('8')
   })
 
   it('should validate the callback and return user data', async () => {

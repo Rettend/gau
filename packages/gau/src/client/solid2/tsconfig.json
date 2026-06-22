@@ -1,0 +1,19 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
+    "rootDir": "../../..",
+    "paths": {
+      "solid-js": ["../../../node_modules/solid-js-2"],
+      "solid-js/*": ["../../../node_modules/solid-js-2/*"],
+      "@solidjs/web": ["../../../node_modules/@solidjs/web"],
+      "@solidjs/web/*": ["../../../node_modules/@solidjs/web/*"]
+    },
+    "outDir": "../../../dist"
+  },
+  "include": [
+    "./**/*"
+  ],
+  "exclude": []
+}

@@ -1,21 +1,16 @@
 import type { Accessor, ParentProps, Resource } from 'solid-js'
-import type { GauSession, ProfileName, ProviderIds } from '../../core'
-import { createContext, createMemo, createResource, createSignal, onCleanup, onMount, untrack, useContext } from 'solid-js'
+import type { GauSession, ProviderIds } from '../../core'
+import type { ClientAuthControls } from '../shared/clientAuth'
+import { createContext, createMemo, createSignal, onCleanup, onMount, untrack, useContext } from 'solid-js'
 import { isServer } from 'solid-js/web'
-import { NULL_SESSION } from '../../core'
 import { isTauri } from '../../runtimes/tauri'
+import { createClientAuth, createEmptyClientSession } from '../shared/clientAuth'
 import { createAuthClient } from '../vanilla'
 import { installSolidStartFetchBridge } from './solidStartFetchBridge'
 
-interface AuthContextValue<TAuth = unknown> {
+interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>
   isLoading: Accessor<boolean>
-  signIn: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
-  linkAccount: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
-  unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
-  signOut: () => Promise<void>
-  refresh: () => Promise<void>
-  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 }
 
 const AuthContext = createContext<any>()
@@ -47,6 +42,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
 
   const client = createAuthClient<TAuth>({
     baseUrl,
+    scheme,
   })
 
   // Check if we're in SSR mode (session prop provided)
@@ -54,22 +50,19 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
 
   // For CSR-only mode: signal to trigger client-side refetch after hydration
   const [mounted, setMounted] = createSignal(false)
-
-  // Internal resource for CSR-only mode
-  const fetchSession = async (isMounted: boolean): Promise<GauSession<ProviderIds<TAuth>>> => {
-    if (isServer || !isMounted)
-      return { ...NULL_SESSION, providers: [] }
-    return client.refreshSession()
-  }
-
-  const [internalSession, { refetch: internalRefetch }] = createResource<GauSession<ProviderIds<TAuth>>, boolean>(
-    mounted,
-    fetchSession,
-    { initialValue: { ...NULL_SESSION, providers: [] } },
-  )
+  const [isRefreshing, setIsRefreshing] = createSignal(false)
+  const [isReady, setIsReady] = createSignal(false)
 
   // For SSR mode: track refreshed session after client-side mutations
   const [clientOverride, setClientOverride] = createSignal<GauSession<ProviderIds<TAuth>> | null>(null)
+  const [clientSession, setClientSession] = createSignal<GauSession<ProviderIds<TAuth>> | null>(null)
+
+  const setResolvedSession = (next: GauSession<ProviderIds<TAuth>>) => {
+    if (hasExternalSession())
+      setClientOverride(next)
+    else
+      setClientSession(next)
+  }
 
   // Combined session accessor
   const session = createMemo<GauSession<ProviderIds<TAuth>>>(() => {
@@ -81,11 +74,11 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     // SSR mode: use external session
     if (hasExternalSession()) {
       const ext = props.session!()
-      return ext ?? { ...NULL_SESSION, providers: [] }
+      return clientOverride() ?? ext ?? createEmptyClientSession()
     }
 
-    // CSR mode: use internal resource
-    return internalSession()
+    // CSR mode: use client-managed session state
+    return clientSession() ?? createEmptyClientSession()
   })
 
   const isLoading = createMemo(() => {
@@ -94,67 +87,16 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
       const s = props.session as Resource<GauSession<ProviderIds<TAuth>>> | undefined
       return s?.loading ?? false
     }
-    return !mounted() || internalSession.loading
+    return !mounted() || !isReady() || (clientSession() === null && isRefreshing())
   })
 
-  // Refetch function that works in both modes
-  const refetch = async () => {
-    if (hasExternalSession()) {
-      // In SSR mode, fetch via client and set as override
-      const refreshed = await client.refreshSession()
-      setClientOverride(refreshed)
-    }
-    else {
-      internalRefetch()
-    }
-  }
-
-  async function signIn<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    const inTauri = !isServer && isTauri()
-    let finalRedirectTo = redirectTo ?? props.redirectTo
-
-    if (inTauri) {
-      const { signInWithTauri } = await import('../../runtimes/tauri')
-      await signInWithTauri<TAuth, P, typeof profile>(provider, baseUrl, scheme, finalRedirectTo, profile)
-      return
-    }
-
-    if (!finalRedirectTo && !isServer)
-      finalRedirectTo = window.location.origin
-
-    const url = await client.signIn<P, typeof profile>(provider, { redirectTo: finalRedirectTo, profile })
-    if (!isServer)
-      window.location.href = url
-  }
-
-  async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, { redirectTo, profile }: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
-    if (!isServer && isTauri()) {
-      const { linkAccountWithTauri } = await import('../../runtimes/tauri')
-      await linkAccountWithTauri<TAuth, P, typeof profile>(provider, baseUrl, scheme, redirectTo, profile)
-      return
-    }
-
-    let finalRedirectTo = redirectTo ?? props.redirectTo
-    if (!finalRedirectTo && !isServer)
-      finalRedirectTo = window.location.href
-
-    const url = await client.linkAccount<P, typeof profile>(provider, { redirectTo: finalRedirectTo, profile })
-    if (!isServer)
-      window.location.href = url
-  }
-
-  async function unlinkAccount(provider: ProviderIds<TAuth>) {
-    const ok = await client.unlinkAccount(provider)
-    if (ok)
-      await refetch()
-    else
-      console.error('Failed to unlink account')
-  }
-
-  const signOut = async () => {
-    await client.signOut()
-    await refetch()
-  }
+  const auth = createClientAuth<TAuth>({
+    client,
+    redirectTo: untrack(() => props.redirectTo),
+    setSession: setResolvedSession,
+    onReady: () => { setIsReady(true) },
+    onRefreshing: (refreshing) => { setIsRefreshing(refreshing) },
+  })
 
   onMount(() => {
     // For CSR-only mode: trigger the resource to fetch
@@ -162,40 +104,11 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     if (!untrack(hasExternalSession))
       setMounted(true)
 
-    // Capture refetch in untrack to avoid reactivity warnings in async callbacks
-    const doRefetch = untrack(() => refetch)
-
-    if (!isTauri()) {
-      void (async () => {
-        const handled = await client.handleRedirectCallback()
-        if (handled)
-          await doRefetch()
-      })()
-      return
-    }
-
-    let disposed = false
-    let unlisten: (() => void) | undefined
-    void (async () => {
-      const { startAuthBridge } = await import('../../runtimes/tauri')
-      const maybeUnlisten = await startAuthBridge(baseUrl, scheme, async (token) => {
-        await client.applySessionToken(token)
-        await doRefetch()
-      })
-      if (disposed)
-        maybeUnlisten?.()
-      else
-        unlisten = maybeUnlisten ?? undefined
-    })()
-    onCleanup(() => {
-      disposed = true
-      unlisten?.()
-      unlisten = undefined
-    })
+    onCleanup(auth.mount())
   })
 
   return (
-    <AuthContext.Provider value={{ session, isLoading, signIn, linkAccount, unlinkAccount, signOut, refresh: refetch, fetch: client.fetch }}>
+    <AuthContext.Provider value={{ session, isLoading, ...auth.controls }}>
       {props.children}
     </AuthContext.Provider>
   )

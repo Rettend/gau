@@ -4,6 +4,7 @@ import { authMiddleware, createSolidStartGetServerSession, refreshMiddleware, So
 
 const mockAuth = {
   providerMap: new Map(),
+  signJWT: vi.fn(),
   validateSession: vi.fn(),
 } as any
 
@@ -84,6 +85,18 @@ describe('createSolidStartGetServerSession', () => {
     expect(session).toEqual({ ...NULL_SESSION, providers: [] })
   })
 
+  it('includes configured providers in NULL_SESSION fallback', async () => {
+    const authInstance = {
+      ...mockAuth,
+      providerMap: new Map([['github', {}], ['google', {}]]),
+    } as any
+
+    const getServerSession = createSolidStartGetServerSession(authInstance)
+    const session = await getServerSession(new Request('http://localhost'))
+
+    expect(session).toEqual({ ...NULL_SESSION, providers: ['github', 'google'] })
+  })
+
   it('validates session from cookie and returns full account data', async () => {
     mockAuth.validateSession.mockResolvedValueOnce({
       user: { id: '1' },
@@ -141,6 +154,35 @@ describe('authMiddleware', () => {
     expect(s1).toEqual({ user: { id: '1' }, session: { sub: '1' }, accounts: [], providers: [] })
     expect(s2).toEqual(s1)
     expect(mockAuth.validateSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('preloaded getSession sanitizes data while preserving configured providers', async () => {
+    const authInstance = {
+      ...mockAuth,
+      providerMap: new Map([['github', {}], ['google', {}]]),
+      validateSession: vi.fn().mockResolvedValue({
+        user: { id: '1' },
+        session: { id: 'jwt-token', sub: '1', iat: 111, exp: 222 },
+        accounts: [{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }],
+      }),
+    } as any
+
+    const mw = authMiddleware(true, authInstance)
+    const event: any = { request: new Request('http://localhost/protected', { headers: { Authorization: 'Bearer token-1' } }), locals: {} }
+
+    await mw(event)
+
+    const serverSession = await event.locals.getServerSession()
+    const clientSession = await event.locals.getSession()
+
+    expect(serverSession.session).toEqual({ id: 'jwt-token', sub: '1', iat: 111, exp: 222 })
+    expect(serverSession.accounts).toEqual([{ provider: 'github', providerAccountId: '123', accessToken: 'secret-token' }])
+    expect(serverSession.providers).toEqual(['github', 'google'])
+    expect(clientSession.session).toEqual({ sub: '1', iat: 111, exp: 222 })
+    expect(clientSession.session).not.toHaveProperty('id')
+    expect(clientSession.accounts).toEqual([{ provider: 'github', providerAccountId: '123' }])
+    expect(clientSession.providers).toEqual(['github', 'google'])
+    expect(authInstance.validateSession).toHaveBeenCalledTimes(1)
   })
 
   it('preloads when path is included in array', async () => {
