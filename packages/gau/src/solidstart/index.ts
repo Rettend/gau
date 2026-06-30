@@ -1,7 +1,7 @@
 import type { CreateAuthOptions, RefreshSessionOptions } from '../core'
 import type { AuthInstance } from '../core/serverSession'
 import type { OAuthProvider } from '../oauth'
-import process from 'node:process'
+import { DEV } from 'esm-env'
 import { createHandler, REFRESHED_TOKEN_HEADER } from '../core'
 import { createRequestSessionCache, resolveAuth, resolveServerSession } from '../core/serverSession'
 
@@ -22,7 +22,7 @@ export { REFRESHED_TOKEN_HEADER }
 export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
   const auth = resolveAuth(optionsOrAuth)
 
-  auth.development = process.env.NODE_ENV === 'development'
+  auth.development = DEV
 
   if (!auth.errorRedirect)
     auth.errorRedirect = '/auth/error'
