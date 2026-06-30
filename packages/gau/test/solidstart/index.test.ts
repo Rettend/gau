@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { DEV } from 'esm-env'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NULL_SESSION, REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
 import { authMiddleware, createSolidStartGetServerSession, refreshMiddleware, SolidAuth } from '../../src/solidstart/index'
@@ -29,6 +31,7 @@ describe('solidAuth', () => {
   beforeEach(() => {
     mockAuth.providerMap = new Map()
     mockAuth.validateSession.mockReset()
+    delete mockAuth.development
   })
 
   it('should return GET, POST, and OPTIONS handlers', () => {
@@ -57,20 +60,19 @@ describe('solidAuth', () => {
     expect(GET).toBeInstanceOf(Function)
   })
 
-  it('sets development based on NODE_ENV', () => {
-    const original = process.env.NODE_ENV
-    try {
-      process.env.NODE_ENV = 'development'
-      SolidAuth({ providers: [], adapter: {} as any } as any)
-      expect(mockAuth.development).toBe(true)
+  it('sets development from esm-env', () => {
+    SolidAuth({ providers: [], adapter: {} as any } as any)
 
-      process.env.NODE_ENV = 'production'
-      SolidAuth({ providers: [], adapter: {} as any } as any)
-      expect(mockAuth.development).toBe(false)
-    }
-    finally {
-      process.env.NODE_ENV = original
-    }
+    expect(mockAuth.development).toBe(DEV)
+  })
+
+  it('does not statically import process in the SolidStart runtime source', async () => {
+    const source = await readFile(new URL('../../src/solidstart/index.ts', import.meta.url), 'utf8')
+    const imports = source.match(/^import\s+.*$/gm)?.join('\n') ?? ''
+
+    expect(imports).not.toMatch(/\bprocess\b/)
+    expect(source).not.toContain('node:process')
+    expect(source).not.toMatch(/\bprocess\.env\b/)
   })
 })
 
