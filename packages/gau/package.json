@@ -187,12 +187,11 @@
     "@vitest/coverage-v8": "^4.1.10",
     "@vitest/ui": "^4.1.10",
     "better-sqlite3": "^12.5.0",
-    "bumpp": "^10.3.2",
     "drizzle-kit": "^0.31.8",
     "drizzle-orm": "^0.45.1",
     "eslint": "^9.39.2",
-    "solid-js": "^1.9.10",
     "miniflare": "4.20260114.0",
+    "solid-js": "^1.9.10",
     "solid-js-2": "npm:solid-js@2.0.0-rc.0",
     "svelte2tsx": "^0.7.51",
     "vitest": "^4.1.10"
