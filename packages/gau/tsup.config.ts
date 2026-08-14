@@ -77,6 +77,8 @@ export default defineConfig(async () => {
         '@sveltejs/kit',
         '$app/navigation',
         '@solidjs/router',
+        '@solidjs/web',
+        '@solidjs/web/server-functions',
         '@tauri-apps/plugin-opener',
         '@tauri-apps/api/event',
       ],

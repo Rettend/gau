@@ -113,6 +113,63 @@ describe('client auth controller', () => {
     expect(onReady).toHaveBeenCalledOnce()
   })
 
+  it('skips the mount refresh when an external hydration session is present', async () => {
+    const onReady = vi.fn()
+    const client = createClient()
+    const auth = createClientAuth({
+      client,
+      refreshOnMount: false,
+      setSession: vi.fn(),
+      onReady,
+      env: webEnv,
+    })
+
+    auth.mount()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(client.handleRedirectCallback).toHaveBeenCalledOnce()
+    expect(client.refreshSession).not.toHaveBeenCalled()
+    expect(onReady).toHaveBeenCalledOnce()
+  })
+
+  it('does not apply late mount refreshes after disposal', async () => {
+    let resolveRefresh!: (session: GauSession) => void
+    const setSession = vi.fn()
+    const onReady = vi.fn()
+    const client = createClient({
+      refreshSession: vi.fn().mockImplementation(() => new Promise<GauSession>((resolve) => {
+        resolveRefresh = resolve
+      })),
+    })
+    const auth = createClientAuth({ client, setSession, onReady, env: webEnv })
+
+    const cleanup = auth.mount()
+    await Promise.resolve()
+    cleanup()
+    resolveRefresh(createSession('late'))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(setSession).not.toHaveBeenCalled()
+    expect(onReady).not.toHaveBeenCalled()
+  })
+
+  it('logs detached initialization failures without an unhandled rejection', async () => {
+    const error = new Error('redirect failed')
+    const logger = { error: vi.fn() }
+    const client = createClient({
+      handleRedirectCallback: vi.fn().mockRejectedValue(error),
+    })
+    const auth = createClientAuth({ client, setSession: vi.fn(), logger, env: webEnv })
+
+    auth.mount()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to initialize auth client', error)
+  })
+
   it('cleans up a late Tauri bridge subscription after disposal', async () => {
     const unlisten = vi.fn()
     let resolveBridge!: (cleanup: () => void) => void
@@ -136,6 +193,27 @@ describe('client auth controller', () => {
 
     expect(unlisten).toHaveBeenCalledOnce()
     expect(client.refreshSession).not.toHaveBeenCalled()
+  })
+
+  it('logs detached Tauri bridge failures', async () => {
+    const error = new Error('bridge failed')
+    const logger = { error: vi.fn() }
+    const client = createClient({
+      handleRedirectCallback: vi.fn().mockResolvedValue(true),
+      startTauriBridge: vi.fn().mockRejectedValue(error),
+    })
+    const auth = createClientAuth({
+      client,
+      setSession: vi.fn(),
+      logger,
+      env: { ...webEnv, isTauri: () => true },
+    })
+
+    auth.mount()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to start Tauri auth bridge', error)
   })
 
   it('logs unlink failures but not successful unlinks', async () => {

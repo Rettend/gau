@@ -8,7 +8,9 @@
       "solid-js": ["../../../node_modules/solid-js-2"],
       "solid-js/*": ["../../../node_modules/solid-js-2/*"],
       "@solidjs/web": ["../../../node_modules/@solidjs/web"],
-      "@solidjs/web/*": ["../../../node_modules/@solidjs/web/*"]
+      "@solidjs/web/*": ["../../../node_modules/@solidjs/web/*"],
+      "@solidjs/router": ["../../../node_modules/@solidjs/router-2"],
+      "@solidjs/router/*": ["../../../node_modules/@solidjs/router-2/*"]
     },
     "outDir": "../../../dist"
   },

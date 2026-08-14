@@ -5,8 +5,8 @@ import { createContext, createMemo, createSignal, onCleanup, onMount, untrack, u
 import { isServer } from 'solid-js/web'
 import { isTauri } from '../../runtimes/tauri'
 import { createClientAuth, createEmptyClientSession } from '../shared/clientAuth'
+import { installSolidStartFetchBridge } from '../shared/solidStartFetchBridge'
 import { createAuthClient } from '../vanilla'
-import { installSolidStartFetchBridge } from './solidStartFetchBridge'
 
 interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>

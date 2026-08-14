@@ -1,255 +1,268 @@
 ---
-title: SolidStart
-description: How to integrate gau with SolidStart.
+title: Solid
+description: Integrate gau with legacy SolidStart or Solid 2 start mode.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
-import FileTree from 'starlight-plugin-icons/components/FileTree.astro'
 import Aside from 'starlight-plugin-icons/components/Aside.astro'
 
-This guide shows how to integrate `gau` with SolidStart, using Drizzle (SQLite or PostgreSQL) and GitHub as examples.
+Gau has separate integrations for the two Solid server architectures:
 
-<br />
+- **Solid 2 start mode (preview):** `@solidjs/vite-plugin` 3,
+  `@rttnd/gau/solid2`, and `@rttnd/gau/client/solid2`.
+- **Legacy SolidStart / Solid 1:** `@solidjs/start`,
+  `@rttnd/gau/solidstart`, and `@rttnd/gau/client/solid`.
 
-<Steps>
-1. ##### Follow the basic setup
+Released SolidStart does not support Solid 2. Do not combine `@solidjs/start`
+with Solid 2. The Solid 2 integration remains preview while Solid Router 2 and
+the Vite plugin's start mode are prereleases.
 
-    Complete the [Getting Started](/guides/getting-started) guide.
+## Solid 2 start mode (preview)
 
-    Complete the [Drizzle](/adapters/drizzle) guide:
+Start with the official Solid 2 fullstack architecture. It uses generated
+entries, Fetch middleware, and `filesystem-routing`; it does not use Vinxi or
+Nitro.
 
-      1. Set up your schema in `src/server/db/schema.ts`
-      2. Set up your database in `src/server/db/index.ts`
+### Configure Vite and routes
 
-    <br />
+```ts title="vite.config.ts"
+import solid from '@solidjs/vite-plugin'
+import { fileRoutes } from 'filesystem-routing/vite'
+import { defineConfig } from 'vite'
 
-2. ##### Set up API Route
+export default defineConfig({
+  plugins: [
+    solid({
+      start: { middleware: './src/middleware.ts' },
+      ssr: true,
+      serverFunctions: true,
+      extensions: ['.jsx', '.tsx'],
+    }),
+    fileRoutes({ httpMethods: true }),
+  ],
+})
+```
 
-    Create a catch-all route for auth endpoints on the server.
+```ts title="src/router.ts"
+import { createRouter } from '@solidjs/router'
+import { fileRoutes } from '@solidjs/router/fs'
+import { pageRoutes } from 'virtual:file-routes'
 
-    ```ts title="src/routes/api/auth/[...gau].ts"
-    import { SolidAuth } from '@rttnd/gau/solidstart'
-    import { auth } from '~/server/auth'
+export const Router = createRouter({ routes: fileRoutes(pageRoutes) })
+```
 
-    export const { GET, POST, OPTIONS } = SolidAuth(auth)
-    ```
+Create `src/App.tsx` and `src/Document.tsx` following the Solid 2 template.
+Remove old SolidStart `entry-client` and `entry-server` files so start mode can
+generate its entries.
 
-3. ##### Add Middleware
+### Add the Fetch auth route and middleware
 
-    Add the middleware to attach `getSession` to `event.locals`. Optionally, you can preload the session for selected paths or for all requests.
-    See [Eager vs Lazy Loading](/guides/middleware#eager-vs-lazy-loading).
+`SolidAuth` is structurally compatible with a `filesystem-routing` API event
+and does not require that package as a Gau peer dependency.
 
-    ```ts title="src/middleware.ts"
-    import { authMiddleware } from '@rttnd/gau/solidstart'
-    import { createMiddleware } from '@solidjs/start/middleware'
-    import { auth } from './server/auth'
+```ts title="src/routes/api/auth/[...gau].ts"
+import { SolidAuth } from '@rttnd/gau/solid2'
+import { auth } from '~/server/auth'
 
-    export default createMiddleware({
-      onRequest: [authMiddleware(true, auth)],
-    })
-    ```
+export const { GET, POST, OPTIONS } = SolidAuth(auth)
+```
 
-    And register the middleware in `app.config.ts`:
-    ```ts title="app.config.ts"
-    export default defineConfig({
-      middleware: 'src/middleware.ts',
-    })
-    ```
+```ts title="src/middleware.ts"
+import { authMiddleware, refreshMiddleware } from '@rttnd/gau/solid2'
+import { createAPIHandler } from 'filesystem-routing/api'
+import routes from 'virtual:file-routes'
+import { auth } from './server/auth'
 
-    Now, in server code, you can access `event.locals.getSession()` which returns `{ user, session, accounts, providers }`.
+export default [
+  authMiddleware(auth),
+  refreshMiddleware(auth, { threshold: 0.5 }),
+  createAPIHandler(routes),
+]
+```
 
-    For full type-safety, add the following to `src/global.d.ts`:
+`authMiddleware` adds two memoized request-local functions:
 
-    ```ts title="src/global.d.ts"
-    import type { GauSession, ProviderIds } from '@rttnd/gau'
-    import type { Auth } from './server/auth'
+- `getSession()` returns a client-safe `GauSession`.
+- `getServerSession()` includes sensitive account tokens and must never be
+  serialized.
 
-    declare global {
-      namespace App {
-        interface RequestEventLocals {
-          getSession: () => Promise<GauSession<ProviderIds<Auth>>>
-        }
-      }
-    }
+```ts title="src/global.d.ts"
+/// <reference types="filesystem-routing/types" />
 
-    export {}
-    ```
+import type { GauSolid2Locals } from '@rttnd/gau/solid2'
+import type { Auth } from './server/auth'
 
-4. ##### Set up the Client
+declare module '@solidjs/web' {
+  interface RequestEventLocals extends GauSolid2Locals<Auth> {}
+}
 
-    Wrap your application in an `AuthProvider` and use the `useAuth` hook to access session data.
+export {}
+```
 
-    <Tabs>
-      <TabItem label="SSR">
-        Use `createAsync` to fetch the session on the server. This will serialize the session into the initial HTML.
+The refresh middleware appends cookies to Solid's response stub, keeps bearer
+refreshes in `X-Refreshed-Token`, and skips the configured Gau auth base path.
+The skip prevents a refresh from undoing signout or callback cookies.
 
-        ```ts title="src/server/session.ts"
-        import { query } from '@solidjs/router'
-        import { getRequestEvent } from 'solid-js/web'
+### Hydrate the client-safe session
 
-        export const getSession = query(async () => {
-          'use server'
-          const event = getRequestEvent()
-          return event?.locals.getSession()
-        }, 'session')
-        ```
+Keep server functions in the application. Code under `node_modules` is not a
+place to publish application-owned `"use server"` functions.
 
-        ```tsx title="src/app.tsx"
-        // @refresh reload
-        import { AuthProvider } from '@rttnd/gau/client/solid'
-        import { Router } from '@solidjs/router'
-        import { FileRoutes } from '@solidjs/start/router'
-        import { Suspense } from 'solid-js'
-        import { createAsync } from '@solidjs/router'
-        import { getSession } from '~/server/session'
+```ts title="src/server/session.ts"
+import type { GauSession, ProviderIds } from '@rttnd/gau'
+import { query } from '@solidjs/router'
+import { getRequestEvent } from '@solidjs/web'
+import type { Auth } from './auth'
 
-        export default function App() {
-          return (
-            <Router
-              root={(props) => {
-                const session = createAsync(() => getSession())
-                return (
-                  <Suspense>
-                    <AuthProvider session={session} baseUrl={clientEnv.VITE_API_URL}>
-                      {props.children}
-                    </AuthProvider>
-                  </Suspense>
-                )
-              }}
-            >
-              <FileRoutes />
-            </Router>
-          )
-        }
-        ```
-      </TabItem>
-      <TabItem label="CSR">
-        If you use `ssr: false`, the setup is simple. The session will be fetched client-side after hydration.
+export const getSession = query(async (): Promise<GauSession<ProviderIds<Auth>>> => {
+  'use server'
+  const event = getRequestEvent()
+  if (!event)
+    throw new Error('Missing request event')
+  return event.locals.getSession()
+}, 'session')
+```
 
-        ```tsx title="src/app.tsx"
-        // @refresh reload
-        import { AuthProvider } from '@rttnd/gau/client/solid'
-        import { Router } from '@solidjs/router'
-        import { FileRoutes } from '@solidjs/start/router'
-        import { Suspense } from 'solid-js'
+```tsx title="src/App.tsx"
+import { AuthProvider } from '@rttnd/gau/client/solid2'
+import { createSignal, Loading } from 'solid-js'
+import { getSession } from './server/session'
+import { Router } from './router'
 
-        export default function App() {
-          return (
-            <AuthProvider>
-              <Router
-                root={props => (
-                  <Suspense>{props.children}</Suspense>
-                )}
-              >
-                <FileRoutes />
-              </Router>
-            </AuthProvider>
-          )
-        }
-        ```
-      </TabItem>
-    </Tabs>
+export default function App() {
+  const [session] = createSignal(() => getSession(), { deferStream: true })
 
-    <Aside type="note" title="Different Origins">
-      If your frontend and backend are on different hosts, set `baseUrl` to the full URL of your backend's auth API. Use envs to set it for development and production.
+  return (
+    <Router>
+      {props => (
+        <Loading fallback={<p>Loading session…</p>}>
+          <AuthProvider session={session}>
+            {props.children}
+          </AuthProvider>
+        </Loading>
+      )}
+    </Router>
+  )
+}
+```
 
-      ```tsx
-      <AuthProvider baseUrl={import.meta.env.VITE_API_URL}>
-      ```
-    </Aside>
+When `session` is supplied, it is the SSR and hydration source. Gau does not
+perform a redundant initial `/session` refresh. After an explicit
+`auth.refresh()` or a client mutation such as signout, link, or unlink, the
+client result takes over. Omit `session` for a CSR-only app; Gau then loads it
+after mount.
 
-    <Aside type="note" title="Tauri + Server Functions">
-      When using SolidStart server functions with Tauri, `gau`'s Solid client automatically bridges `/_server` requests to:
+### Configure Solid 2 server-function transport
 
-      - add `Authorization: Bearer <token>` from local storage
-      - persist refreshed tokens from `X-Refreshed-Token`
+Solid 2's provider does **not** patch global `fetch`. For Tauri or another
+bearer-token client, configure Solid's singleton once, before hydration:
 
-      For deployments where the app and backend are on different origins (for example a packaged Tauri app calling a Cloudflare Worker), set:
+```ts
+import { createGauServerFunctionsClientConfig } from '@rttnd/gau/client/solid2'
+import { configureServerFunctionsClient } from '@solidjs/web/server-functions'
 
-      - `AuthProvider.baseUrl` to your auth endpoint (for example `https://example.com/api/auth`)
-      - `SERVER_BASE_URL` to your backend/server-functions origin (for example `https://example.com`)
-    </Aside>
+configureServerFunctionsClient(createGauServerFunctionsClientConfig({
+  endpoint: 'https://api.example.com/_server',
+}))
+```
 
-    Next, to get full TypeScript support for your provider IDs, create a typed `useAuth` hook. This is a great practice as you only have to type it once.
+The returned hooks read the current Gau token for every request, preserve an
+existing `Authorization` header, and store `X-Refreshed-Token` responses. The
+endpoint is intentionally independent from `AuthProvider.baseUrl`, so remote
+server-function routing is always explicit and can be composed with other
+Solid transport hooks.
 
-    ```ts title="src/lib/auth.ts"
-    import type { Auth } from '~/server/auth'
-    import { useAuth as useAuthCore } from '@rttnd/gau/client/solid'
+<Aside type="caution" title="Cross-origin server functions">
+  The server-function host must answer CORS preflights for the app origin and
+  allow `Authorization` plus Solid's server-function request headers. Expose
+  `X-Refreshed-Token` with `Access-Control-Expose-Headers` or browser code
+  cannot read it. Cookie transport also requires credentials and a specific
+  allowed origin, not `*`. Gau's auth-route CORS option does not configure
+  your application's `/_server` endpoint.
+</Aside>
 
-    export const useAuth = () => useAuthCore<Auth>()
-    ```
+See the [Tauri guide](/runtimes/tauri) for the packaged-app setup.
 
-    <Aside type="note">
-      Exporting and importing the `Auth` type is optional, but it gives better types for the `auth.signIn` method.
-      By default, the `provider` param is `string`, but with the `Auth` type, it will be a union of string literals of the configured providers, like `'github' | 'google'`.
-    </Aside>
+## Legacy SolidStart / Solid 1
 
-    Now you can use your custom `useAuth` hook in any component to access the session and authentication methods.
+Keep existing SolidStart applications on the shipped legacy subpaths.
 
-    ```tsx title="src/routes/index.tsx"
-    import { useAuth } from '~/lib/auth'
-    import { Show } from 'solid-js'
+```ts title="src/routes/api/auth/[...gau].ts"
+import { SolidAuth } from '@rttnd/gau/solidstart'
+import { auth } from '~/server/auth'
 
-    export default function Home() {
-      const auth = useAuth()
+export const { GET, POST, OPTIONS } = SolidAuth(auth)
+```
 
-      return (
-        <Show
-          when={auth.session().user}
-          fallback={(
-            <button onClick={() => auth.signIn('github')}>Sign in with GitHub</button>
-          )}
-        >
-          <button onClick={() => auth.signOut()}>Sign Out</button>
-        </Show>
-      )
-    }
-    ```
+```ts title="src/middleware.ts"
+import { authMiddleware, refreshMiddleware } from '@rttnd/gau/solidstart'
+import { createMiddleware } from '@solidjs/start/middleware'
+import { auth } from './server/auth'
 
-    For protecting routes on the client side, you can use the `Protected` helper:
+export default createMiddleware({
+  onRequest: [
+    authMiddleware(true, auth),
+    refreshMiddleware(auth, { threshold: 0.5 }),
+  ],
+})
+```
 
-    ```tsx title="src/routes/dashboard.tsx"
-    import { Protected } from '@rttnd/gau/client/solid'
+Register that middleware through the SolidStart configuration, then use
+`event.locals.getSession()` for safe data or `getServerSession()` for
+server-only account tokens.
 
-    export default Protected(
-      (session) => (
-        <div>
-          <h1>Dashboard</h1>
-          <p>Welcome, {session().user?.name}!</p>
-        </div>
-      ),
-      '/login' // redirect URL
-    )
-    ```
+For SSR, pass the result of a SolidStart `createAsync()` session query to the
+Solid 1 provider:
 
-    <Aside type="note">
-      For better security, consider [server-side protection](#server-side-protection) using route data functions. See the [Protected Routes](/integrations/#protected-routes) section for more details.
-    </Aside>
+```tsx
+import { AuthProvider } from '@rttnd/gau/client/solid'
+import { createAsync } from '@solidjs/router'
 
-5. ##### File Structure
+const session = createAsync(() => getSession())
 
-    <FileTree>
-      - src
-        - lib
-          - auth.ts
-          - session.ts
-        - routes
-          - api
-            - auth
-              - [...gau].ts
-          - index.tsx
-        - server
-          - auth.ts
-        - app.tsx
-        - global.d.ts
-        - middleware.ts
-      - app.config.ts
-      - package.json
-    </FileTree>
+<AuthProvider session={session}>
+  {props.children}
+</AuthProvider>
+```
 
-6. ##### Next Steps
+The legacy Solid 1 Tauri provider retains its automatic SolidStart fetch
+bridge for compatibility. Its destination comes from
+`import.meta.env.SERVER_BASE_URL`, independently from `AuthProvider.baseUrl`;
+a path prefix such as `https://api.example.com/app` targets
+`https://api.example.com/app/_server`. New Solid 2 applications must instead
+use the explicit server-function client config shown above.
 
-    - Explore other [OAuth Providers](/oauth-providers).
-    - See [Deployment](/guides/deployment) for production tips.
-    - Learn about how `gau` works.
-</Steps>
+## Use the client
+
+Choose the client entry that matches the runtime:
+
+```ts
+// Solid 2
+import { Protected, useAuth as useAuthCore } from '@rttnd/gau/client/solid2'
+
+// Solid 1
+// import { Protected, useAuth as useAuthCore } from '@rttnd/gau/client/solid'
+
+import type { Auth } from '~/server/auth'
+
+export const useAuth = () => useAuthCore<Auth>()
+```
+
+```tsx
+import { Show } from 'solid-js'
+import { useAuth } from '~/lib/auth'
+
+export default function Home() {
+  const auth = useAuth()
+  return (
+    <Show
+      when={auth.session().user}
+      fallback={<button onClick={() => auth.signIn('github')}>Sign in</button>}
+    >
+      <button onClick={() => auth.signOut()}>Sign out</button>
+    </Show>
+  )
+}
+```
+
+`Protected` is a client-side UI guard. Authorize every protected API handler
+and server function again on the server with the request-local session.

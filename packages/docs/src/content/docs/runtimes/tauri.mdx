@@ -441,7 +441,59 @@ This guide assumes you have already completed the setup for your web framework (
         ```
       </TabItem>
       <TabItem label="SolidStart">
-        TODO
+        Solid 2 does not globally patch `fetch`. Configure its server-function transport once in the client bootstrap, before hydration. The server-function endpoint is explicit and separate from Gau's auth `baseUrl`.
+
+        The pinned start-mode plugin has no client-only setup hook for generated SSR entries. If you author `src/entry-client.tsx`, also author the matching `src/entry-server.tsx`; a lone client entry is not a valid SSR entry setup. These two files reproduce the generated entry behavior while adding the transport configuration.
+
+        ```tsx title="src/entry-client.tsx"
+        import { createGauServerFunctionsClientConfig } from '@rttnd/gau/client/solid2'
+        import { configureServerFunctionsClient } from '@solidjs/web/server-functions/client'
+        import { hydrate } from '@solidjs/web'
+        import App from './App'
+        import Document from './Document'
+
+        configureServerFunctionsClient(createGauServerFunctionsClientConfig({
+          endpoint: 'https://api.example.com/_server',
+        }))
+
+        hydrate(() => (
+          <Document>
+            <App />
+          </Document>
+        ), document)
+        ```
+
+        ```tsx title="src/entry-server.tsx"
+        /// <reference types="@solidjs/vite-plugin/virtual-solid-manifest" />
+
+        import { renderToStream } from '@solidjs/web'
+        import manifest from 'virtual:solid-manifest'
+        import App from './App'
+        import Document from './Document'
+
+        export function render() {
+          return renderToStream(() => (
+            <Document>
+              <App />
+            </Document>
+          ), { manifest })
+        }
+        ```
+
+        ```tsx title="src/App.tsx"
+        import { AuthProvider } from '@rttnd/gau/client/solid2'
+
+        <AuthProvider
+          scheme="gau"
+          baseUrl="https://api.example.com/api/auth"
+        >
+          {/* app */}
+        </AuthProvider>
+        ```
+
+        The helper adds the current bearer token without replacing an existing `Authorization` header and observes `X-Refreshed-Token`. For a cross-origin endpoint, allow the Tauri webview origin, `Authorization`, and Solid's server-function headers in CORS. Also expose `X-Refreshed-Token` through `Access-Control-Expose-Headers`; otherwise browser fetch hides it from the helper.
+
+        Applications that do not need custom client bootstrap code should keep the generated-entry architecture. Legacy SolidStart on Solid 1 keeps its existing automatic bridge: set `SERVER_BASE_URL` to the independent server-function host and optional base path. The explicit config above is for Solid 2 start mode and is composable with other transport hooks.
       </TabItem>
     </Tabs>
 

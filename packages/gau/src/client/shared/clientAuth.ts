@@ -41,6 +41,8 @@ interface BrowserAuthEnvironment {
 interface ClientAuthOptions<TAuth = unknown> {
   client: ClientAuthClient<TAuth>
   redirectTo?: string
+  /** Skip the fallback session request during mount when hydration supplied the initial session. */
+  refreshOnMount?: boolean
   setSession: (session: Session<TAuth>) => void
   onReady?: () => void
   onRefreshing?: (refreshing: boolean) => void
@@ -71,6 +73,7 @@ function createBrowserEnvironment(env: Partial<BrowserAuthEnvironment> = {}): Br
 export function createClientAuth<const TAuth = unknown>({
   client,
   redirectTo: defaultRedirectTo,
+  refreshOnMount = true,
   setSession,
   onReady,
   onRefreshing,
@@ -102,6 +105,22 @@ export function createClientAuth<const TAuth = unknown>({
     }
   }
 
+  async function refreshWhileMounted(isMounted: () => boolean) {
+    if (isMounted())
+      onRefreshing?.(true)
+    try {
+      const session = browser.isBrowser()
+        ? await client.refreshSession()
+        : createEmptyClientSession<ProviderIds<TAuth>>()
+      if (isMounted())
+        setSession(session)
+    }
+    finally {
+      if (isMounted())
+        onRefreshing?.(false)
+    }
+  }
+
   async function signIn<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
     const profile = options.profile
     const url = await client.signIn<P, typeof profile>(provider, { redirectTo: resolveRedirectTo('signIn', options.redirectTo), profile })
@@ -124,30 +143,47 @@ export function createClientAuth<const TAuth = unknown>({
     if (!browser.isBrowser())
       return () => {}
 
-    const unsubscribe = client.onSessionChange(setSession)
     let disposed = false
     let cleanup: (() => void) | undefined
+    const isMounted = () => !disposed
+    const unsubscribe = client.onSessionChange((session) => {
+      if (isMounted())
+        setSession(session)
+    })
 
-    void (async () => {
+    const reportError = (message: string, error: unknown) => {
       try {
-        const handled = await client.handleRedirectCallback(replaceUrl)
-        if (!handled)
-          await refresh()
+        logger.error(message, error)
+      }
+      catch {}
+    }
+
+    const initialize = async () => {
+      try {
+        const handled = await client.handleRedirectCallback(replaceUrl && (async (url) => {
+          if (isMounted())
+            await replaceUrl(url)
+        }))
+        if (!handled && refreshOnMount)
+          await refreshWhileMounted(isMounted)
       }
       finally {
-        if (!disposed)
+        if (isMounted())
           onReady?.()
       }
-    })()
+    }
+
+    void initialize().catch(error => reportError('Failed to initialize auth client', error))
 
     if (browser.isTauri()) {
-      void (async () => {
+      const initializeTauri = async () => {
         const unlisten = await client.startTauriBridge()
-        if (disposed)
+        if (!isMounted())
           unlisten?.()
         else
           cleanup = unlisten ?? undefined
-      })()
+      }
+      void initializeTauri().catch(error => reportError('Failed to start Tauri auth bridge', error))
     }
 
     return () => {

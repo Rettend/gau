@@ -24,4 +24,22 @@ export default antfu({
     '**/.vinxi/**',
     '**/public/client.js',
   ],
+}, {
+  files: ['packages/gau/src/client/solid2/**/*.{ts,tsx}'],
+  rules: {
+    'solid/imports': 'off',
+    'no-param-reassign': 'off',
+    'no-restricted-imports': ['error', {
+      paths: [
+        {
+          name: 'solid-js/store',
+          message: 'Solid 2 exports store APIs from solid-js.',
+        },
+        {
+          name: 'solid-js/web',
+          message: 'Solid 2 exports DOM APIs from @solidjs/web.',
+        },
+      ],
+    }],
+  },
 })

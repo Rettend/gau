@@ -87,7 +87,7 @@ export async function setupTauriListener(
   }
 }
 
-export async function handleTauriDeepLink(url: string, baseUrl: string, scheme: string, onToken: (token: string) => void) {
+export async function handleTauriDeepLink(url: string, baseUrl: string, scheme: string, onToken: (token: string) => Promise<void> | void) {
   const parsed = new URL(url)
   const baseOrigin = resolveOrigin(baseUrl)
   if (parsed.protocol !== `${scheme}:` && (!baseOrigin || parsed.origin !== baseOrigin))
@@ -112,7 +112,7 @@ export async function handleTauriDeepLink(url: string, baseUrl: string, scheme: 
       if (res.ok) {
         const data = await res.json()
         if (data.token)
-          onToken(data.token)
+          await onToken(data.token)
       }
       else {
         console.error('Failed to exchange code for token')
@@ -162,7 +162,7 @@ export async function startAuthBridge(
     return
 
   const unlisten = await setupTauriListener(async (url) => {
-    handleTauriDeepLink(url, baseUrl, scheme, onToken)
+    await handleTauriDeepLink(url, baseUrl, scheme, onToken)
   })
   return unlisten
 }

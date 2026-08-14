@@ -1,58 +1,11 @@
-import type { Alias, Plugin } from 'vite'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { solidStart } from '@solidjs/start/config'
-import { nitroV2Plugin } from '@solidjs/vite-plugin-nitro-2'
+import solid from '@solidjs/vite-plugin'
+import { fileRoutes } from 'filesystem-routing/vite'
 import UnoCSS from 'unocss/vite'
 import { defineConfig, loadEnv } from 'vite'
 
-const solidPackages = ['solid-js', '@solidjs/signals', '@solidjs/web'] as const
 const envDir = fileURLToPath(new URL('.', import.meta.url))
-type SolidStartCanaryOptions = NonNullable<Parameters<typeof solidStart>[0]> & { devOverlay?: boolean }
-
-function packagePath(name: string): string {
-  return fileURLToPath(new URL(`./node_modules/${name}`, import.meta.url))
-}
-
-function packageAliases(name: string): Alias[] {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const root = packagePath(name)
-
-  return [
-    { find: new RegExp(`^${escaped}$`), replacement: root },
-    { find: new RegExp(`^${escaped}/(.*)$`), replacement: `${root}/$1` },
-  ]
-}
-
-function normalizeSolidStartRouteIds(): Plugin {
-  return {
-    name: 'example-solidstart2-normalize-route-ids',
-    enforce: 'post',
-    transform(code, id) {
-      if (id !== 'solid-start:routes')
-        return
-
-      return {
-        code: code.replace(/\\\\/g, '/'),
-        map: null,
-      }
-    },
-  }
-}
-
-function solidStartCanary() {
-  const options: SolidStartCanaryOptions = {
-    devOverlay: false,
-    middleware: './src/middleware.ts',
-    solid: {
-      refresh: {
-        disabled: true,
-      },
-    },
-  }
-
-  return solidStart(options)
-}
 
 function loadServerEnv(mode: string): void {
   const env = loadEnv(mode, envDir, '')
@@ -65,30 +18,29 @@ export default defineConfig(({ mode }) => {
 
   return {
     resolve: {
-      alias: solidPackages.flatMap(packageAliases),
-      dedupe: ['solid-js', '@solidjs/signals', '@solidjs/web', '@solidjs/router', '@solidjs/meta'],
-      preserveSymlinks: false,
-    },
-    optimizeDeps: {
-      exclude: ['@rttnd/gau'],
-    },
-    ssr: {
-      external: ['drizzle-orm'],
+      alias: {
+        '~': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+      // Keep linked workspace packages on this example's Solid 2 runtime
+      // without bypassing browser/server package export conditions.
+      dedupe: ['solid-js', '@solidjs/web', '@solidjs/router'],
     },
     plugins: [
-      UnoCSS() as any,
-      solidStartCanary(),
-      normalizeSolidStartRouteIds(),
-      nitroV2Plugin({
-        externals: {
-          trace: false,
+      UnoCSS(),
+      solid({
+        start: {
+          // The repository historically tracked this file with a lowercase name.
+          app: './src/app.tsx',
+          middleware: './src/middleware.ts',
         },
-        esbuild: {
-          options: {
-            target: 'es2022',
-          },
-        },
+        ssr: true,
+        serverFunctions: true,
+        extensions: ['.jsx', '.tsx'],
       }),
+      fileRoutes({ httpMethods: true }),
     ],
+    build: {
+      target: 'esnext',
+    },
   }
 })

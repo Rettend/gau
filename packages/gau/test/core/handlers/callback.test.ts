@@ -183,14 +183,14 @@ describe('callback handler', () => {
       tokens: {
         data: {},
         accessToken: () => 'access-token',
-        refreshToken: () => null,
-        idToken: () => null,
-        accessTokenExpiresAt: () => undefined,
+        refreshToken: () => null as unknown as string,
+        idToken: () => null as unknown as string,
+        accessTokenExpiresAt: () => undefined as unknown as Date,
         accessTokenExpiresInSeconds: () => 3600,
-        scopes: () => undefined,
+        scopes: () => undefined as unknown as string[],
         hasScopes: () => false,
         hasRefreshToken: () => false,
-        tokenType: () => undefined,
+        tokenType: () => undefined as unknown as string,
       },
     })
 

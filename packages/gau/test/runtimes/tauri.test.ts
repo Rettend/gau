@@ -231,6 +231,60 @@ describe('tauri runtime helpers', () => {
         expect(onToken).toHaveBeenCalledWith('session-token')
         expect(localStorageMock.getItem('gau-pkce-verifier')).toBeNull()
       })
+
+      it('awaits asynchronous token handlers', async () => {
+        let resolveToken!: () => void
+        const onToken = vi.fn().mockImplementation(() => new Promise<void>((resolve) => {
+          resolveToken = resolve
+        }))
+        localStorageMock.setItem('gau-pkce-verifier', 'verifier')
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ token: 'session-token' }),
+        } as Response) as any
+
+        let settled = false
+        const pending = tauriHelpers
+          .handleTauriDeepLink('gau://oauth/callback?code=auth-code', 'http://localhost:3000', 'gau', onToken)
+          .then(() => { settled = true })
+        await Promise.resolve()
+        await Promise.resolve()
+
+        expect(onToken).toHaveBeenCalledWith('session-token')
+        expect(settled).toBe(false)
+
+        resolveToken()
+        await pending
+        expect(settled).toBe(true)
+      })
+
+      it('keeps the Tauri bridge callback pending until token handling finishes', async () => {
+        let deepLinkListener!: (event: { payload: string }) => Promise<void>
+        ;(mockListen as any).mockImplementationOnce(async (_name: string, listener: typeof deepLinkListener) => {
+          deepLinkListener = listener
+          return () => {}
+        })
+        let resolveToken!: () => void
+        const onToken = vi.fn().mockImplementation(() => new Promise<void>((resolve) => {
+          resolveToken = resolve
+        }))
+        localStorageMock.setItem('gau-pkce-verifier', 'verifier')
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ token: 'session-token' }),
+        } as Response) as any
+
+        await tauriHelpers.startAuthBridge('http://localhost:3000', 'gau', onToken)
+        let settled = false
+        const pending = deepLinkListener({ payload: 'gau://oauth/callback?code=auth-code' })
+          .then(() => { settled = true })
+        await vi.waitFor(() => expect(onToken).toHaveBeenCalledWith('session-token'))
+
+        expect(settled).toBe(false)
+        resolveToken()
+        await pending
+        expect(settled).toBe(true)
+      })
     })
   })
 

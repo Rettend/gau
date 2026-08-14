@@ -3,11 +3,8 @@ import type { Accessor } from 'solid-js'
 import type { GauSession, ProviderIds } from '../../core'
 import type { ClientAuthControls } from '../shared/clientAuth'
 import { isServer } from '@solidjs/web'
-import { createContext, createMemo, onSettled, untrack, useContext } from 'solid-js'
-import { createStore } from 'solid-js/store'
-import { isTauri } from '../../runtimes/tauri'
+import { createContext, createMemo, createSignal, onSettled, untrack, useContext } from 'solid-js'
 import { createClientAuth, createEmptyClientSession } from '../shared/clientAuth'
-import { installSolidStartFetchBridge } from '../solid/solidStartFetchBridge'
 import { createAuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
@@ -20,14 +17,6 @@ const AuthContext = createContext<AuthContextValue<any>>()
 type SessionValue<TAuth = unknown> = GauSession<ProviderIds<TAuth>>
 type SessionInput<TAuth = unknown> = SessionValue<TAuth> | Accessor<SessionValue<TAuth>>
 
-interface AuthProviderState<TAuth = unknown> {
-  mounted: boolean
-  isRefreshing: boolean
-  isReady: boolean
-  clientOverride: GauSession<ProviderIds<TAuth>> | null
-  clientSession: GauSession<ProviderIds<TAuth>> | null
-}
-
 interface AuthProviderProps<TAuth = unknown> {
   auth?: TAuth
   baseUrl?: string
@@ -35,8 +24,10 @@ interface AuthProviderProps<TAuth = unknown> {
   redirectTo?: string
   children?: JSX.Element
   /**
-   * Optional session value or server-function-backed accessor for SSR support.
-   * Pass a client-safe session value that matches the server HTML.
+   * Optional session value or server-function-backed accessor for SSR hydration.
+   * It remains the initial source until an explicit client refresh or mutation
+   * supplies a client-owned session. No redundant `/session` request is made
+   * when this property is present.
    *
    * @example
    * ```tsx
@@ -62,9 +53,6 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   const scheme = untrack(() => props.scheme ?? 'gau')
   const baseUrl = untrack(() => props.baseUrl ?? '/api/auth')
 
-  if (!isServer && isTauri())
-    installSolidStartFetchBridge()
-
   const client = createAuthClient<TAuth>({
     baseUrl,
     scheme,
@@ -77,20 +65,21 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     return typeof external === 'function' ? external() : external
   }
 
-  const [state, setState] = createStore<AuthProviderState<TAuth>>({
-    mounted: false,
-    isRefreshing: false,
-    isReady: false,
-    clientOverride: null,
-    clientSession: null,
-  })
+  const [mounted, setMounted] = createSignal(false)
+  const [isRefreshing, setIsRefreshing] = createSignal(false)
+  const [isReady, setIsReady] = createSignal(false)
+  const [clientOverride, setClientOverride] = createSignal<SessionValue<TAuth> | null>(null)
+  const [clientSession, setClientSession] = createSignal<SessionValue<TAuth> | null>(null)
 
   const setResolvedSession = (next: GauSession<ProviderIds<TAuth>>) => {
-    setState(hasExternalSession() ? { clientOverride: next } : { clientSession: next })
+    if (hasExternalSession())
+      setClientOverride(next)
+    else
+      setClientSession(next)
   }
 
   const session = createMemo<GauSession<ProviderIds<TAuth>>>(() => {
-    const override = state.clientOverride
+    const override = clientOverride()
     if (override !== null)
       return override
 
@@ -99,21 +88,22 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
       return ext
     }
 
-    return state.clientSession ?? createEmptyClientSession()
+    return clientSession() ?? createEmptyClientSession()
   })
 
   const isLoading = createMemo(() => {
     if (hasExternalSession())
       return false
-    return !state.mounted || !state.isReady || (state.clientSession === null && state.isRefreshing)
+    return !mounted() || !isReady() || (clientSession() === null && isRefreshing())
   })
 
   const auth = createClientAuth<TAuth>({
     client,
     redirectTo: untrack(() => props.redirectTo),
+    refreshOnMount: !untrack(hasExternalSession),
     setSession: setResolvedSession,
-    onReady: () => { setState({ isReady: true }) },
-    onRefreshing: (refreshing) => { setState({ isRefreshing: refreshing }) },
+    onReady: () => { setIsReady(true) },
+    onRefreshing: setIsRefreshing,
   })
 
   const contextValue: AuthContextValue<TAuth> = {
@@ -130,7 +120,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
 
   onClientReady(() => {
     if (!untrack(hasExternalSession))
-      setState({ mounted: true })
+      setMounted(true)
 
     return auth.mount()
   })
@@ -143,3 +133,5 @@ export function useAuth<const TAuth = unknown>(): AuthContextValue<TAuth> {
 }
 
 export { Protected } from './Protected'
+export { createGauServerFunctionsClientConfig } from './serverFunctions'
+export type { GauServerFunctionsClientConfig, GauServerFunctionsClientOptions } from './serverFunctions'

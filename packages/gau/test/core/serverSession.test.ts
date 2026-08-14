@@ -53,7 +53,7 @@ describe('serverSession helpers', () => {
     const preloaded = {
       user: { id: '2' },
       session: { id: 'jwt-token', sub: '2', iat: 111, exp: 222 },
-      accounts: [{ provider: 'google', providerAccountId: '456', accessToken: 'secret-token' }],
+      accounts: [{ userId: '2', provider: 'google', providerAccountId: '456', accessToken: 'secret-token' }],
       providers: ['github', 'google'],
     }
 

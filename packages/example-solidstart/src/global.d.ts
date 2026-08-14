@@ -10,3 +10,9 @@ declare global {
     }
   }
 }
+
+declare module 'solid-js/web' {
+  interface RequestEvent {
+    locals: App.RequestEventLocals
+  }
+}
