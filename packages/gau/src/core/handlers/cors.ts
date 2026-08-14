@@ -1,6 +1,6 @@
 import type { Auth } from '../createAuth'
 
-function originAllowed(origin: string, auth: Auth): boolean {
+export function isOriginAllowed(origin: string, auth: Auth): boolean {
   if (auth.cors === false)
     return false
   const cfg = auth.cors
@@ -36,11 +36,11 @@ export function applyCors(request: Request, response: Response, auth: Auth): Res
   if (!origin)
     return response
 
-  if (!originAllowed(origin, auth))
+  if (!isOriginAllowed(origin, auth))
     return response
 
   const cfg = auth.cors
-  response.headers.set('Vary', 'Origin')
+  appendVary(response.headers, 'Origin')
   const allowCreds = cfg.allowCredentials
   const allowOriginValue = (cfg.allowedOrigins === 'all' && !allowCreds) ? '*' : origin
   response.headers.set('Access-Control-Allow-Origin', allowOriginValue)
@@ -53,6 +53,18 @@ export function applyCors(request: Request, response: Response, auth: Auth): Res
   return response
 }
 
+function appendVary(headers: Headers, value: string): void {
+  const current = headers.get('Vary')
+  if (!current) {
+    headers.set('Vary', value)
+    return
+  }
+
+  const values = current.split(',').map(part => part.trim().toLowerCase())
+  if (!values.includes('*') && !values.includes(value.toLowerCase()))
+    headers.set('Vary', `${current}, ${value}`)
+}
+
 export function handlePreflight(request: Request, auth: Auth): Response {
   if (auth.cors === false)
     return new Response(null, { status: 204 })
@@ -60,7 +72,7 @@ export function handlePreflight(request: Request, auth: Auth): Response {
   const origin = request.headers.get('Origin') || request.headers.get('origin')
   const cfg = auth.cors
   const headers: Record<string, string> = {}
-  if (origin && originAllowed(origin, auth)) {
+  if (origin && isOriginAllowed(origin, auth)) {
     const allowCreds = cfg.allowCredentials
     const allowOriginValue = (cfg.allowedOrigins === 'all' && !allowCreds) ? '*' : origin
     headers['Access-Control-Allow-Origin'] = allowOriginValue

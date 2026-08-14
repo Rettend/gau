@@ -133,5 +133,5 @@ export function useAuth<const TAuth = unknown>(): AuthContextValue<TAuth> {
 }
 
 export { Protected } from './Protected'
-export { createGauServerFunctionsClientConfig } from './serverFunctions'
-export type { GauServerFunctionsClientConfig, GauServerFunctionsClientOptions } from './serverFunctions'
+export { configureServerFunctions } from './serverFunctions'
+export type { ServerFunctionsOptions } from './serverFunctions'

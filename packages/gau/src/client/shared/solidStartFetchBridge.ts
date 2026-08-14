@@ -32,7 +32,7 @@ declare global {
 }
 
 /**
- * Adds Tauri bearer authentication to legacy SolidStart server functions.
+ * Adds Tauri bearer authentication to Solid 1 server functions.
  */
 export function installSolidStartFetchBridge(options: SolidStartFetchBridgeOptions = {}): void {
   if (!BROWSER || typeof window === 'undefined')

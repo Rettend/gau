@@ -171,9 +171,9 @@ This guide assumes you have already completed the setup for your web framework (
         </AuthProvider>
         ```
       </TabItem>
-      <TabItem label="SolidStart">
+      <TabItem label="Solid 2">
         ```tsx title="src/app.tsx" del={5} ins={6}
-        import { AuthProvider } from '@rttnd/gau/client/solid'
+        import { AuthProvider } from '@rttnd/gau/client/solid2'
 
         export default function App() {
           return (
@@ -440,60 +440,34 @@ This guide assumes you have already completed the setup for your web framework (
         })
         ```
       </TabItem>
-      <TabItem label="SolidStart">
-        Solid 2 does not globally patch `fetch`. Configure its server-function transport once in the client bootstrap, before hydration. The server-function endpoint is explicit and separate from Gau's auth `baseUrl`.
+      <TabItem label="Solid 2">
+        Build the Tauri frontend without SSR or server functions.
 
-        The pinned start-mode plugin has no client-only setup hook for generated SSR entries. If you author `src/entry-client.tsx`, also author the matching `src/entry-server.tsx`; a lone client entry is not a valid SSR entry setup. These two files reproduce the generated entry behavior while adding the transport configuration.
+        ```ts title="vite.config.ts"
+        import solid from '@solidjs/vite-plugin'
+        import { defineConfig } from 'vite'
 
-        ```tsx title="src/entry-client.tsx"
-        import { createGauServerFunctionsClientConfig } from '@rttnd/gau/client/solid2'
-        import { configureServerFunctionsClient } from '@solidjs/web/server-functions/client'
-        import { hydrate } from '@solidjs/web'
-        import App from './App'
-        import Document from './Document'
-
-        configureServerFunctionsClient(createGauServerFunctionsClientConfig({
-          endpoint: 'https://api.example.com/_server',
-        }))
-
-        hydrate(() => (
-          <Document>
-            <App />
-          </Document>
-        ), document)
+        export default defineConfig({
+          plugins: [solid({ start: true, ssr: false })],
+        })
         ```
 
-        ```tsx title="src/entry-server.tsx"
-        /// <reference types="@solidjs/vite-plugin/virtual-solid-manifest" />
+        Set `frontendDist` to `../dist/client` in `tauri.conf.json`.
 
-        import { renderToStream } from '@solidjs/web'
-        import manifest from 'virtual:solid-manifest'
-        import App from './App'
-        import Document from './Document'
-
-        export function render() {
-          return renderToStream(() => (
-            <Document>
-              <App />
-            </Document>
-          ), { manifest })
-        }
-        ```
+        The Solid client handles the Tauri OAuth callback automatically.
 
         ```tsx title="src/App.tsx"
         import { AuthProvider } from '@rttnd/gau/client/solid2'
 
         <AuthProvider
           scheme="gau"
-          baseUrl="https://api.example.com/api/auth"
+          baseUrl={import.meta.env.VITE_API_URL}
         >
           {/* app */}
         </AuthProvider>
         ```
 
-        The helper adds the current bearer token without replacing an existing `Authorization` header and observes `X-Refreshed-Token`. For a cross-origin endpoint, allow the Tauri webview origin, `Authorization`, and Solid's server-function headers in CORS. Also expose `X-Refreshed-Token` through `Access-Control-Expose-Headers`; otherwise browser fetch hides it from the helper.
-
-        Applications that do not need custom client bootstrap code should keep the generated-entry architecture. Legacy SolidStart on Solid 1 keeps its existing automatic bridge: set `SERVER_BASE_URL` to the independent server-function host and optional base path. The explicit config above is for Solid 2 start mode and is composable with other transport hooks.
+        To call remote server functions, enable `serverFunctions` and follow the [cross-origin setup](/integrations/solidstart#cross-origin-server-functions).
       </TabItem>
     </Tabs>
 
@@ -501,12 +475,13 @@ This guide assumes you have already completed the setup for your web framework (
 
    When using Tauri, the request to your authentication backend might not have a standard `Origin` header. `gau`'s CSRF protection checks this header for `POST` requests. You should configure `trustHosts` in your `createAuth` options to allow requests from your Tauri app.
 
-   ```ts title="src/lib/server/auth.ts" ins={5}
+   ```ts title="src/lib/server/auth.ts" ins={5,6}
    import { createAuth } from '@rttnd/gau'
 
    export const auth = createAuth({
      // ... other options
-     trustHosts: ['tauri.localhost']
+     trustHosts: ['tauri.localhost'],
+     cors: { allowedOrigins: 'trust' },
    })
     ```
 

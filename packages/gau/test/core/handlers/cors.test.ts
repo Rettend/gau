@@ -26,8 +26,9 @@ describe('cors handler & configuration', () => {
 
     it('applyCors reflects origin', () => {
       const req = new Request('https://app.local/api/auth/github', { headers: { Origin: 'https://frontend.local' } })
-      const res = applyCors(req, new Response('ok'), auth)
+      const res = applyCors(req, new Response('ok', { headers: { Vary: 'Accept-Encoding' } }), auth)
       expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://frontend.local')
+      expect(res.headers.get('Vary')).toBe('Accept-Encoding, Origin')
     })
   })
 
