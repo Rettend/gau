@@ -7,7 +7,6 @@ import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SQLiteDrizzleAdapter } from '../../../src/adapters/drizzle/sqlite'
-import { transaction } from '../../../src/adapters/drizzle/transaction'
 
 const usersTable = sqliteTable('users', {
   id: text().primaryKey(),
@@ -88,6 +87,8 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
     expect(user.email).toBe('test@example.com')
     expect(user.image).toBe('image.png')
     expect(user.emailVerified).toBe(true)
+    expect((user as any).createdAt).toBeInstanceOf(Date)
+    expect((user as any).updatedAt).toBeInstanceOf(Date)
   })
 
   it('createUser: should create a user with only an email', async () => {
@@ -149,6 +150,13 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
     expect(updatedUser.image).toBe('new-image.png')
     expect(updatedUser.emailVerified).toBe(true)
     expect(updatedUser.email).toBe('update@example.com')
+  })
+
+  it('updateUser: should reject a missing user', async () => {
+    await expect(adapter.updateUser({
+      id: 'missing-user',
+      name: 'Missing',
+    })).rejects.toThrow('User not found')
   })
 
   it('linkAccount: should link an account to a user', async () => {
@@ -337,6 +345,8 @@ describe('sqlite drizzle adapter with libsql', () => {
       email: 'libsql@example.com',
     })
     expect(user).toBeDefined()
+    expect((user as any).createdAt).toBeInstanceOf(Date)
+    expect((user as any).updatedAt).toBeInstanceOf(Date)
     const fetchedUser = await adapter.getUser(user.id)
     expect(fetchedUser).toEqual(user)
   })
@@ -397,49 +407,11 @@ describe('sqlite drizzle adapter with libsql', () => {
     accounts = await adapter.getAccounts(user.id)
     expect(accounts).toHaveLength(0)
   })
-})
 
-describe('transaction helper', () => {
-  it('should commit a successful transaction with better-sqlite3', async () => {
-    const client = new Database(':memory:')
-    const db = drizzle(client, { casing: 'snake_case' })
-    db.run(sql`CREATE TABLE "users" ("id" text, "name" text);`)
-
-    await transaction(db, async (tx) => {
-      await tx.run(sql`INSERT INTO "users" VALUES ('1', 'test')`)
-    })
-
-    const result = db.get<{ id: string, name: string }>(sql`SELECT * FROM "users"`)
-    expect(result?.name).toBe('test')
-    client.close()
-  })
-
-  it('should rollback a failed transaction with better-sqlite3', async () => {
-    const client = new Database(':memory:')
-    const db = drizzle(client, { casing: 'snake_case' })
-    db.run(sql`CREATE TABLE "users" ("id" text, "name" text);`)
-
-    await expect(transaction(db, async (tx) => {
-      await tx.run(sql`INSERT INTO "users" VALUES ('1', 'test')`)
-      throw new Error('Transaction failed')
-    })).rejects.toThrow('Transaction failed')
-
-    const result = db.get(sql`SELECT * FROM "users"`)
-    expect(result).toBeUndefined()
-    client.close()
-  })
-
-  it('should handle async transactions with libsql', async () => {
-    const client = createClient({ url: ':memory:' })
-    const db = drizzleLibsql(client, { casing: 'snake_case' })
-    await db.run(sql`CREATE TABLE "users" ("id" text, "name" text);`)
-
-    await transaction(db, async (tx) => {
-      await tx.run(sql`INSERT INTO "users" VALUES ('1', 'test-async')`)
-    })
-
-    const result = await db.get<{ id: string, name: string }>(sql`SELECT * FROM "users"`)
-    expect(result?.name).toBe('test-async')
-    client.close()
+  it('updateUser: should reject a missing user', async () => {
+    await expect(adapter.updateUser({
+      id: 'missing-user',
+      name: 'Missing',
+    })).rejects.toThrow('User not found')
   })
 })

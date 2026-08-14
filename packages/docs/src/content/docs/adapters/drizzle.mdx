@@ -5,7 +5,7 @@ description: How to set up the Drizzle adapter for gau.
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
-`gau` has a Drizzle ORM adapter for SQLite and PostgreSQL. The SQLite examples use Turso as the database provider.
+`gau` has a Drizzle ORM adapter for SQLite and PostgreSQL. This guide uses Turso for SQLite; Cloudflare D1 uses the same schema with a different client.
 
 <br />
 
@@ -233,6 +233,16 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         })
 
         export const db = drizzle(client, { schema, casing: 'snake_case' })
+        ```
+
+        For Cloudflare D1, create the client from your Worker binding instead:
+
+        ```ts title="db.ts"
+        import { env } from 'cloudflare:workers'
+        import { drizzle } from 'drizzle-orm/d1'
+        import * as schema from './schema'
+
+        export const db = drizzle(env.DB, { schema, casing: 'snake_case' })
         ```
       </TabItem>
       <TabItem label="PostgreSQL">

@@ -3,7 +3,6 @@ import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
 import type { AccountsTable, UsersTable } from './shared'
 import { and, eq } from 'drizzle-orm'
 import { createDrizzleAdapter } from './shared'
-import { transaction } from './transaction'
 
 export type { AccountsTable, UsersTable } from './shared'
 
@@ -70,15 +69,17 @@ export function SQLiteDrizzleAdapter<
       }
     },
 
-    async createUser(id, data) {
-      return await transaction(db, async (tx) => {
-        await tx
-          .insert(Users)
-          .values(data as DBInsertUser)
-          .run()
+    async createUser(_id, data) {
+      const user = await db
+        .insert(Users)
+        .values(data as DBInsertUser)
+        .returning()
+        .get() as InferSelectModel<U> | undefined
 
-        return await tx.select().from(Users).where(eq(Users.id, id)).get()
-      })
+      if (!user)
+        throw new Error('Failed to create user.')
+
+      return user
     },
 
     async linkAccount(data) {
@@ -115,15 +116,17 @@ export function SQLiteDrizzleAdapter<
     },
 
     async updateUser(id, data) {
-      return await transaction(db, async (tx) => {
-        await tx
-          .update(Users)
-          .set(data as Partial<DBInsertUser>)
-          .where(eq(Users.id, id))
-          .run()
+      const user = await db
+        .update(Users)
+        .set(data as Partial<DBInsertUser>)
+        .where(eq(Users.id, id))
+        .returning()
+        .get() as InferSelectModel<U> | undefined
 
-        return await tx.select().from(Users).where(eq(Users.id, id)).get()
-      })
+      if (!user)
+        throw new Error('User not found')
+
+      return user
     },
 
     async deleteUser(id) {

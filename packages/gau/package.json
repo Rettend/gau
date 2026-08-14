@@ -124,7 +124,7 @@
     "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.3.0",
     "@tauri-apps/plugin-shell": "^2.3.0",
-    "drizzle-orm": "^0.44.3",
+    "drizzle-orm": "^0.44.3 || ^0.45.0",
     "solid-js": "^1.9.7 || >=2.0.0-beta.14 <3.0.0",
     "svelte": "^5.41.1",
     "typescript": "^5.8.3"
@@ -187,6 +187,7 @@
     "drizzle-orm": "^0.45.1",
     "eslint": "^9.39.2",
     "solid-js": "^1.9.10",
+    "miniflare": "4.20260114.0",
     "solid-js-2": "npm:solid-js@2.0.0-beta.14",
     "svelte2tsx": "^0.7.51",
     "vitest": "^4.0.16"
