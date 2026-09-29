@@ -2,19 +2,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
-    "types": ["vitest/globals", "node"],
+    "types": ["vite-plus/test/globals", "node"],
     "noUncheckedIndexedAccess": false,
     "declaration": false,
     "declarationMap": false,
     "emitDeclarationOnly": false,
     "noEmit": true
   },
-  "include": [
-    "test/**/*.ts"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules",
-    "src/client"
-  ]
+  "include": ["test/**/*.ts"],
+  "exclude": ["dist", "node_modules", "src/client"]
 }

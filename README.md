@@ -35,6 +35,10 @@ To use them as starter templates:
 
 Use Bun 1.4.2 and Node 24.21.0 (see `.node-version`) for workspace development. Install dependencies with `bun install --frozen-lockfile`, then run `bun run build`, `bun run check`, and `bun run test`.
 
+Vite+ provides the test runner, library bundler, and the Vite-based example builds. `bun run build` caches the library output; `bun run check` runs the framework-specific typechecks. Run `bun run test:all --run` for both test projects.
+
+`bun run lint` runs Oxlint without changing files. Use `bun run fmt -- <files>` to format selected files. The repository-wide Oxfmt pass is deferred, so `bun run fmt:check` currently reports existing style differences. Astro and the legacy SolidStart example use their own build tools.
+
 `gau` core is everything-agnostic, but it's missing a ton of specific integrations.
 If you want to add a new...
 

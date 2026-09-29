@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { NULL_SESSION } from '../../src/core'
 import { createRequestSessionCache, resolveServerSession } from '../../src/core/serverSession'
 

@@ -1,5 +1,5 @@
 import type { Adapter } from '../../src/core'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vite-plus/test'
 import { MemoryAdapter } from '../../src/adapters/memory'
 
 describe('memory adapter', () => {

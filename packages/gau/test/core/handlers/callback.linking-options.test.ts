@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { MemoryAdapter } from '../../../src/adapters'
 import { CSRF_COOKIE_NAME, LINKING_TOKEN_COOKIE_NAME, PKCE_COOKIE_NAME } from '../../../src/core/cookies'
 import { createAuth } from '../../../src/core/createAuth'

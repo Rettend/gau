@@ -12,7 +12,7 @@
     "build": "bun --bun vinxi build",
     "preview": "wrangler dev",
     "check": "tsc --noEmit --skipLibCheck",
-    "lint": "eslint . --fix",
+    "lint": "vp lint",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

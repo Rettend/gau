@@ -28,5 +28,11 @@ jobs:
       - name: Check library and consumer types
         run: bun run check && bun run check:test
 
+      - name: Lint
+        run: bun run lint
+
+      - name: Build library
+        run: bun run build
+
       - name: Test PostgreSQL adapter
         run: bun run test:pg

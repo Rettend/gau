@@ -2,15 +2,14 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import solid from '@solidjs/vite-plugin'
 import { fileRoutes } from 'filesystem-routing/vite'
-import UnoCSS from 'unocss/vite'
-import { defineConfig, loadEnv } from 'vite'
+import UnoCSS from '@unocss/vite'
+import { defineConfig, loadEnv } from 'vite-plus'
 
 const envDir = fileURLToPath(new URL('.', import.meta.url))
 
 function loadServerEnv(mode: string): void {
   const env = loadEnv(mode, envDir, '')
-  for (const [key, value] of Object.entries(env))
-    process.env[key] ??= value
+  for (const [key, value] of Object.entries(env)) process.env[key] ??= value
 }
 
 export default defineConfig(({ mode }) => {
@@ -23,7 +22,7 @@ export default defineConfig(({ mode }) => {
       },
       // Keep linked workspace packages on this example's Solid 2 runtime
       // without bypassing browser/server package export conditions.
-      dedupe: ['solid-js', '@solidjs/web', '@solidjs/router'],
+      dedupe: ['solid-js', '@solidjs/signals', '@solidjs/web', '@solidjs/router'],
     },
     plugins: [
       UnoCSS(),

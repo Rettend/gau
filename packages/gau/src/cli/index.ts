@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Buffer } from 'node:buffer'
 import process from 'node:process'
 
@@ -18,11 +19,9 @@ async function main() {
   const args = process.argv.slice(2)
   if (args[0] === 'secret') {
     const secret = await generateAuthSecret()
-    // eslint-disable-next-line no-console
     console.log(`Add this to your .env file:\n\nAUTH_SECRET=${secret}`)
   }
   else {
-    // eslint-disable-next-line no-console
     console.log('Usage: bunx gau secret')
   }
 }

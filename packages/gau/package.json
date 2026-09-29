@@ -113,9 +113,9 @@
     "access": "public"
   },
   "scripts": {
-    "dev": "bun run --watch index.ts",
-    "build": "bun --bun tsup",
-    "lint": "bun --bun eslint . --fix",
+    "dev": "vp pack --watch",
+    "build": "vp run bundle",
+    "lint": "vp lint",
     "check": "tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p src/client/solid/tsconfig.json && tsgo --noEmit -p src/client/solid2/tsconfig.json && tsgo --noEmit -p src/client/svelte/tsconfig.json",
     "check:test": "tsgo --noEmit -p tsconfig.test.json",
     "update": "taze latest -wr",
@@ -125,6 +125,7 @@
     "test:ui": "bun run --cwd ../.. test:ui"
   },
   "peerDependencies": {
+    "nodemailer": "^7.0.0 || ^8.0.0",
     "@solidjs/router": "^0.15.3 || ^0.16.0 || >=0.17.0-next.0 <1.0.0 || >=1.0.0 <2.0.0 || >=2.0.0-next.0 <3.0.0",
     "@solidjs/web": "^2.0.0-rc.11",
     "@sveltejs/kit": "^2.25.1",
@@ -137,6 +138,9 @@
     "typescript": "^5.8.3 || ^6.0.0 || ^7.0.0"
   },
   "peerDependenciesMeta": {
+    "nodemailer": {
+      "optional": true
+    },
     "@solidjs/router": {
       "optional": true
     },
@@ -175,7 +179,8 @@
     "esm-env": "^1.2.2"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.5.1",
+    "@types/nodemailer": "^7.0.0",
+    "nodemailer": "^8.0.0",
     "@electric-sql/pglite": "^0.5.8",
     "@libsql/client": "^0.18.0",
     "@solidjs/router": "^1.0.0",
@@ -187,18 +192,19 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/bun": "^1.4.2",
     "@types/node": "^24.19.0",
-    "@vitest/coverage-v8": "^5.0.2",
-    "@vitest/ui": "^5.0.2",
+    "@vitest/coverage-v8": "catalog:",
+    "@vitest/ui": "catalog:",
     "better-sqlite3": "^13.0.3",
     "drizzle-kit": "1.0.0-rc.4",
     "drizzle-orm": "1.0.0-rc.4",
-    "eslint": "^10.11.0",
     "miniflare": "4.20260730.0",
     "solid-js": "^1.9.15",
     "solid-js-2": "npm:solid-js@2.0.0-rc.11",
     "svelte2tsx": "^0.7.61",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
     "zod": "^4.6.5"
   }
 }

@@ -2,10 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "jsx": "preserve",
-    "lib": [
-      "ESNext",
-      "DOM"
-    ],
+    "lib": ["ESNext", "DOM"],
     "moduleDetection": "force",
     "rootDir": "./src",
     "module": "Preserve",
@@ -23,15 +20,6 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
-  ],
-  "exclude": [
-    "src/client",
-    "test",
-    "dist",
-    "node_modules",
-    "tsup.config.ts"
-  ]
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["src/client", "test", "dist", "node_modules", "vite.config.ts"]
 }

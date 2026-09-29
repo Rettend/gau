@@ -1,6 +1,6 @@
 import type { Auth } from '../../../src/core/createAuth'
 import type { OAuthProvider } from '../../../src/oauth'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { MemoryAdapter } from '../../../src/adapters'
 import { CALLBACK_URI_COOKIE_NAME, CSRF_COOKIE_NAME, PKCE_COOKIE_NAME } from '../../../src/core/cookies'
 import { createAuth } from '../../../src/core/createAuth'

@@ -11,7 +11,7 @@
     "preview": "astro preview",
     "sync": "astro sync",
     "check": "astro check",
-    "lint": "eslint . --fix",
+    "lint": "vp lint",
     "astro": "astro"
   },
   "dependencies": {
@@ -32,10 +32,5 @@
     "@iconify-json/ph": "^1.2.2",
     "@iconify-json/simple-icons": "^1.2.98",
     "unocss": "^66.10.5"
-  },
-  "prettier": {
-    "singleQuote": true,
-    "semi": false,
-    "printWidth": 100
   }
 }

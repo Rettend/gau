@@ -1,5 +1,5 @@
 import type { SerializeOptions } from 'cookie'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { Cookies, DEFAULT_COOKIE_SERIALIZE_OPTIONS, parseCookies } from '../../src/core/cookies'
 
 describe('cookie utilities', () => {

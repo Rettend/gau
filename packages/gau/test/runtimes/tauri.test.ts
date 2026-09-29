@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { SESSION_TOKEN_KEY } from '../../src/client/token'
 import * as tauriHelpers from '../../src/runtimes/tauri/index'
 

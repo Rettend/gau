@@ -1,5 +1,5 @@
 import type { GauSession } from '../../src/core'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { createClientAuth } from '../../src/client/shared/clientAuth'
 
 function createSession(id: string): GauSession {

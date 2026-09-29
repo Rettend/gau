@@ -33,5 +33,4 @@ const app = new Elysia()
   .get('/client.js', () => file('./public/client.js'))
   .listen(3000)
 
-// eslint-disable-next-line no-console
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`)

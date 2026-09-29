@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { rm } from 'node:fs/promises'
 import { relative, sep } from 'node:path'
 import process from 'node:process'

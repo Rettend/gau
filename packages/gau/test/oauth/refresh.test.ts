@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Google } from '../../src/oauth/providers/google'
 import { Microsoft } from '../../src/oauth/providers/microsoft'
 

@@ -1,5 +1,5 @@
 import type { ServerFunctionsClientConfig } from '@solidjs/web/server-functions/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { configureServerFunctions } from '../../src/client/solid2/serverFunctions'
 import { REFRESHED_TOKEN_HEADER, SESSION_TOKEN_KEY } from '../../src/client/token'
 import { serverFunctionsMiddleware } from '../../src/solid2'

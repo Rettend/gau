@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { constantTimeEqual, deriveKeysFromSecret, rawToDer } from '../../src/jwt/utils'
 
 describe('jWT utils', () => {

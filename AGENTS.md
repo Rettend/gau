@@ -3,8 +3,9 @@
 ## Workspace
 
 - Use `bun` only. The repo pins `bun@1.4.2` and Node 24 in `.node-version`; CI installs with `bun install --frozen-lockfile`.
-- This is a Bun workspace, but root `build`, `check`, `check:test`, `test`, `test:pg`, and `dev` target `packages/gau`. Root `lint` is the exception: it runs `eslint . --fix` across the whole repo (eslint is very very slow, never use it).
-- CI runs the fast and PostgreSQL Vitest projects plus `check` and `check:test`. If you change packaging, docs, or example apps, run the relevant checks yourself.
+- This is a Bun workspace, but root `build`, `check`, `check:test`, `test`, `test:pg`, and `dev` target `packages/gau`. Root `lint` runs Vite+ Oxlint across the repo without modifying files.
+- Vite+ 1.0 manages Vite, Vitest, Oxlint, Oxfmt, and library packaging. Use Bun scripts to invoke it. Astro and legacy SolidStart keep Vite 6; the `vite@>=8` override only redirects compatible ranges to Vite+.
+- CI runs the fast and PostgreSQL Vitest projects, library typechecks, Oxlint, and the library build. If you change docs or example apps, run their relevant checks yourself.
 
 ## Package Map
 
@@ -28,16 +29,18 @@
 - Default library verification: `bun run check && bun run test`
 - Add `bun run test:pg` when touching the Postgres Drizzle adapter.
 - Add `bun run build` when changing public exports, build logic, or client entrypoints.
-- Single fast test file: `bunx vitest --project fast packages/gau/test/core/createAuth.test.ts`
-- PG adapter test file: `bunx vitest --project pg packages/gau/test/adapters/drizzle/pg.test.ts`
-- Docs/examples use package-local scripts, e.g. `bun --cwd packages/docs run check` or `bun --cwd packages/example-sveltekit run check`
+- Single fast test file: `bun run test --run packages/gau/test/core/createAuth.test.ts`
+- PG adapter test file: `bun run test:pg --run packages/gau/test/adapters/drizzle/pg.test.ts`
+- Docs/examples use package-local scripts, e.g. `bun run --cwd packages/docs check` or `bun run --cwd packages/example-sveltekit check`.
+- `bun run fmt -- <files>` formats selected files; `bun run fmt:check` checks the whole repo. Repository-wide formatting is deferred, so existing style differences are expected. Keep formatting changes focused.
 
 ## Repo Quirks
 
 - `packages/gau` typechecking uses `tsgo`, not `tsc`. `bun run check` also runs the separate client tsconfigs under `src/client/solid` and `src/client/svelte`; plain `tsc` misses those.
-- `bun run lint` and package-local `lint` scripts use `--fix`. Do not use lint as a read-only verifier.
-- `vitest.config.ts` has two projects: `fast` runs every test except `packages/gau/test/adapters/drizzle/pg.test.ts`; `pg` runs only that file.
+- Lint scripts use Oxlint and are read-only. Keep the framework-specific typechecks; `vp check` does not replace them.
+- Root `vite.config.ts` contains lint, formatting, and test configuration. Its two test projects are `fast` (all tests except the PostgreSQL adapter) and `pg` (only that adapter).
 - The `pg` suite uses in-memory `@electric-sql/pglite`, so it does not require an external Postgres service.
-- `packages/gau/tsup.config.ts` builds every `src/**/index.{ts,tsx,svelte,svelte.ts}` entry, generates declarations with `bun tsgo` plus `svelte2tsx`, and copies `.svelte` components into `dist`. New public entrypoints need both an `index.*` file and a matching `packages/gau/package.json` `exports` entry.
-- `bun run test:all` also lints `coverage.json`, so that file will be regenerated/modified.
+- `packages/gau/vite.config.ts` configures `vp pack`: it builds every `src/**/index.{ts,tsx,svelte,svelte.ts}` entry, generates declarations with `bun tsgo` plus `svelte2tsx`, and copies `.svelte` components into `dist`. Solid JSX and Svelte runes remain uncompiled for consuming apps. New public entrypoints need both an `index.*` file and a matching `packages/gau/package.json` `exports` entry.
+- `bun run build` uses the cached `bundle` task. Its inputs include source, package/compiler config, and the workspace lockfile; outputs are `packages/gau/dist/**`. `bun run --cwd packages/gau vp pack` forces a fresh build.
+- Test runs write `coverage.json` unless a different coverage reporter is selected.
 - Auth `POST` routes enforce origin checks via `trustHosts`; development only auto-trusts `localhost` and `127.0.0.1`.

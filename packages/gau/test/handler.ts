@@ -1,6 +1,6 @@
-import type { Mocked } from 'vitest'
+import type { Mocked } from 'vite-plus/test'
 import type { OAuthProvider } from '../src/oauth'
-import { vi } from 'vitest'
+import { vi } from 'vite-plus/test'
 import { MemoryAdapter } from '../src/adapters'
 import { createAuth } from '../src/core/createAuth'
 

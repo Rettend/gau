@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { DEV } from 'esm-env'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { NULL_SESSION, REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
 import { authMiddleware, createSolidStartGetServerSession, refreshMiddleware, SolidAuth } from '../../src/solidstart/index'
 
@@ -21,7 +21,7 @@ vi.mock('../../src/core', async (importOriginal) => {
   }
 })
 
-let mockRequestEvent: { request: Request } | undefined
+const mockRequestEvent = undefined
 vi.mock('solid-js/web', () => ({
   getRequestEvent: () => mockRequestEvent,
   isServer: true,

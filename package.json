@@ -8,48 +8,39 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "build": "bun --bun --cwd packages/gau tsup",
-    "dev": "bun --bun --cwd packages/gau tsup --watch",
-    "lint": "bun --bun eslint . --fix",
-    "lint:test": "eslint coverage.json --fix",
+    "build": "bun run --cwd packages/gau build",
+    "dev": "bun run --cwd packages/gau dev",
+    "lint": "vp lint",
+    "fmt": "vp fmt",
+    "fmt:check": "vp fmt --check",
     "check": "cd packages/gau && bun run check",
     "check:test": "cd packages/gau && bun run check:test",
-    "test": "vitest --project fast",
-    "test:pg": "vitest --project pg",
-    "test:all": "vitest && bun run lint:test",
-    "test:ui": "vitest --project fast --ui",
+    "test": "vp test --project fast",
+    "test:pg": "vp test --project pg",
+    "test:all": "vp test",
+    "test:ui": "vp test --project fast --ui",
     "update": "taze latest -wr",
     "clean": "bun --bun scripts/clean.ts",
     "release": "bun node_modules/@rttnd/release/dist/cli.js"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.5.1",
     "@rttnd/release": "^0.1.1",
     "@solidjs/vite-plugin": "3.0.0-next.46",
     "@sveltejs/kit": "^2.70.3",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/bun": "^1.4.2",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "@unocss/eslint-plugin": "^66.10.5",
     "@unocss/reset": "^66.10.5",
-    "@vitest/coverage-v8": "^5.0.2",
-    "@vitest/ui": "^5.0.2",
-    "eslint": "^10.11.0",
-    "eslint-plugin-astro": "^3.2.1",
-    "eslint-plugin-format": "^2.0.1",
-    "eslint-plugin-solid": "^0.18.0",
-    "eslint-plugin-svelte": "^3.23.0",
-    "prettier-plugin-astro": "^1.1.0",
+    "@vitest/coverage-v8": "catalog:",
+    "@vitest/ui": "catalog:",
     "svelte": "^5.57.1",
     "taze": "^21.2.0",
-    "terser": "^5.51.2",
-    "tsup": "^8.5.1",
-    "unbuild": "^3.6.1",
     "typescript": "^6.0.3",
     "unocss": "^66.10.5",
-    "vite": "^8.3.1",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vite-plugin-solid": "^2.11.14",
-    "vitest": "^5.0.2",
+    "vitest": "catalog:",
     "wrangler": "^4.143.0"
   },
   "workspaces": [
@@ -61,5 +52,16 @@
     "esbuild",
     "sharp",
     "workerd"
-  ]
+  ],
+  "overrides": {
+    "vite@>=8": "catalog:",
+    "vitest": "catalog:"
+  },
+  "catalog": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.0.0",
+    "vitest": "5.0.1",
+    "vite-plus": "1.0.0",
+    "@vitest/coverage-v8": "5.0.1",
+    "@vitest/ui": "5.0.1"
+  }
 }

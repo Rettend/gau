@@ -1,5 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { NULL_SESSION, REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
 import { createRefreshHandle, SvelteKitAuth } from '../../src/sveltekit/index'
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { MemoryAdapter } from '../../../src/adapters/memory'
 import { createAuth } from '../../../src/core/createAuth'
 import { createHandler } from '../../../src/core/handler'
