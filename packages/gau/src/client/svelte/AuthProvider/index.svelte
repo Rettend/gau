@@ -12,6 +12,7 @@
   }
 
   const { baseUrl, scheme, redirectTo, session, children }: Props = $props()
+  // svelte-ignore state_referenced_locally -- init only
   createSvelteAuth({ baseUrl, scheme, redirectTo, session })
 </script>
 

@@ -33,6 +33,8 @@ To use them as starter templates:
 
 ## contributing
 
+Use Bun 1.4.2 and Node 24.21.0 (see `.node-version`) for workspace development. Install dependencies with `bun install --frozen-lockfile`, then run `bun run build`, `bun run check`, and `bun run test`.
+
 `gau` core is everything-agnostic, but it's missing a ton of specific integrations.
 If you want to add a new...
 

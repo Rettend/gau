@@ -6,7 +6,7 @@ import { defineConfig } from 'vite'
 const isTauri = !!process.env.TAURI_ENV_PLATFORM
 
 export default defineConfig({
-  plugins: [sveltekit(), UnoCSS()],
+  plugins: [UnoCSS(), sveltekit()],
   server: {
     port: isTauri ? 4173 : 5173,
     strictPort: true,

@@ -4,7 +4,7 @@ import type { SignOptions, VerifyOptions } from '../jwt'
 import type { AuthUser, OAuthProvider, OAuthProviderConfig, ProviderProfileOverrides } from '../oauth'
 import type { Cookies } from './cookies'
 import type { Adapter, GauServerSession } from './index'
-import { parse, serialize } from 'cookie'
+import { parseCookie, stringifySetCookie } from 'cookie'
 import { sign, verify } from '../jwt'
 import { DEFAULT_COOKIE_SERIALIZE_OPTIONS, SESSION_COOKIE_NAME, SESSION_STASH_COOKIE_NAME } from './cookies'
 import { AuthError, ErrorCodes, GauError } from './index'
@@ -473,7 +473,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
       maxAge: ttl,
     }
 
-    const cookie = serialize(SESSION_COOKIE_NAME, token, cookieOpts)
+    const cookie = stringifySetCookie({ ...cookieOpts, name: SESSION_COOKIE_NAME, value: token }, cookieOpts)
 
     return {
       token,
@@ -640,10 +640,10 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
       maxAge: ttl,
     }
 
-    const cookie = serialize(SESSION_COOKIE_NAME, impersonationToken, cookieOpts)
+    const cookie = stringifySetCookie({ ...cookieOpts, name: SESSION_COOKIE_NAME, value: impersonationToken }, cookieOpts)
 
     const stashToken = await signJWT({ adminUserId }, { ttl: resolvedImpersonation.maxTTL * 2 })
-    const stashCookie = serialize(SESSION_STASH_COOKIE_NAME, stashToken, cookieOpts)
+    const stashCookie = stringifySetCookie({ ...cookieOpts, name: SESSION_STASH_COOKIE_NAME, value: stashToken }, cookieOpts)
 
     return {
       token: impersonationToken,
@@ -658,7 +658,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     if (!cookieHeader)
       return null
 
-    const parsedCookies = parse(cookieHeader)
+    const parsedCookies = parseCookie(cookieHeader)
     const stashToken = parsedCookies[SESSION_STASH_COOKIE_NAME]
 
     if (!stashToken)
@@ -673,11 +673,13 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
 
     const restoredSession = await issueSession(stashPayload.adminUserId)
 
-    const clearStashCookie = serialize(SESSION_STASH_COOKIE_NAME, '', {
+    const clearStashCookie = stringifySetCookie({
       ...cookieOptions,
+      name: SESSION_STASH_COOKIE_NAME,
+      value: '',
       expires: new Date(0),
       maxAge: 0,
-    })
+    }, cookieOptions)
 
     return {
       token: restoredSession.token,

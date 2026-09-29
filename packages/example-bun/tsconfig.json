@@ -4,6 +4,7 @@
     "jsx": "react-jsx",
     // Environment setup & latest features
     "lib": ["ESNext", "DOM"],
+    "types": ["bun"],
     "moduleDetection": "force",
     "module": "Preserve",
 

@@ -9,7 +9,7 @@ const devPort = 1420
 const hmrPort = 1430
 
 export default defineConfig({
-  plugins: [sveltekit(), UnoCSS()],
+  plugins: [UnoCSS(), sveltekit()],
   clearScreen: false,
   server: {
     port: isTauri ? devPort : 5173,

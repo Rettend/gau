@@ -20,7 +20,7 @@ export default defineConfig({
         'vertical-align': 'middle',
       },
       customizations: {
-        iconCustomizer(collection, icon, props) {
+        iconCustomizer(collection, _icon, props) {
           if (['devicon', 'simple-icons', 'logos'].includes(collection))
             props.transform = 'scale(0.8)'
 

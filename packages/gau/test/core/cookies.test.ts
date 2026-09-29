@@ -75,6 +75,23 @@ describe('cookie utilities', () => {
       expect(headers.get('Set-Cookie')).toBe('new=cookie; Path=/; SameSite=Strict')
     })
 
+    it('should preserve URL encoding and decoding of cookie values', () => {
+      const cookies = new Cookies(new Map(), defaultOptions)
+      const value = '/protected?next=/account&label=hello world;✓%'
+      cookies.set('callback', value)
+
+      const header = cookies.toHeaders().get('Set-Cookie')!
+      const pair = header.split(';')[0]!
+      expect(pair).toBe(`callback=${encodeURIComponent(value)}`)
+      expect(parseCookies(pair).get('callback')).toBe(value)
+    })
+
+    it('should honor a custom cookie encoder', () => {
+      const cookies = new Cookies(new Map(), DEFAULT_COOKIE_SERIALIZE_OPTIONS)
+      cookies.set('callback', '/protected', { encode: value => value })
+      expect(cookies.toHeaders().get('Set-Cookie')).toContain('callback=/protected;')
+    })
+
     it('should set a cookie with an expires date', () => {
       const cookies = new Cookies(new Map(), defaultOptions)
       const expires = new Date('2025-01-01T00:00:00Z')

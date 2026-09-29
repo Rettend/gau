@@ -1,7 +1,19 @@
+import solid2 from '@solidjs/vite-plugin'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  // Compile framework sources so uncovered components appear in coverage too.
+  plugins: [
+    solid({ include: '**/src/client/solid/**/*.tsx', hot: false, ssr: true }),
+    solid2({ include: '**/src/client/solid2/**/*.tsx', hot: false, ssr: true }),
+    svelte({ configFile: false }),
+  ],
+  // SvelteKit supplies this virtual module in consuming apps.
+  ssr: { external: ['$app/navigation'] },
   test: {
+    environment: 'node',
     coverage: {
       enabled: true,
       provider: 'v8',
@@ -16,6 +28,8 @@ export default defineConfig({
       exclude: [
         '**/dist/**',
         '**/build/**',
+        '**/.svelte-kit/**',
+        '**/*.d.ts',
         '**/migrations/**',
         '**/*.config.ts',
       ],

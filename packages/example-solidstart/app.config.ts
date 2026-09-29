@@ -7,6 +7,7 @@ const solidRoot = fileURLToPath(new URL('./node_modules/solid-js', import.meta.u
 export default defineConfig({
   server: {
     preset: 'cloudflare-module',
+    esbuild: { options: { target: 'es2022' } },
   },
   middleware: 'src/middleware.ts',
   vite: {
