@@ -7,6 +7,8 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
 `gau` supports Drizzle ORM 1.0, starting with `1.0.0-rc.4`, for SQLite and PostgreSQL. Drizzle 0.x is no longer supported. This guide uses Turso for SQLite; Cloudflare D1 uses the same schema with a different client.
 
+Email login also needs a [verification table](/providers/email/#verification-storage), passed as the fourth argument to `DrizzleAdapter`.
+
 <br />
 
 <Steps>

@@ -1,14 +1,29 @@
 import type { AnyRelations } from 'drizzle-orm'
 import type { PgAsyncDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import type { Adapter } from '../../core'
-import type { PostgresAccountsTable, PostgresUsersTable } from './schema'
-import { and, eq } from 'drizzle-orm'
+import type { PostgresAccountsTable, PostgresUsersTable, PostgresVerificationTable } from './schema'
+import { and, eq, lte } from 'drizzle-orm'
 import { accountFromRow, userInsert, userUpdate } from './shared'
 
 export type PostgresDatabase = PgAsyncDatabase<PgQueryResultHKT, AnyRelations>
 
-export function PostgresDrizzleAdapter(db: PostgresDatabase, users: PostgresUsersTable, accounts: PostgresAccountsTable): Adapter {
+export function PostgresDrizzleAdapter(db: PostgresDatabase, users: PostgresUsersTable, accounts: PostgresAccountsTable, verification?: PostgresVerificationTable): Adapter {
   return {
+    verification: verification && {
+      async get(id) {
+        const [record] = await db.select().from(verification).where(eq(verification.id, id)).limit(1)
+        return record ?? null
+      },
+      async set(record, expectedVersion) {
+        const result = expectedVersion === null
+          ? await db.insert(verification).values(record).onConflictDoNothing().returning()
+          : await db.update(verification).set(record).where(and(eq(verification.id, record.id), eq(verification.version, expectedVersion))).returning()
+        return result.length > 0
+      },
+      async deleteExpired(now) {
+        await db.delete(verification).where(lte(verification.expiresAt, now))
+      },
+    },
     async getUser(id) {
       const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1)
       return user ?? null

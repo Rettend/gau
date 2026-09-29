@@ -1,14 +1,28 @@
 import type { AnyRelations } from 'drizzle-orm'
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
 import type { Adapter } from '../../core'
-import type { SQLiteAccountsTable, SQLiteUsersTable } from './schema'
-import { and, eq } from 'drizzle-orm'
+import type { SQLiteAccountsTable, SQLiteUsersTable, SQLiteVerificationTable } from './schema'
+import { and, eq, lte } from 'drizzle-orm'
 import { accountFromRow, userInsert, userUpdate } from './shared'
 
 export type SQLiteDatabase = SQLiteAsyncDatabase<'sync' | 'async', unknown, AnyRelations>
 
-export function SQLiteDrizzleAdapter(db: SQLiteDatabase, users: SQLiteUsersTable, accounts: SQLiteAccountsTable): Adapter {
+export function SQLiteDrizzleAdapter(db: SQLiteDatabase, users: SQLiteUsersTable, accounts: SQLiteAccountsTable, verification?: SQLiteVerificationTable): Adapter {
   return {
+    verification: verification && {
+      async get(id) {
+        return await db.select().from(verification).where(eq(verification.id, id)).get() ?? null
+      },
+      async set(record, expectedVersion) {
+        const result = expectedVersion === null
+          ? await db.insert(verification).values(record).onConflictDoNothing().returning().get()
+          : await db.update(verification).set(record).where(and(eq(verification.id, record.id), eq(verification.version, expectedVersion))).returning().get()
+        return !!result
+      },
+      async deleteExpired(now) {
+        await db.delete(verification).where(lte(verification.expiresAt, now)).run()
+      },
+    },
     async getUser(id) {
       return await db.select().from(users).where(eq(users.id, id)).get() ?? null
     },

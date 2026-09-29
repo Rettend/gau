@@ -1,4 +1,5 @@
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
+import type { AuthAction, EmailOptions, EmailProviderId, EmailResult, OAuthProviderIds } from './email'
 import { isTauri as detectTauri } from '../../runtimes/tauri'
 
 const EMPTY_CLIENT_SESSION = {
@@ -10,8 +11,8 @@ const EMPTY_CLIENT_SESSION = {
 type Session<TAuth = unknown> = GauSession<ProviderIds<TAuth>>
 
 export interface ClientAuthControls<TAuth = unknown> {
-  signIn: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
-  linkAccount: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
+  signIn: AuthAction<TAuth, void>
+  linkAccount: AuthAction<TAuth, void>
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
@@ -24,8 +25,8 @@ interface ClientAuthClient<TAuth = unknown> {
   handleRedirectCallback: (replaceUrl?: (url: string) => void | Promise<void>) => Promise<boolean>
   onSessionChange: (listener: (session: Session<TAuth>) => void) => () => void
   startTauriBridge: () => Promise<(() => void) | void>
-  signIn: <P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }) => Promise<string>
-  linkAccount: <P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }) => Promise<string>
+  signIn: AuthAction<TAuth, string>
+  linkAccount: AuthAction<TAuth, string>
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<boolean>
   signOut: () => Promise<void>
 }
@@ -121,13 +122,29 @@ export function createClientAuth<const TAuth = unknown>({
     }
   }
 
-  async function signIn<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
+  function signIn<O extends EmailOptions>(provider: EmailProviderId<TAuth>, options: O): Promise<EmailResult<O>>
+  function signIn<P extends OAuthProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<void>
+  async function signIn(provider: string, options: EmailOptions | { redirectTo?: string, profile?: string } = {}): Promise<any> {
+    if (provider === 'email')
+      return client.signIn(provider as EmailProviderId<TAuth>, options as EmailOptions)
+    return oauthSignIn(provider as OAuthProviderIds<TAuth>, options as { redirectTo?: string, profile?: ProfileName<TAuth, OAuthProviderIds<TAuth>> })
+  }
+
+  async function oauthSignIn<P extends OAuthProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
     const profile = options.profile
     const url = await client.signIn<P, typeof profile>(provider, { redirectTo: resolveRedirectTo('signIn', options.redirectTo), profile })
     navigateTo(url)
   }
 
-  async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
+  function linkAccount<O extends EmailOptions>(provider: EmailProviderId<TAuth>, options: O): Promise<EmailResult<O>>
+  function linkAccount<P extends OAuthProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<void>
+  async function linkAccount(provider: string, options: EmailOptions | { redirectTo?: string, profile?: string } = {}): Promise<any> {
+    if (provider === 'email')
+      return client.linkAccount(provider as EmailProviderId<TAuth>, options as EmailOptions)
+    return oauthLinkAccount(provider as OAuthProviderIds<TAuth>, options as { redirectTo?: string, profile?: ProfileName<TAuth, OAuthProviderIds<TAuth>> })
+  }
+
+  async function oauthLinkAccount<P extends OAuthProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
     const profile = options.profile
     const url = await client.linkAccount<P, typeof profile>(provider, { redirectTo: resolveRedirectTo('linkAccount', options.redirectTo), profile })
     navigateTo(url)

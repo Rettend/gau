@@ -1,4 +1,4 @@
-import { integer, primaryKey, snakeCase, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, snakeCase, text } from 'drizzle-orm/sqlite-core'
 import { uuidV7Base64url } from '~/lib/index'
 
 export const Users = snakeCase.table('users', {
@@ -35,3 +35,10 @@ export const Accounts = snakeCase.table('accounts', {
 
 export type Account = typeof Accounts.$inferSelect
 export type AccountNew = typeof Accounts.$inferInsert
+
+export const Verification = snakeCase.table('verification', {
+  id: text().primaryKey(),
+  value: text().notNull(),
+  expiresAt: integer().notNull(),
+  version: integer().notNull(),
+}, table => [index('verification_expiry').on(table.expiresAt)])

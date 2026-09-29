@@ -5,8 +5,16 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
 import { integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
 import { DrizzleAdapter } from '../../../src/adapters/drizzle'
+import { verificationTests } from '../verification'
+
+const verificationTable = snakeCase.table('verification', {
+  id: text().primaryKey(),
+  value: text().notNull(),
+  expiresAt: integer().notNull(),
+  version: integer().notNull(),
+})
 
 const usersTable = snakeCase.table('auth_users', {
   id: text().primaryKey(),
@@ -35,6 +43,7 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
   let db: ReturnType<typeof drizzle>
   let adapter: Adapter
   let client: Database.Database
+  verificationTests(() => adapter.verification!)
 
   beforeEach(async () => {
     client = new Database(':memory:')
@@ -66,7 +75,8 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
       );
     `)
 
-    adapter = DrizzleAdapter(db, usersTable, accountsTable)
+    db.run(sql`CREATE TABLE verification (id text PRIMARY KEY, value text NOT NULL, expires_at integer NOT NULL, version integer NOT NULL)`)
+    adapter = DrizzleAdapter(db, usersTable, accountsTable, verificationTable)
   })
 
   afterEach(async () => {
@@ -307,6 +317,7 @@ describe('sqlite drizzle adapter with libsql', () => {
   let db: ReturnType<typeof drizzleLibsql>
   let adapter: Adapter
   let client: ReturnType<typeof createClient>
+  verificationTests(() => adapter.verification!)
 
   beforeEach(async () => {
     client = createClient({ url: ':memory:' })
@@ -338,7 +349,8 @@ describe('sqlite drizzle adapter with libsql', () => {
       );
     `)
 
-    adapter = DrizzleAdapter(db, usersTable, accountsTable)
+    await db.run(sql`CREATE TABLE verification (id text PRIMARY KEY, value text NOT NULL, expires_at integer NOT NULL, version integer NOT NULL)`)
+    adapter = DrizzleAdapter(db, usersTable, accountsTable, verificationTable)
   })
 
   afterEach(async () => {

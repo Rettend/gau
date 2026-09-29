@@ -1,9 +1,17 @@
 import type { Adapter } from '../../../src/core'
 import { PGlite } from '@electric-sql/pglite'
-import { boolean, integer, snakeCase, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { bigint, boolean, integer, snakeCase, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/pglite'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
 import { DrizzleAdapter } from '../../../src/adapters/drizzle'
+import { verificationTests } from '../verification'
+
+const verificationTable = snakeCase.table('verification', {
+  id: text().primaryKey(),
+  value: text().notNull(),
+  expiresAt: bigint({ mode: 'number' }).notNull(),
+  version: integer().notNull(),
+})
 
 const usersTable = snakeCase.table('auth_users', {
   id: uuid().primaryKey(),
@@ -35,6 +43,7 @@ describe('postgres drizzle adapter', () => {
   let db: ReturnType<typeof drizzle>
   let adapter: Adapter
   let client: PGlite
+  verificationTests(() => adapter.verification!)
 
   beforeEach(async () => {
     client = new PGlite()
@@ -70,7 +79,8 @@ describe('postgres drizzle adapter', () => {
       );
     `)
 
-    adapter = DrizzleAdapter(db, usersTable, accountsTable)
+    await client.exec('CREATE TABLE verification (id text PRIMARY KEY, value text NOT NULL, expires_at bigint NOT NULL, version integer NOT NULL)')
+    adapter = DrizzleAdapter(db, usersTable, accountsTable, verificationTable)
   })
 
   afterEach(async () => {

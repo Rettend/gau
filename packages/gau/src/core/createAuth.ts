@@ -3,14 +3,16 @@ import type { SerializeOptions } from 'cookie'
 import type { SignOptions, VerifyOptions } from '../jwt'
 import type { AuthUser, OAuthProvider, OAuthProviderConfig, ProviderProfileOverrides } from '../oauth'
 import type { Cookies } from './cookies'
+import type { AuthProvider } from './providers'
 import type { Adapter, GauServerSession } from './index'
 import { parseCookie, stringifySetCookie } from 'cookie'
 import { sign, verify } from '../jwt'
 import { DEFAULT_COOKIE_SERIALIZE_OPTIONS, SESSION_COOKIE_NAME, SESSION_STASH_COOKIE_NAME } from './cookies'
 import { AuthError, ErrorCodes, GauError } from './index'
 import { getSessionTokenFromRequest } from './utils'
+import { isEmailProvider } from './providers'
 
-type ProviderId<P> = P extends OAuthProvider<infer T> ? T : never
+type ProviderId<P> = P extends { id: infer T extends string } ? T : never
 export type ProviderIds<T> = T extends { providerMap: Map<infer K extends string, any> } ? K : string
 
 export type ProfileName<T, P extends string> = T extends { profiles: infer R }
@@ -68,10 +70,10 @@ export interface EndImpersonationResult {
   clearCookies: string[]
 }
 
-export interface CreateAuthOptions<TProviders extends OAuthProvider[]> {
+export interface CreateAuthOptions<TProviders extends AuthProvider[]> {
   /** The database adapter to use for storing users and accounts. */
   adapter: Adapter
-  /** Array of OAuth providers to support. */
+  /** Authentication providers to support. */
   providers: TProviders
   /** Base path for authentication routes (defaults to '/api/auth'). */
   basePath?: string
@@ -261,11 +263,12 @@ export interface RefreshSessionResult extends IssueSessionResult {
   source: 'cookie' | 'bearer' | 'token'
 }
 
-export type Auth<TProviders extends OAuthProvider[] = any> = Adapter & {
+export type Auth<TProviders extends AuthProvider[] = AuthProvider[]> = Adapter & {
   providerMap: Map<ProviderId<TProviders[number]>, TProviders[number]>
   basePath: string
   cookieOptions: SerializeOptions
   jwt: { ttl: number }
+  hashVerification: (value: string) => Promise<string>
   onOAuthExchange?: CreateAuthOptions<TProviders>['onOAuthExchange']
   mapExternalProfile?: CreateAuthOptions<TProviders>['mapExternalProfile']
   onBeforeLinkAccount?: CreateAuthOptions<TProviders>['onBeforeLinkAccount']
@@ -349,16 +352,16 @@ export interface ProfileDefinition {
   params?: Record<string, string>
 }
 
-type ProviderIdOfArray<TProviders extends OAuthProvider[]> = ProviderId<TProviders[number]>
-type ProviderConfigFor<TProviders extends OAuthProvider[], K extends string>
+type ProviderIdOfArray<TProviders extends AuthProvider[]> = ProviderId<TProviders[number]>
+type ProviderConfigFor<TProviders extends AuthProvider[], K extends string>
   = Extract<TProviders[number], OAuthProvider<K, any>> extends OAuthProvider<any, infer C> ? C : OAuthProviderConfig
 
-export type ProfilesConfig<TProviders extends OAuthProvider[]> = Partial<{
+export type ProfilesConfig<TProviders extends AuthProvider[]> = Partial<{
   [K in ProviderIdOfArray<TProviders>]: Record<string, ProfileDefinition & ProviderProfileOverrides<ProviderConfigFor<TProviders, K>>>
 }>
-export type ResolvedProfiles<TProviders extends OAuthProvider[]> = ProfilesConfig<TProviders>
+export type ResolvedProfiles<TProviders extends AuthProvider[]> = ProfilesConfig<TProviders>
 
-export function createAuth<const TProviders extends OAuthProvider[]>({
+export function createAuth<const TProviders extends AuthProvider[]>({
   adapter,
   providers,
   basePath = '/api/auth',
@@ -389,6 +392,21 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     throw new AuthError('For ES256, the secret option must be a string.')
 
   const providerMap = new Map(providers.map(p => [p.id, p]))
+  if (providers.some(isEmailProvider) && (!adapter.verification || !secret))
+    throw new AuthError('Email requires verification storage and a JWT secret.')
+  if (providerMap.size !== providers.length)
+    throw new AuthError('Provider IDs must be unique.')
+
+  let verificationKey: Promise<CryptoKey> | undefined
+  async function hashVerification(value: string): Promise<string> {
+    if (!secret)
+      throw new AuthError('Email requires a JWT secret.')
+    verificationKey ??= crypto.subtle.importKey('raw',
+      (typeof secret === 'string' ? new TextEncoder().encode(secret) : secret) as BufferSource,
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const result = await crypto.subtle.sign('HMAC', await verificationKey, new TextEncoder().encode(`gau:email:${value}`))
+    return Array.from(new Uint8Array(result), byte => byte.toString(16).padStart(2, '0')).join('')
+  }
 
   const resolvedCors: Auth['cors'] = cors === false
     ? false
@@ -553,7 +571,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
 
   async function getAccessToken(userId: string, providerId: string) {
     const provider = providerMap.get(providerId)
-    if (!provider)
+    if (!provider || isEmailProvider(provider))
       return null
 
     const accounts = await adapter.getAccounts(userId)
@@ -701,6 +719,7 @@ export function createAuth<const TProviders extends OAuthProvider[]>({
     onBeforeLinkAccount,
     onAfterLinkAccount,
     signJWT,
+    hashVerification,
     verifyJWT,
     createSession,
     validateSession,

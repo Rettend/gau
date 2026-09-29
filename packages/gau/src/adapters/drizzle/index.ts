@@ -1,6 +1,6 @@
 import type { Adapter } from '../../core'
 import type { PostgresDatabase } from './pg'
-import type { PostgresAccountsTable, PostgresUsersTable, SQLiteAccountsTable, SQLiteUsersTable } from './schema'
+import type { PostgresAccountsTable, PostgresUsersTable, PostgresVerificationTable, SQLiteAccountsTable, SQLiteUsersTable, SQLiteVerificationTable } from './schema'
 import type { SQLiteDatabase } from './sqlite'
 import { is } from 'drizzle-orm'
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core'
@@ -8,8 +8,8 @@ import { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
 import { PostgresDrizzleAdapter } from './pg'
 import { SQLiteDrizzleAdapter } from './sqlite'
 
-type SQLiteConfig = [db: SQLiteDatabase, users: SQLiteUsersTable, accounts: SQLiteAccountsTable]
-type PostgresConfig = [db: PostgresDatabase, users: PostgresUsersTable, accounts: PostgresAccountsTable]
+type SQLiteConfig = [db: SQLiteDatabase, users: SQLiteUsersTable, accounts: SQLiteAccountsTable, verification?: SQLiteVerificationTable]
+type PostgresConfig = [db: PostgresDatabase, users: PostgresUsersTable, accounts: PostgresAccountsTable, verification?: PostgresVerificationTable]
 type DrizzleConfig = SQLiteConfig | PostgresConfig
 
 function isSQLite(config: DrizzleConfig): config is SQLiteConfig {

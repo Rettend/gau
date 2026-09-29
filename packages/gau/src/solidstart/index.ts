@@ -1,6 +1,6 @@
 import type { CreateAuthOptions, RefreshSessionOptions } from '../core'
 import type { AuthInstance } from '../core/serverSession'
-import type { OAuthProvider } from '../oauth'
+import type { AuthProvider } from '../core/providers'
 import { DEV } from 'esm-env'
 import { createHandler, REFRESHED_TOKEN_HEADER } from '../core'
 import { createRequestSessionCache, resolveAuth, resolveServerSession } from '../core/serverSession'
@@ -19,7 +19,7 @@ export { REFRESHED_TOKEN_HEADER }
  * export const { GET, POST } = SolidAuth(authOptions)
  * ```
  */
-export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
+export function SolidAuth<const TProviders extends AuthProvider[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
   const auth = resolveAuth(optionsOrAuth)
 
   auth.development = DEV
@@ -41,7 +41,7 @@ export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(options
  * Returns full session data including access tokens - for server-side use only.
  * @internal
  */
-export function createSolidStartGetServerSession<const TProviders extends OAuthProvider<any>[]>(auth: AuthInstance<TProviders>) {
+export function createSolidStartGetServerSession<const TProviders extends AuthProvider[]>(auth: AuthInstance<TProviders>) {
   return async (request: Request) => resolveServerSession(auth, request)
 }
 
@@ -63,7 +63,7 @@ export function createSolidStartGetServerSession<const TProviders extends OAuthP
  *   onRequest: [authMiddleware(true, auth)],
  * })
  */
-export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
+export function authMiddleware<const TProviders extends AuthProvider[]>(
   pathsToPreLoad: string[] | boolean,
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
 ) {
@@ -110,7 +110,7 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
  * })
  * ```
  */
-export function refreshMiddleware<const TProviders extends OAuthProvider<any>[]>(
+export function refreshMiddleware<const TProviders extends AuthProvider[]>(
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
   options: RefreshSessionOptions = {},
 ) {

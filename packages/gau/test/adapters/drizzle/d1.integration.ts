@@ -37,18 +37,35 @@ const miniflare = new Miniflare({
   d1Databases: ['DB'],
 })
 
+const verification = snakeCase.table('verification', {
+  id: text().primaryKey(),
+  value: text().notNull(),
+  expiresAt: integer().notNull(),
+  version: integer().notNull(),
+})
+
 try {
   const d1 = await miniflare.getD1Database('DB')
   await resetDatabase(d1)
-  const adapter = DrizzleAdapter(drizzle(d1), users, accounts)
+  const adapter = DrizzleAdapter(drizzle(d1), users, accounts, verification)
 
   await verifyAdapter(adapter)
+  const store = adapter.verification!
+  const record = { id: 'challenge', value: 'pending', expiresAt: Date.now() + 600000, version: 0 }
+  assert.equal(await store.set(record, null), true)
+  assert.equal(await store.set(record, null), false)
+  const updates = await Promise.all(Array.from({ length: 4 }, () => store.set({ ...record, value: 'used', version: 1 }, 0)))
+  assert.equal(updates.filter(Boolean).length, 1)
+  assert.equal((await store.get('challenge'))?.value, 'used')
+  await store.deleteExpired(record.expiresAt)
+  assert.equal(await store.get('challenge'), null)
 }
 finally {
   await miniflare.dispose()
 }
 
 async function resetDatabase(d1: Awaited<ReturnType<Miniflare['getD1Database']>>) {
+  await d1.exec('CREATE TABLE verification (id text PRIMARY KEY, value text NOT NULL, expires_at integer NOT NULL, version integer NOT NULL);')
   await d1.exec('DROP TABLE IF EXISTS accounts;')
   await d1.exec('DROP TABLE IF EXISTS users;')
   await d1.exec("CREATE TABLE users (id text PRIMARY KEY NOT NULL, name text, email text UNIQUE, image text, email_verified integer, role text, nickname text DEFAULT 'New user', created_at integer NOT NULL, updated_at integer NOT NULL);")

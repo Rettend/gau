@@ -1,8 +1,11 @@
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
+import type { EmailOptions, EmailProviderId, EmailResult, OAuthProviderIds } from '../shared/email'
+import { createEmailFlow } from '../shared/email'
 import { isTauri } from '../../runtimes/tauri/index'
 import { clearSessionToken, getSessionToken, handleRefreshedToken, storeSessionToken } from '../token'
 
 export { clearSessionToken, getSessionToken, handleRefreshedToken, REFRESHED_TOKEN_HEADER, SESSION_TOKEN_KEY, storeSessionToken } from '../token'
+export type { EmailStartOptions, EmailVerifyOptions, EmailChallengeResult, EmailAuthenticatedResult } from '../shared/email'
 
 export interface AuthClientOptions {
   baseUrl: string
@@ -22,6 +25,7 @@ function buildQuery(params: Record<string, string | undefined | null>): string {
 }
 
 export function createAuthClient<const TAuth = unknown>({ baseUrl, scheme = 'gau' }: AuthClientOptions) {
+  const emailFlow = createEmailFlow(baseUrl)
   let currentSession: GauSession<ProviderIds<TAuth>> = { user: null, session: null, accounts: null, providers: [] }
   const listeners = new Set<SessionListener<TAuth>>()
 
@@ -111,7 +115,47 @@ export function createAuthClient<const TAuth = unknown>({ baseUrl, scheme = 'gau
     return `${baseUrl}/link/${provider}${q}`
   }
 
-  async function signIn<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
+  async function emailAction(options: EmailOptions, linking: boolean) {
+    const starting = typeof options.email === 'string'
+    const proof = starting ? await emailFlow.start() : undefined
+    const token = linking ? getSessionToken() : null
+    const response = await fetch(`${baseUrl}/${linking ? 'link/' : ''}email`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(starting
+        ? { ...options, clientChallenge: proof!.clientChallenge, session: isTauri() ? 'token' : 'cookie' }
+        : { ...options, verifier: emailFlow.get(options.challengeId!) }),
+    })
+    const result = await response.json()
+    if (!response.ok)
+      throw Object.assign(new Error(result.error ?? 'Email sign-in failed.'), { code: result.code, status: response.status })
+    if (starting) {
+      emailFlow.save(result.challengeId, proof!.verifier)
+    }
+    else {
+      emailFlow.clear(options.challengeId!)
+      if (result.token)
+        await applySessionToken(result.token)
+      else
+        await refreshSession()
+    }
+    const { token: _token, ...safeResult } = result
+    return safeResult
+  }
+
+  function signIn<O extends EmailOptions>(provider: EmailProviderId<TAuth>, options: O): Promise<EmailResult<O>>
+  function signIn<P extends OAuthProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string>
+  async function signIn(provider: string, options?: EmailOptions | { redirectTo?: string, profile?: string }): Promise<any> {
+    if (provider === 'email') {
+      if (!options || !('email' in options || 'challengeId' in options))
+        throw new Error('Email sign-in requires an email address or a verification code.')
+      return emailAction(options as EmailOptions, false)
+    }
+    return oauthSignIn(provider as ProviderIds<TAuth>, options as { redirectTo?: string, profile?: string })
+  }
+
+  async function oauthSignIn<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
     const url = makeProviderUrl<P, PR>(provider, options)
 
     if (isTauri()) {
@@ -122,7 +166,18 @@ export function createAuthClient<const TAuth = unknown>({ baseUrl, scheme = 'gau
     return url
   }
 
-  async function linkAccount<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
+  function linkAccount<O extends EmailOptions>(provider: EmailProviderId<TAuth>, options: O): Promise<EmailResult<O>>
+  function linkAccount<P extends OAuthProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined = undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string>
+  async function linkAccount(provider: string, options?: EmailOptions | { redirectTo?: string, profile?: string }): Promise<any> {
+    if (provider === 'email') {
+      if (!options || !('email' in options || 'challengeId' in options))
+        throw new Error('Linking email requires an email address or a verification code.')
+      return emailAction(options as EmailOptions, true)
+    }
+    return oauthLinkAccount(provider as ProviderIds<TAuth>, options as { redirectTo?: string, profile?: string })
+  }
+
+  async function oauthLinkAccount<P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }): Promise<string> {
     if (isTauri()) {
       const { linkAccountWithTauri } = await import('../../runtimes/tauri/index')
       await linkAccountWithTauri<TAuth, P, PR>(provider, baseUrl, scheme, options?.redirectTo, options?.profile)

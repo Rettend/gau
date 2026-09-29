@@ -4,7 +4,7 @@
 
 - Use `bun` only. The repo pins `bun@1.4.2` and Node 24 in `.node-version`; CI installs with `bun install --frozen-lockfile`.
 - This is a Bun workspace, but root `build`, `check`, `check:test`, `test`, `test:pg`, and `dev` target `packages/gau`. Root `lint` runs Vite+ Oxlint across the repo without modifying files.
-- Vite+ 1.0 manages Vite, Vitest, Oxlint, Oxfmt, and library packaging. Use Bun scripts to invoke it. Astro and legacy SolidStart keep Vite 6; the `vite@>=8` override only redirects compatible ranges to Vite+.
+- Vite+ 1.0 manages Vite, Vitest, Oxlint, Oxfmt, and library packaging. Use Bun scripts to invoke it. Astro 7 uses Vite 8 through Vite+; legacy SolidStart keeps Vite 6. The `vite@>=8` override only redirects compatible ranges to Vite+.
 - CI runs the fast and PostgreSQL Vitest projects, library typechecks, Oxlint, and the library build. If you change docs or example apps, run their relevant checks yourself.
 
 ## Package Map

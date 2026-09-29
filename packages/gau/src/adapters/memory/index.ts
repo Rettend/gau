@@ -1,4 +1,5 @@
 import type { Account, Adapter, NewAccount, NewUser, User } from '../../core/index'
+import type { VerificationRecord } from '../../core/verification'
 
 interface InternalAccountKey {
   provider: string
@@ -10,12 +11,31 @@ function accountKey(k: InternalAccountKey): string {
 }
 
 export function MemoryAdapter(): Adapter {
+  const verification = new Map<string, VerificationRecord>()
   const users = new Map<string, User>()
   const usersByEmail = new Map<string, string>() // email -> userId
   const accounts = new Map<string, string>() // accountKey -> userId
   const accountData = new Map<string, Partial<Account>>() // accountKey -> stored account fields
 
   return {
+    verification: {
+      async get(id) {
+        const record = verification.get(id)
+        return record ? { ...record } : null
+      },
+      async set(record, expectedVersion) {
+        if ((verification.get(record.id)?.version ?? null) !== expectedVersion)
+          return false
+        verification.set(record.id, { ...record })
+        return true
+      },
+      async deleteExpired(now) {
+        for (const [id, record] of verification) {
+          if (record.expiresAt <= now)
+            verification.delete(id)
+        }
+      },
+    },
     async getUser(id) {
       return users.get(id) ?? null
     },
@@ -55,6 +75,8 @@ export function MemoryAdapter(): Adapter {
     },
 
     async createUser(data: NewUser) {
+      if (data.email && usersByEmail.has(data.email))
+        throw new Error('Email already exists')
       const id = data.id ?? crypto.randomUUID()
       const user: User = {
         ...data,
@@ -73,6 +95,8 @@ export function MemoryAdapter(): Adapter {
 
     async linkAccount(data: NewAccount) {
       const key = accountKey(data)
+      if (accounts.has(key))
+        throw new Error('Account already linked')
       accounts.set(key, data.userId)
       accountData.set(key, {
         type: data.type,
@@ -105,6 +129,9 @@ export function MemoryAdapter(): Adapter {
       if (!existing)
         throw new Error('User not found')
       const updated: User = { ...existing, ...partial }
+      const emailOwner = updated.email ? usersByEmail.get(updated.email) : undefined
+      if (emailOwner && emailOwner !== updated.id)
+        throw new Error('Email already exists')
       users.set(updated.id, updated)
       if (existing.email && existing.email !== updated.email)
         usersByEmail.delete(existing.email)

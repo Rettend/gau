@@ -1,3 +1,5 @@
+import type { VerificationStore } from './verification'
+
 export interface User {
   id: string
   name?: string | null
@@ -85,6 +87,7 @@ export interface Account {
 export interface NewAccount extends Account {}
 
 export interface Adapter {
+  verification?: VerificationStore
   getUser: (id: string) => Promise<User | null>
   getUserByEmail: (email: string) => Promise<User | null>
   getUserByAccount: (provider: string, providerAccountId: string) => Promise<User | null>
@@ -129,6 +132,8 @@ export * from './errors'
 export * from './handler'
 export * from './templates'
 export * from './utils'
+export * from './providers'
+export * from './verification'
 
 export const REFRESHED_TOKEN_HEADER = 'X-Refreshed-Token'
 

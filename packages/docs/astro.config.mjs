@@ -1,9 +1,9 @@
 // @ts-check
 import { fileURLToPath } from 'node:url'
 import starlightLlmsTxt from '@rttnd/starlight-llms-txt'
+import UnoCSS from '@unocss/astro'
 import { defineConfig } from 'astro/config'
 import Icons from 'starlight-plugin-icons'
-import UnoCSS from 'unocss/astro'
 
 export default defineConfig({
   site: 'https://gau.rettend.me',
@@ -81,9 +81,10 @@ export default defineConfig({
             ],
           },
           {
-            label: 'OAuth Providers',
+            label: 'Providers',
             items: [
               { icon: 'i-ph:plugs-duotone', label: 'Providers', slug: 'providers' },
+              { icon: 'i-ph:envelope-duotone', label: 'Email', slug: 'providers/email' },
               { icon: 'i-simple-icons:github', label: 'GitHub', slug: 'providers/github' },
               { icon: 'i-bigicons:discord', label: 'Discord', slug: 'providers/discord' },
               { icon: 'i-logos:google-icon', label: 'Google', slug: 'providers/google' },

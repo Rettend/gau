@@ -81,9 +81,21 @@
       "types": "./dist/src/oauth/index.d.ts",
       "import": "./dist/src/oauth/index.js"
     },
-    "./runtimes/bun": {
-      "types": "./dist/src/runtimes/bun/index.d.ts",
-      "import": "./dist/src/runtimes/bun/index.js"
+    "./email": {
+      "types": "./dist/src/email/index.d.ts",
+      "import": "./dist/src/email/index.js"
+    },
+    "./email/resend": {
+      "types": "./dist/src/email/resend/index.d.ts",
+      "import": "./dist/src/email/resend/index.js"
+    },
+    "./email/cloudflare": {
+      "types": "./dist/src/email/cloudflare/index.d.ts",
+      "import": "./dist/src/email/cloudflare/index.js"
+    },
+    "./email/smtp": {
+      "types": "./dist/src/email/smtp/index.d.ts",
+      "import": "./dist/src/email/smtp/index.js"
     },
     "./runtimes/tauri": {
       "types": "./dist/src/runtimes/tauri/index.d.ts",

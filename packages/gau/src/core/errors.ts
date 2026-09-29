@@ -1,4 +1,8 @@
 export const ErrorMessages = {
+  EMAIL_VERIFICATION_INVALID: 'The code or link is invalid or has expired. Request a new email.',
+  EMAIL_RATE_LIMITED: 'Too many requests. Try again later.',
+  EMAIL_SEND_FAILED: 'Could not send the email. Try again later.',
+  EMAIL_BROWSER_MISMATCH: 'Open this link in the browser where you requested it, or enter the code there.',
   // OAuth Flow Errors
   CSRF_INVALID: 'Invalid CSRF token',
   PKCE_MISSING: 'Missing PKCE code verifier',
@@ -58,6 +62,8 @@ export const ErrorCodes: { [K in ErrorCode]: K } = Object.fromEntries(
  * Errors not listed here default to 400.
  */
 export const ErrorStatuses: Partial<Record<ErrorCode, number>> = {
+  EMAIL_RATE_LIMITED: 429,
+  EMAIL_SEND_FAILED: 502,
   CSRF_INVALID: 403,
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,

@@ -1,0 +1,241 @@
+---
+title: Email
+description: Sign in with an email code or magic link.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components'
+
+The email provider sends a six-digit code, a sign-in link, or both. Add it to your provider list alongside social logins, or use it on its own.
+
+### Environment variables
+
+```txt title=".env"
+AUTH_SECRET=
+RESEND_TOKEN=
+EMAIL_FROM=My App <login@example.com>
+```
+
+Verify your sending domain in [Resend](https://resend.com/domains). For development, `onboarding@resend.dev` can send to the email address on your Resend account.
+
+### Config
+
+```ts title="auth.ts"
+import process from 'node:process'
+import { createAuth } from '@rttnd/gau'
+import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
+import { Email } from '@rttnd/gau/email'
+import { Resend } from '@rttnd/gau/email/resend'
+import { db } from './db'
+import { Accounts, Users, Verification } from './schema'
+
+export const auth = createAuth({
+  adapter: DrizzleAdapter(db, Users, Accounts, Verification),
+  providers: [
+    Email({
+      from: process.env.EMAIL_FROM!,
+      send: Resend({ apiKey: process.env.RESEND_TOKEN! }),
+      mode: 'both',
+    }),
+  ],
+  jwt: { secret: process.env.AUTH_SECRET! },
+})
+```
+
+Use your framework's usual Gau handler and session setup. See [Getting Started](/guides/getting-started/) if this is your first provider.
+
+### Verification storage
+
+Email login needs a table for short-lived challenges and sending limits. Add it to your existing [Drizzle schema](/adapters/drizzle/), apply the migration, and pass it as the fourth argument to `DrizzleAdapter`.
+
+<Tabs syncKey="db">
+  <TabItem label="SQLite">
+    ```ts title="schema.ts"
+    import { index, integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
+
+    export const Verification = snakeCase.table('verification', {
+      id: text().primaryKey(),
+      value: text().notNull(),
+      expiresAt: integer().notNull(),
+      version: integer().notNull(),
+    }, table => [index('verification_expiry').on(table.expiresAt)])
+    ```
+  </TabItem>
+  <TabItem label="PostgreSQL">
+    ```ts title="schema.ts"
+    import { bigint, index, integer, snakeCase, text } from 'drizzle-orm/pg-core'
+
+    export const Verification = snakeCase.table('verification', {
+      id: text().primaryKey(),
+      value: text().notNull(),
+      expiresAt: bigint({ mode: 'number' }).notNull(),
+      version: integer().notNull(),
+    }, table => [index('verification_expiry').on(table.expiresAt)])
+    ```
+  </TabItem>
+</Tabs>
+
+`expiresAt` stores Unix milliseconds, not a `Date`. Gau removes expired records when it starts a new email request. OAuth-only apps do not need this table.
+
+`MemoryAdapter()` includes verification storage for tests and local development. Use shared, persistent storage when running more than one server. Custom adapters can implement `Adapter.verification`; its `set` operation must compare the version and write the record atomically.
+
+### Sign in
+
+Use `signIn` from the vanilla client or your framework's `useAuth()` helper:
+
+```ts
+const result = await client.signIn('email', {
+  email: 'you@example.com',
+})
+
+// Save result.challengeId while the user enters their code.
+await client.signIn('email', {
+  challengeId: result.challengeId,
+  code: '123456',
+})
+```
+
+The first call returns `status: 'verification-required'`, `challengeId`, `expiresAt` in milliseconds, and `retryAfter` in seconds. The second returns `status: 'authenticated'` and refreshes the client's session. Errors reject the promise with a message, `code`, and HTTP `status`.
+
+Request another email by calling `signIn('email', { email })` again after `retryAfter`. Keep the new challenge ID. Earlier emails remain valid until they expire or are used.
+
+The client keeps verification proof in the current tab's session storage. Enter the code in the tab or app where you requested it; you can read the email on another device. After a reload, your UI also needs to restore the challenge ID, or ask for another email.
+
+### Magic links
+
+Set `mode: 'link'` to send only a link, or `mode: 'both'` to include a code too. The default is `'code'`.
+
+Open the link in the browser where you requested it, then press **Continue**. Visiting the link alone does not use it, so ordinary email previews cannot consume it. Opening it in another browser shows a message asking you to return to the original browser or enter the code there.
+
+Pass `redirectTo` when requesting the email to choose where the link sends the user after sign-in. It must be a URL on the same origin as the auth handler. Code verification updates the session without navigating; your app can navigate afterward.
+
+```ts
+await client.signIn('email', {
+  email: 'you@example.com',
+  redirectTo: '/dashboard',
+})
+```
+
+Codes and links expire after 10 minutes by default. Each challenge can be used once. When an email contains both, using either invalidates the other.
+
+Tauri uses codes and receives a session token after verification. Use `'code'` or `'both'`; token sessions omit the link.
+
+### Link an email
+
+While signed in, use `linkAccount` for both steps:
+
+```ts
+const result = await client.linkAccount('email', { email: 'you@example.com' })
+await client.linkAccount('email', {
+  challengeId: result.challengeId,
+  code: '123456',
+})
+```
+
+The challenge belongs to the signed-in user. Linking does not replace their session. An email already owned by another user cannot be linked. Use `unlinkAccount('email')` to remove it; Gau prevents removing the last account.
+
+Email sign-in follows `autoLink`: by default, a verified email can sign in to an existing user with that primary email. With `autoLink: false`, that user must sign in another way and link their email first. This means enabling email sign-in also makes mailbox access a way to access existing accounts.
+
+`allowDifferentEmails` and `linkOnly` work with email too. OAuth token hooks such as `onOAuthExchange` do not run for email.
+
+### Email senders
+
+#### Resend
+
+`Resend({ apiKey })` uses the HTTP API. No extra package is needed.
+
+#### Cloudflare
+
+Use [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) with its REST API:
+
+```ts
+import { Cloudflare } from '@rttnd/gau/email/cloudflare'
+
+Email({
+  from: 'login@example.com',
+  send: Cloudflare({ accountId: env.CLOUDFLARE_ACCOUNT_ID, apiToken: env.CLOUDFLARE_API_TOKEN }),
+})
+```
+
+In a Worker, you can pass an email sending binding instead: `Cloudflare({ binding: env.EMAIL })`.
+
+Cloudflare currently requires Workers Paid and a domain using Cloudflare DNS for sending to arbitrary recipients. Check its docs for current availability and pricing.
+
+#### SMTP and self-hosted email
+
+Install the optional SMTP dependency:
+
+```sh
+bun add nodemailer
+```
+
+```ts
+import { SMTP } from '@rttnd/gau/email/smtp'
+
+Email({
+  from: 'login@example.com',
+  send: SMTP({
+    host: 'mail.example.com',
+    port: 465,
+    secure: true,
+    auth: { user: env.SMTP_USER, pass: env.SMTP_PASSWORD },
+  }),
+})
+```
+
+SMTP runs on Node and Bun. It works with self-hosted servers and services such as Amazon Simple Email Service (SES), using that service's SMTP credentials. Use an HTTP sender in Workers.
+
+#### Custom sender
+
+`send` receives `{ from, to, subject, text, html }`. Resolve when your email service accepts the message, and throw if it fails. Keep credentials and senders on the server.
+
+```ts
+Email({
+  from: 'login@example.com',
+  send: async (message) => {
+    await mailer.send(message)
+  },
+})
+```
+
+### Email content
+
+Gau includes a default template. Use `render` to change the subject, plain text, and HTML without changing your sender:
+
+```ts
+Email({
+  from: 'login@example.com',
+  send: Resend({ apiKey: env.RESEND_TOKEN }),
+  mode: 'code',
+  render: ({ code }) => ({
+    subject: 'Your sign-in code',
+    text: `Your code is ${code}. It expires in 10 minutes.`,
+    html: `<p>Your code is <strong>${code}</strong>. It expires in 10 minutes.</p>`,
+  }),
+})
+```
+
+The callback also receives `email`, `url`, `expiresAt` as a `Date`, and `purpose` (`'signin'` or `'link'`). `code` and `url` depend on the mode. Escape any user-provided values you include in HTML.
+
+### Limits
+
+`expiresIn` sets the lifetime in seconds, and `maxAttempts` sets how many code guesses a challenge allows. Their defaults are `600` and `5`.
+
+Sending limits use the verification store and are shared across server instances:
+
+```ts
+Email({
+  from: 'login@example.com',
+  send: Resend({ apiKey: env.RESEND_TOKEN }),
+  rateLimit: {
+    resendAfter: 60,
+    perAddress: 5,
+    perIp: 20,
+    total: 100,
+    getClientAddress: request => getTrustedClientAddress(request),
+  },
+})
+```
+
+These are the defaults: a 60-second resend delay, 5 sends per address per hour, 20 per IP, and 100 total. Supply `getClientAddress` from your trusted server runtime to enable the IP limit. Gau does not trust forwarded headers automatically. Adjust the total for your app's traffic. All limits must be positive integers.
+
+Email addresses are trimmed and lowercased. Gau does not remove dots or `+` tags. Codes and link tokens are stored as keyed hashes; do not log them in your sender or template callback.

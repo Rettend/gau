@@ -1,6 +1,7 @@
 import type { AnyPgColumn, PgTableWithColumns } from 'drizzle-orm/pg-core'
 import type { AnySQLiteColumn, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core'
 import type { AccountRow, UserRow } from './shared'
+import type { VerificationRecord } from '../../core/verification'
 
 // Describe the fields gau reads and writes, while allowing extra application columns.
 // Auth fields must be writable; IDs must be non-null strings.
@@ -40,3 +41,6 @@ export type PostgresUsersTable = PostgresAuthTable<UserRow> & {
 export type PostgresAccountsTable = PostgresAuthTable<AccountRow> & {
   sessionState?: AnyPgColumn<ColumnConfig<string | null>>
 }
+
+export type SQLiteVerificationTable = SQLiteAuthTable<VerificationRecord>
+export type PostgresVerificationTable = PostgresAuthTable<VerificationRecord>

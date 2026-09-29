@@ -16,12 +16,12 @@
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
-    "@astrojs/starlight": "^0.37.7",
-    "@rttnd/starlight-llms-txt": "^0.6.1",
-    "astro": "^5.18.2",
+    "@astrojs/starlight": "^0.42.4",
+    "@rttnd/starlight-llms-txt": "^0.7.0",
+    "astro": "^7.3.5",
     "sharp": "^0.35.5",
     "starlight-plugin-icons": "^1.1.6",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -31,6 +31,7 @@
     "@iconify-json/material-icon-theme": "^1.2.70",
     "@iconify-json/ph": "^1.2.2",
     "@iconify-json/simple-icons": "^1.2.98",
+    "@unocss/astro": "^66.10.5",
     "unocss": "^66.10.5"
   }
 }
