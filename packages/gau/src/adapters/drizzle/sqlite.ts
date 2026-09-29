@@ -1,136 +1,86 @@
-import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
-import type { AccountsTable, UsersTable } from './shared'
+import type { AnyRelations } from 'drizzle-orm'
+import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
+import type { Adapter } from '../../core'
+import type { SQLiteAccountsTable, SQLiteUsersTable } from './schema'
 import { and, eq } from 'drizzle-orm'
-import { createDrizzleAdapter } from './shared'
+import { accountFromRow, userInsert, userUpdate } from './shared'
 
-export type { AccountsTable, UsersTable } from './shared'
+export type SQLiteDatabase = SQLiteAsyncDatabase<'sync' | 'async', unknown, AnyRelations>
 
-export function SQLiteDrizzleAdapter<
-  DB extends BaseSQLiteDatabase<'sync' | 'async', any, any>,
-  U extends UsersTable,
-  A extends AccountsTable,
->(db: DB, Users: U, Accounts: A) {
-  type DBAccount = InferSelectModel<A>
-  type DBInsertUser = InferInsertModel<U>
-  type DBInsertAccount = InferInsertModel<A>
-
-  return createDrizzleAdapter(Users, {
+export function SQLiteDrizzleAdapter(db: SQLiteDatabase, users: SQLiteUsersTable, accounts: SQLiteAccountsTable): Adapter {
+  return {
     async getUser(id) {
-      return await db
-        .select()
-        .from(Users)
-        .where(eq(Users.id, id))
-        .get()
+      return await db.select().from(users).where(eq(users.id, id)).get() ?? null
     },
 
     async getUserByEmail(email) {
-      return await db
-        .select()
-        .from(Users)
-        .where(eq(Users.email, email))
-        .get()
+      return await db.select().from(users).where(eq(users.email, email)).get() ?? null
     },
 
     async getUserByAccount(provider, providerAccountId) {
-      const result = await db
-        .select()
-        .from(Users)
-        .innerJoin(Accounts, eq(Users.id, Accounts.userId))
-        .where(and(eq(Accounts.provider, provider), eq(Accounts.providerAccountId, providerAccountId)))
+      const row = await db.select({ user: users }).from(users)
+        .innerJoin(accounts, eq(users.id, accounts.userId))
+        .where(and(eq(accounts.provider, provider), eq(accounts.providerAccountId, providerAccountId)))
         .get()
-      return result?.users
+      return row?.user ?? null
     },
 
     async getAccounts(userId) {
-      return await db
-        .select()
-        .from(Accounts)
-        .where(eq(Accounts.userId, userId))
-        .all()
+      const rows = await db.select().from(accounts).where(eq(accounts.userId, userId)).all()
+      return rows.map(accountFromRow)
     },
 
     async getUserAndAccounts(userId) {
-      const result = await db
-        .select()
-        .from(Users)
-        .where(eq(Users.id, userId))
-        .leftJoin(Accounts, eq(Users.id, Accounts.userId))
-        .all()
-
-      if (!result.length)
-        return null
-
-      return {
-        user: result[0]!.users,
-        accounts: result
-          .map(row => row.accounts)
-          .filter(Boolean) as DBAccount[],
-      }
+      const rows = await db.select({ user: users, account: accounts }).from(users)
+        .leftJoin(accounts, eq(users.id, accounts.userId))
+        .where(eq(users.id, userId)).all()
+      const first = rows[0]
+      return first
+        ? { user: first.user, accounts: rows.flatMap(row => row.account ? [accountFromRow(row.account)] : []) }
+        : null
     },
 
-    async createUser(_id, data) {
-      const user = await db
-        .insert(Users)
-        .values(data as DBInsertUser)
-        .returning()
-        .get() as InferSelectModel<U> | undefined
-
+    async createUser(data) {
+      const user = await db.insert(users).values(userInsert(data, !!users.role)).returning().get()
       if (!user)
         throw new Error('Failed to create user.')
-
       return user
     },
 
-    async linkAccount(data) {
-      await db
-        .insert(Accounts)
-        .values(data as DBInsertAccount)
-        .run()
-    },
-
-    async unlinkAccount(provider, providerAccountId) {
-      await db
-        .delete(Accounts)
-        .where(and(eq(Accounts.provider, provider), eq(Accounts.providerAccountId, providerAccountId)))
-        .run()
-    },
-
-    async updateAccount(data) {
-      await db
-        .update(Accounts)
-        .set({
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-          expiresAt: data.expiresAt,
-          idToken: data.idToken,
-          tokenType: data.tokenType,
-          scope: data.scope,
-        })
-        .where(and(
-          eq(Accounts.userId, data.userId),
-          eq(Accounts.provider, data.provider),
-          eq(Accounts.providerAccountId, data.providerAccountId),
-        ))
-        .run()
-    },
-
-    async updateUser(id, data) {
-      const user = await db
-        .update(Users)
-        .set(data as Partial<DBInsertUser>)
-        .where(eq(Users.id, id))
-        .returning()
-        .get() as InferSelectModel<U> | undefined
-
+    async updateUser(data) {
+      const user = await db.update(users).set(userUpdate(data, !!users.role))
+        .where(eq(users.id, data.id)).returning().get()
       if (!user)
         throw new Error('User not found')
-
       return user
     },
 
     async deleteUser(id) {
-      await db.delete(Users).where(eq(Users.id, id)).run()
+      await db.delete(users).where(eq(users.id, id)).run()
     },
-  })
+
+    async linkAccount(data) {
+      await db.insert(accounts).values({ type: 'oauth', ...data }).run()
+    },
+
+    async unlinkAccount(provider, providerAccountId) {
+      await db.delete(accounts)
+        .where(and(eq(accounts.provider, provider), eq(accounts.providerAccountId, providerAccountId))).run()
+    },
+
+    async updateAccount(data) {
+      await db.update(accounts).set({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
+        idToken: data.idToken,
+        tokenType: data.tokenType,
+        scope: data.scope,
+      }).where(and(
+        eq(accounts.userId, data.userId),
+        eq(accounts.provider, data.provider),
+        eq(accounts.providerAccountId, data.providerAccountId),
+      )).run()
+    },
+  }
 }

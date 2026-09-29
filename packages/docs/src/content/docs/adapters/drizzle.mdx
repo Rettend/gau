@@ -5,7 +5,7 @@ description: How to set up the Drizzle adapter for gau.
 
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
-`gau` has a Drizzle ORM adapter for SQLite and PostgreSQL. This guide uses Turso for SQLite; Cloudflare D1 uses the same schema with a different client.
+`gau` supports Drizzle ORM 1.0, starting with `1.0.0-rc.4`, for SQLite and PostgreSQL. Drizzle 0.x is no longer supported. This guide uses Turso for SQLite; Cloudflare D1 uses the same schema with a different client.
 
 <br />
 
@@ -17,32 +17,32 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         <Tabs syncKey="pkg">
           <TabItem label="npm">
             ```sh
-            npm i drizzle-orm @libsql/client
-            npm i -D drizzle-kit
+            npm i drizzle-orm@1.0.0-rc.4 @libsql/client
+            npm i -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="pnpm">
             ```sh
-            pnpm add drizzle-orm @libsql/client
-            pnpm add -D drizzle-kit
+            pnpm add drizzle-orm@1.0.0-rc.4 @libsql/client
+            pnpm add -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="yarn">
             ```sh
-            yarn add drizzle-orm @libsql/client
-            yarn add -D drizzle-kit
+            yarn add drizzle-orm@1.0.0-rc.4 @libsql/client
+            yarn add -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="bun">
             ```sh
-            bun add drizzle-orm @libsql/client
-            bun add -D drizzle-kit
+            bun add drizzle-orm@1.0.0-rc.4 @libsql/client
+            bun add -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="ni">
             ```sh
-            ni drizzle-orm @libsql/client
-            ni -D drizzle-kit
+            ni drizzle-orm@1.0.0-rc.4 @libsql/client
+            ni -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
         </Tabs>
@@ -51,32 +51,32 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         <Tabs syncKey="pkg">
           <TabItem label="npm">
             ```sh
-            npm i drizzle-orm pg
-            npm i -D drizzle-kit
+            npm i drizzle-orm@1.0.0-rc.4 pg
+            npm i -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="pnpm">
             ```sh
-            pnpm add drizzle-orm pg
-            pnpm add -D drizzle-kit
+            pnpm add drizzle-orm@1.0.0-rc.4 pg
+            pnpm add -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="yarn">
             ```sh
-            yarn add drizzle-orm pg
-            yarn add -D drizzle-kit
+            yarn add drizzle-orm@1.0.0-rc.4 pg
+            yarn add -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="bun">
             ```sh
-            bun add drizzle-orm pg
-            bun add -D drizzle-kit
+            bun add drizzle-orm@1.0.0-rc.4 pg
+            bun add -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
           <TabItem label="ni">
             ```sh
-            ni drizzle-orm pg
-            ni -D drizzle-kit
+            ni drizzle-orm@1.0.0-rc.4 pg
+            ni -D drizzle-kit@1.0.0-rc.4
             ```
           </TabItem>
         </Tabs>
@@ -85,14 +85,16 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
 2. ##### Define the Database Schema
 
-   This is the complete schema for `gau`. Depending on your OAuth provider you may be able to omit some columns.
+   Define the user and account fields shown below. `sessionState` and the account's `createdAt` are optional. You can add application columns and an optional text `role` column to the user table. Table names are up to you; keep the TypeScript field names shown here.
+
+   `snakeCase.table()` maps fields such as `emailVerified` to SQL columns such as `email_verified`. User IDs and account identifiers must be non-null strings. User timestamps must use columns that accept JavaScript `Date` values.
 
     <Tabs syncKey="db">
       <TabItem label="SQLite">
         ```ts title="schema.ts"
-        import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+        import { integer, primaryKey, snakeCase, text } from 'drizzle-orm/sqlite-core'
 
-        export const Users = sqliteTable('users', {
+        export const Users = snakeCase.table('users', {
           id: text().primaryKey().$defaultFn(() => crypto.randomUUID()),
           name: text(),
           email: text().unique(),
@@ -105,7 +107,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         export type SelectUser = typeof Users.$inferSelect
         export type InsertUser = typeof Users.$inferInsert
 
-        export const Accounts = sqliteTable(
+        export const Accounts = snakeCase.table(
           'accounts',
           {
             userId: text()
@@ -120,8 +122,8 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
             tokenType: text(),
             scope: text(),
             idToken: text(),
-            sessionState: text('session_state'),
-            createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+            sessionState: text(),
+            createdAt: integer({ mode: 'timestamp' }).$defaultFn(() => new Date()),
           },
           account => [
             primaryKey({
@@ -136,22 +138,22 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
       </TabItem>
       <TabItem label="PostgreSQL">
         ```ts title="schema.ts"
-        import { boolean, integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
+        import { boolean, integer, primaryKey, snakeCase, text, timestamp } from 'drizzle-orm/pg-core'
 
-        export const Users = pgTable('users', {
+        export const Users = snakeCase.table('users', {
           id: text().primaryKey(),
           name: text(),
           email: text().unique(),
-          emailVerified: boolean('email_verified'),
+          emailVerified: boolean(),
           image: text(),
-          createdAt: timestamp('created_at').defaultNow(),
-          updatedAt: timestamp('updated_at').defaultNow(),
+          createdAt: timestamp().defaultNow(),
+          updatedAt: timestamp().defaultNow(),
         })
 
         export type SelectUser = typeof Users.$inferSelect
         export type InsertUser = typeof Users.$inferInsert
 
-        export const Accounts = pgTable(
+        export const Accounts = snakeCase.table(
           'accounts',
           {
             userId: text().notNull().references(() => Users.id, { onDelete: 'cascade' }),
@@ -160,12 +162,12 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
             providerAccountId: text().notNull(),
             refreshToken: text(),
             accessToken: text(),
-            expiresAt: integer('expires_at'),
+            expiresAt: integer(),
             tokenType: text(),
             scope: text(),
             idToken: text(),
-            sessionState: text('session_state'),
-            createdAt: timestamp('created_at').defaultNow(),
+            sessionState: text(),
+            createdAt: timestamp().defaultNow(),
           },
           account => [
             primaryKey({
@@ -225,14 +227,13 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         ```ts title="db.ts"
         import { createClient } from '@libsql/client'
         import { drizzle } from 'drizzle-orm/libsql'
-        import * as schema from './schema'
 
         const client = createClient({
           url: process.env.TURSO_DB_URL!,
           authToken: process.env.TURSO_AUTH_TOKEN!,
         })
 
-        export const db = drizzle(client, { schema, casing: 'snake_case' })
+        export const db = drizzle({ client })
         ```
 
         For Cloudflare D1, create the client from your Worker binding instead:
@@ -240,22 +241,20 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
         ```ts title="db.ts"
         import { env } from 'cloudflare:workers'
         import { drizzle } from 'drizzle-orm/d1'
-        import * as schema from './schema'
 
-        export const db = drizzle(env.DB, { schema, casing: 'snake_case' })
+        export const db = drizzle(env.DB)
         ```
       </TabItem>
       <TabItem label="PostgreSQL">
         ```ts title="db.ts"
         import { drizzle } from 'drizzle-orm/node-postgres'
         import { Pool } from 'pg'
-        import * as schema from './schema'
 
         const pool = new Pool({
           connectionString: process.env.DATABASE_URL!,
         })
 
-        export const db = drizzle(pool, { schema })
+        export const db = drizzle({ client: pool })
         ```
       </TabItem>
     </Tabs>
@@ -288,3 +287,14 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
     ```
 
 </Steps>
+
+## Upgrading from Drizzle 0.x
+
+Upgrade both `drizzle-orm` and `drizzle-kit` to the versions above. The adapter call remains `DrizzleAdapter(db, Users, Accounts)`.
+
+- Move `casing: 'snake_case'` from the database client and Kit configuration to `snakeCase.table()` in the schema. Preserve existing SQL column names; explicit column names still work.
+- Use `drizzle({ client })` for libSQL and PostgreSQL clients. D1 continues to use `drizzle(env.DB)`.
+- Remove the old `schema` client option. Gau does not require relational queries. If your application uses them, migrate to Drizzle's `defineRelations()` API and pass `relations` to the client.
+- Use `timestamp()` in PostgreSQL and `integer({ mode: 'timestamp' })` in SQLite for the user's `createdAt` and `updatedAt` fields. Text timestamp columns do not meet the adapter's schema contract.
+
+Existing Drizzle Kit migration history also needs the [Drizzle 1.0 upgrade procedure](https://orm.drizzle.team/docs/v0-v1-changes). Changing the adapter alone does not require new auth tables or renamed columns.

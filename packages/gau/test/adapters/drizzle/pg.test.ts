@@ -1,21 +1,23 @@
 import type { Adapter } from '../../../src/core'
 import { PGlite } from '@electric-sql/pglite'
-import { boolean, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core'
+import { boolean, integer, snakeCase, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/pglite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { PostgresDrizzleAdapter } from '../../../src/adapters/drizzle/pg'
+import { DrizzleAdapter } from '../../../src/adapters/drizzle'
 
-const usersTable = pgTable('users', {
+const usersTable = snakeCase.table('auth_users', {
   id: uuid().primaryKey(),
   name: text(),
   email: text().unique(),
   image: text(),
   emailVerified: boolean(),
-  createdAt: text(),
-  updatedAt: text(),
+  role: text(),
+  nickname: text().default('New user'),
+  createdAt: timestamp().notNull(),
+  updatedAt: timestamp().notNull(),
 })
 
-const accountsTable = pgTable('accounts', {
+const accountsTable = snakeCase.table('auth_accounts', {
   userId: uuid().notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
   provider: text().notNull(),
   providerAccountId: text().notNull(),
@@ -36,22 +38,24 @@ describe('postgres drizzle adapter', () => {
 
   beforeEach(async () => {
     client = new PGlite()
-    db = drizzle(client, { casing: 'snake_case' })
+    db = drizzle({ client })
 
     await client.exec(`
-      CREATE TABLE IF NOT EXISTS "users" (
+      CREATE TABLE IF NOT EXISTS "auth_users" (
         "id" uuid PRIMARY KEY,
         "name" text,
         "email" text UNIQUE,
         "image" text,
         "email_verified" boolean,
+        "role" text,
+        "nickname" text DEFAULT 'New user',
         "created_at" timestamp NOT NULL,
         "updated_at" timestamp NOT NULL
       );
     `)
     await client.exec(`
-      CREATE TABLE IF NOT EXISTS "accounts" (
-        "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      CREATE TABLE IF NOT EXISTS "auth_accounts" (
+        "user_id" uuid NOT NULL REFERENCES "auth_users"("id") ON DELETE CASCADE,
         "provider" text NOT NULL,
         "provider_account_id" text NOT NULL,
         "type" text,
@@ -66,12 +70,12 @@ describe('postgres drizzle adapter', () => {
       );
     `)
 
-    adapter = PostgresDrizzleAdapter(db, usersTable, accountsTable)
+    adapter = DrizzleAdapter(db, usersTable, accountsTable)
   })
 
   afterEach(async () => {
-    await client.exec('DROP TABLE IF EXISTS "accounts"')
-    await client.exec('DROP TABLE IF EXISTS "users"')
+    await client.exec('DROP TABLE IF EXISTS "auth_accounts"')
+    await client.exec('DROP TABLE IF EXISTS "auth_users"')
     await client.close()
   })
 
@@ -159,6 +163,38 @@ describe('postgres drizzle adapter', () => {
     })
     const retrievedUser = await adapter.getUserByAccount('test-provider', 'test-provider-id')
     expect(retrievedUser).toEqual(user)
+  })
+
+  it('updateUser: should reject a missing user', async () => {
+    await expect(adapter.updateUser({ id: crypto.randomUUID(), name: 'Missing' }))
+      .rejects.toThrow('User not found')
+  })
+
+  it('preserves roles, extra fields, and Date timestamps through writes and joins', async () => {
+    const data = { email: 'extended@example.com', role: 'admin', nickname: 'Custom' }
+    const created = await adapter.createUser(data)
+    expect(created).toMatchObject({ ...data, createdAt: expect.any(Date), updatedAt: expect.any(Date) })
+
+    await adapter.linkAccount({ userId: created.id, provider: 'github', providerAccountId: 'extended' })
+    const update = { id: created.id, role: 'user', nickname: 'Changed' }
+    const updated = await adapter.updateUser(update)
+    expect(updated).toMatchObject(update)
+    expect(await adapter.getUserByAccount('github', 'extended')).toEqual(updated)
+    expect((await adapter.getUserAndAccounts(created.id))?.user).toEqual(updated)
+  })
+
+  it('only updates tokens on the matching user and provider account', async () => {
+    const user = await adapter.createUser({ email: 'scoped@example.com' })
+    await adapter.linkAccount({ userId: user.id, provider: 'github', providerAccountId: 'one', accessToken: 'original', refreshToken: 'refresh' })
+    await adapter.linkAccount({ userId: user.id, provider: 'github', providerAccountId: 'two', accessToken: 'other' })
+    await adapter.updateAccount!({ userId: crypto.randomUUID(), provider: 'github', providerAccountId: 'one', accessToken: 'wrong-user' })
+    expect((await adapter.getAccounts(user.id)).find(account => account.providerAccountId === 'one')?.accessToken).toBe('original')
+
+    await adapter.updateAccount!({ userId: user.id, provider: 'github', providerAccountId: 'one', accessToken: null })
+    expect(await adapter.getAccounts(user.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ providerAccountId: 'one', accessToken: null, refreshToken: 'refresh' }),
+      expect.objectContaining({ providerAccountId: 'two', accessToken: 'other' }),
+    ]))
   })
 
   it('updateAccount: should update token fields for an account', async () => {

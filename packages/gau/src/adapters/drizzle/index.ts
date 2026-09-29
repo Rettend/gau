@@ -1,36 +1,29 @@
-import type { Adapter } from '../../core/index'
-import type { AccountsTable, UsersTable } from './shared'
+import type { Adapter } from '../../core'
+import type { PostgresDatabase } from './pg'
+import type { PostgresAccountsTable, PostgresUsersTable, SQLiteAccountsTable, SQLiteUsersTable } from './schema'
+import type { SQLiteDatabase } from './sqlite'
 import { is } from 'drizzle-orm'
-import { MySqlDatabase } from 'drizzle-orm/mysql-core'
-import { PgDatabase } from 'drizzle-orm/pg-core'
-
-import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
-import { MySqlDrizzleAdapter } from './mysql'
+import { PgAsyncDatabase } from 'drizzle-orm/pg-core'
+import { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core'
 import { PostgresDrizzleAdapter } from './pg'
 import { SQLiteDrizzleAdapter } from './sqlite'
 
-export function DrizzleAdapter<
-  U extends UsersTable,
-  A extends AccountsTable,
->(
-  db:
-    | BaseSQLiteDatabase<'sync' | 'async', any, any>
-    | MySqlDatabase<any, any, any, any>
-    | PgDatabase<any, any, any>,
-  users: U,
-  accounts: A,
-): Adapter {
-  if (is(db, BaseSQLiteDatabase))
-    return SQLiteDrizzleAdapter(db, users, accounts)
+type SQLiteConfig = [db: SQLiteDatabase, users: SQLiteUsersTable, accounts: SQLiteAccountsTable]
+type PostgresConfig = [db: PostgresDatabase, users: PostgresUsersTable, accounts: PostgresAccountsTable]
+type DrizzleConfig = SQLiteConfig | PostgresConfig
 
-  if (is(db, MySqlDatabase))
-    // @ts-expect-error Not implemented
-    return MySqlDrizzleAdapter(db, users, accounts)
+function isSQLite(config: DrizzleConfig): config is SQLiteConfig {
+  return is(config[0], SQLiteAsyncDatabase)
+}
 
-  if (is(db, PgDatabase))
-    return PostgresDrizzleAdapter(db, users, accounts)
+function isPostgres(config: DrizzleConfig): config is PostgresConfig {
+  return is(config[0], PgAsyncDatabase)
+}
 
-  throw new Error(
-    `Unsupported database type (${typeof db}) in gau Drizzle adapter.`,
-  )
+export function DrizzleAdapter(...config: DrizzleConfig): Adapter {
+  if (isSQLite(config))
+    return SQLiteDrizzleAdapter(...config)
+  if (isPostgres(config))
+    return PostgresDrizzleAdapter(...config)
+  throw new Error('Unsupported database in gau Drizzle adapter. Use SQLite or PostgreSQL.')
 }

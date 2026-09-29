@@ -4,7 +4,7 @@
 
 - Use `bun` only. The repo pins `bun@1.3.5`, and CI installs with `bun install --frozen-lockfile`.
 - This is a Bun workspace, but root `build`, `check`, `check:test`, `test`, `test:pg`, and `dev` target `packages/gau`. Root `lint` is the exception: it runs `eslint . --fix` across the whole repo (eslint is very very slow, never use it).
-- CI only runs `bun run test` (the fast Vitest project). If you change types, packaging, docs, or example apps, run the relevant checks yourself.
+- CI runs the fast and PostgreSQL Vitest projects plus `check` and `check:test`. If you change packaging, docs, or example apps, run the relevant checks yourself.
 
 ## Package Map
 

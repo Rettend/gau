@@ -21,3 +21,9 @@ jobs:
 
       - name: Run tests
         run: bun run test
+
+      - name: Check library and consumer types
+        run: bun run check && bun run check:test
+
+      - name: Test PostgreSQL adapter
+        run: bun run test:pg
