@@ -1,14 +1,14 @@
-import type { OAuthProvider } from '../oauth'
+import type { AuthProvider } from './providers'
 import type { CreateAuthOptions, ProviderIds } from './createAuth'
 import type { GauServerSession, GauSession } from './index'
 import { createAuth, NULL_SESSION, toClientSession } from './index'
 import { getSessionTokenFromRequest } from './utils'
 
-export type AuthInstance<TProviders extends OAuthProvider<any>[]> = ReturnType<typeof createAuth<TProviders>>
+export type AuthInstance<TProviders extends AuthProvider[]> = ReturnType<typeof createAuth<TProviders>>
 
 const providerIdsCache = new WeakMap<object, readonly string[]>()
 
-export function resolveAuth<const TProviders extends OAuthProvider<any>[]>(
+export function resolveAuth<const TProviders extends AuthProvider[]>(
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
 ): AuthInstance<TProviders> {
   const isInstance = 'providerMap' in optionsOrAuth && 'signJWT' in optionsOrAuth
@@ -17,7 +17,7 @@ export function resolveAuth<const TProviders extends OAuthProvider<any>[]>(
     : createAuth(optionsOrAuth)
 }
 
-export function getAuthProviders<const TProviders extends OAuthProvider<any>[]>(
+export function getAuthProviders<const TProviders extends AuthProvider[]>(
   auth: AuthInstance<TProviders>,
 ): ProviderIds<AuthInstance<TProviders>>[] {
   let providers = providerIdsCache.get(auth)
@@ -28,7 +28,7 @@ export function getAuthProviders<const TProviders extends OAuthProvider<any>[]>(
   return [...providers] as ProviderIds<AuthInstance<TProviders>>[]
 }
 
-export async function resolveServerSession<const TProviders extends OAuthProvider<any>[]>(
+export async function resolveServerSession<const TProviders extends AuthProvider[]>(
   auth: AuthInstance<TProviders>,
   request: Request,
 ): Promise<GauServerSession<ProviderIds<AuthInstance<TProviders>>>> {
@@ -50,7 +50,7 @@ export async function resolveServerSession<const TProviders extends OAuthProvide
   }
 }
 
-export function createRequestSessionCache<const TProviders extends OAuthProvider<any>[]>(
+export function createRequestSessionCache<const TProviders extends AuthProvider[]>(
   auth: AuthInstance<TProviders>,
   request: Request,
   preloadedServerSession?: GauServerSession<ProviderIds<AuthInstance<TProviders>>>,

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@rttnd/gau": ["../../../dist/src/index.d.ts"],
+      "@rttnd/gau/client/marko": ["../../../dist/src/client/marko/index.d.ts"]
+    },
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": ".",
+    "outDir": "../../../dist/src/client/marko"
+  },
+  "include": ["./*.marko"]
+}

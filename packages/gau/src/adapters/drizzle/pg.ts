@@ -1,145 +1,103 @@
-import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import type { PgDatabase, PgTable } from 'drizzle-orm/pg-core'
-import type { AccountsTable, UsersTable } from './shared'
-import { and, eq } from 'drizzle-orm'
-import { createDrizzleAdapter } from './shared'
+import type { AnyRelations } from 'drizzle-orm'
+import type { PgAsyncDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
+import type { Adapter } from '../../core'
+import type { PostgresAccountsTable, PostgresUsersTable, PostgresVerificationTable } from './schema'
+import { and, eq, lte } from 'drizzle-orm'
+import { accountFromRow, userInsert, userUpdate } from './shared'
 
-export type { AccountsTable, UsersTable } from './shared'
+export type PostgresDatabase = PgAsyncDatabase<PgQueryResultHKT, AnyRelations>
 
-export function PostgresDrizzleAdapter<
-  DB extends PgDatabase<any, any, any>,
-  U extends UsersTable,
-  A extends AccountsTable,
->(db: DB, Users: U, Accounts: A) {
-  type DBAccount = InferSelectModel<A>
-  type DBInsertAccount = InferInsertModel<A>
-
-  return createDrizzleAdapter(Users, {
+export function PostgresDrizzleAdapter(db: PostgresDatabase, users: PostgresUsersTable, accounts: PostgresAccountsTable, verification?: PostgresVerificationTable): Adapter {
+  return {
+    verification: verification && {
+      async get(id) {
+        const [record] = await db.select().from(verification).where(eq(verification.id, id)).limit(1)
+        return record ?? null
+      },
+      async set(record, expectedVersion) {
+        const result = expectedVersion === null
+          ? await db.insert(verification).values(record).onConflictDoNothing().returning()
+          : await db.update(verification).set(record).where(and(eq(verification.id, record.id), eq(verification.version, expectedVersion))).returning()
+        return result.length > 0
+      },
+      async deleteExpired(now) {
+        await db.delete(verification).where(lte(verification.expiresAt, now))
+      },
+    },
     async getUser(id) {
-      const rows = await db
-        .select()
-        .from(Users as unknown as PgTable)
-        .where(eq(Users.id, id))
-        .limit(1)
-        .execute()
-      return rows[0] as InferSelectModel<U> | undefined
+      const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1)
+      return user ?? null
     },
 
     async getUserByEmail(email) {
-      const rows = await db
-        .select()
-        .from(Users as unknown as PgTable)
-        .where(eq(Users.email, email))
-        .limit(1)
-        .execute()
-      return rows[0] as InferSelectModel<U> | undefined
+      const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
+      return user ?? null
     },
 
     async getUserByAccount(provider, providerAccountId) {
-      const rows = await db
-        .select()
-        .from(Users as unknown as PgTable)
-        .innerJoin(Accounts as unknown as PgTable, eq(Users.id, Accounts.userId))
-        .where(and(
-          eq(Accounts.provider, provider),
-          eq(Accounts.providerAccountId, providerAccountId),
-        ))
+      const [row] = await db.select({ user: users }).from(users)
+        .innerJoin(accounts, eq(users.id, accounts.userId))
+        .where(and(eq(accounts.provider, provider), eq(accounts.providerAccountId, providerAccountId)))
         .limit(1)
-        .execute()
-      const row = rows[0] as { users?: InferSelectModel<U> } | undefined
-      return row?.users
+      return row?.user ?? null
     },
 
     async getAccounts(userId) {
-      const rows = await db
-        .select()
-        .from(Accounts as unknown as PgTable)
-        .where(eq(Accounts.userId, userId))
-        .execute()
-      return rows as DBAccount[]
+      const rows = await db.select().from(accounts).where(eq(accounts.userId, userId))
+      return rows.map(accountFromRow)
     },
 
     async getUserAndAccounts(userId) {
-      const rows = await db
-        .select()
-        .from(Users as unknown as PgTable)
-        .leftJoin(Accounts as unknown as PgTable, eq(Users.id, Accounts.userId))
-        .where(eq(Users.id, userId))
-        .execute()
-
-      if (!rows.length)
-        return null
-
-      return {
-        user: (rows[0] as unknown as { users: InferSelectModel<U> }).users,
-        accounts: rows
-          .map((r: { accounts?: DBAccount } | undefined) => r?.accounts)
-          .filter(Boolean) as DBAccount[],
-      }
+      const rows = await db.select({ user: users, account: accounts }).from(users)
+        .leftJoin(accounts, eq(users.id, accounts.userId))
+        .where(eq(users.id, userId))
+      const first = rows[0]
+      return first
+        ? { user: first.user, accounts: rows.flatMap(row => row.account ? [accountFromRow(row.account)] : []) }
+        : null
     },
 
-    async createUser(_id, data) {
-      const [inserted] = await db
-        .insert(Users)
-        .values(data)
-        .returning()
-        .execute()
-
-      return inserted
+    async createUser(data) {
+      const [user] = await db.insert(users).values(userInsert(data, !!users.role)).returning()
+      if (!user)
+        throw new Error('Failed to create user.')
+      return user
     },
 
-    async linkAccount(data) {
-      await db
-        .insert(Accounts)
-        .values(data as DBInsertAccount)
-        .execute()
-    },
-
-    async unlinkAccount(provider, providerAccountId) {
-      await db
-        .delete(Accounts)
-        .where(and(
-          eq(Accounts.provider, provider),
-          eq(Accounts.providerAccountId, providerAccountId),
-        ))
-        .execute()
-    },
-
-    async updateAccount(data) {
-      await db
-        .update(Accounts)
-        .set({
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-          expiresAt: data.expiresAt,
-          idToken: data.idToken,
-          tokenType: data.tokenType,
-          scope: data.scope,
-        } as Partial<DBInsertAccount>)
-        .where(and(
-          eq(Accounts.userId, data.userId),
-          eq(Accounts.provider, data.provider),
-          eq(Accounts.providerAccountId, data.providerAccountId),
-        ))
-        .execute()
-    },
-
-    async updateUser(id, data) {
-      const [updated] = await db
-        .update(Users)
-        .set(data)
-        .where(eq(Users.id, id))
-        .returning()
-        .execute()
-
-      return updated
+    async updateUser(data) {
+      const [user] = await db.update(users).set(userUpdate(data, !!users.role))
+        .where(eq(users.id, data.id)).returning()
+      if (!user)
+        throw new Error('User not found')
+      return user
     },
 
     async deleteUser(id) {
-      await db
-        .delete(Users)
-        .where(eq(Users.id, id))
-        .execute()
+      await db.delete(users).where(eq(users.id, id))
     },
-  })
+
+    async linkAccount(data) {
+      await db.insert(accounts).values({ type: 'oauth', ...data })
+    },
+
+    async unlinkAccount(provider, providerAccountId) {
+      await db.delete(accounts)
+        .where(and(eq(accounts.provider, provider), eq(accounts.providerAccountId, providerAccountId)))
+    },
+
+    async updateAccount(data) {
+      await db.update(accounts).set({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
+        idToken: data.idToken,
+        tokenType: data.tokenType,
+        scope: data.scope,
+      }).where(and(
+        eq(accounts.userId, data.userId),
+        eq(accounts.provider, data.provider),
+        eq(accounts.providerAccountId, data.providerAccountId),
+      ))
+    },
+  }
 }

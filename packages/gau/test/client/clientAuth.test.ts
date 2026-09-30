@@ -1,5 +1,5 @@
 import type { GauSession } from '../../src/core'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { createClientAuth } from '../../src/client/shared/clientAuth'
 
 function createSession(id: string): GauSession {
@@ -43,7 +43,10 @@ describe('client auth controller', () => {
     await auth.controls.linkAccount('github')
 
     expect(client.signIn).toHaveBeenCalledWith('github', { redirectTo: 'https://app.test', profile: undefined })
-    expect(client.linkAccount).toHaveBeenCalledWith('github', { redirectTo: 'https://app.test/current', profile: undefined })
+    expect(client.linkAccount).toHaveBeenCalledWith('github', {
+      redirectTo: 'https://app.test/current',
+      profile: undefined,
+    })
     expect(navigate).toHaveBeenNthCalledWith(1, 'https://auth.test/sign-in')
     expect(navigate).toHaveBeenNthCalledWith(2, 'https://auth.test/link')
   })
@@ -60,7 +63,10 @@ describe('client auth controller', () => {
 
     await auth.controls.linkAccount('github', { profile: 'work' as any })
 
-    expect(client.linkAccount).toHaveBeenCalledWith('github', { redirectTo: 'https://default.test/redirect', profile: 'work' })
+    expect(client.linkAccount).toHaveBeenCalledWith('github', {
+      redirectTo: 'https://default.test/redirect',
+      profile: 'work',
+    })
     expect(navigate).not.toHaveBeenCalled()
   })
 
@@ -94,9 +100,12 @@ describe('client auth controller', () => {
     const onReady = vi.fn()
     let resolveRefresh!: (session: GauSession) => void
     const client = createClient({
-      refreshSession: vi.fn().mockImplementation(() => new Promise<GauSession>((resolve) => {
-        resolveRefresh = resolve
-      })),
+      refreshSession: vi.fn().mockImplementation(
+        () =>
+          new Promise<GauSession>((resolve) => {
+            resolveRefresh = resolve
+          }),
+      ),
     })
 
     const auth = createClientAuth({ client, setSession: vi.fn(), onReady, env: webEnv })
@@ -133,14 +142,34 @@ describe('client auth controller', () => {
     expect(onReady).toHaveBeenCalledOnce()
   })
 
+  it('loads the native token session even when server hydration supplied a session', async () => {
+    const client = createClient()
+    const setSession = vi.fn()
+    const auth = createClientAuth({
+      client,
+      setSession,
+      refreshOnMount: false,
+      env: { ...webEnv, isTauri: () => true },
+    })
+    const dispose = auth.mount()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(client.refreshSession).toHaveBeenCalledOnce()
+    expect(setSession).toHaveBeenCalledWith(createSession('refresh'))
+    dispose()
+  })
+
   it('does not apply late mount refreshes after disposal', async () => {
     let resolveRefresh!: (session: GauSession) => void
     const setSession = vi.fn()
     const onReady = vi.fn()
     const client = createClient({
-      refreshSession: vi.fn().mockImplementation(() => new Promise<GauSession>((resolve) => {
-        resolveRefresh = resolve
-      })),
+      refreshSession: vi.fn().mockImplementation(
+        () =>
+          new Promise<GauSession>((resolve) => {
+            resolveRefresh = resolve
+          }),
+      ),
     })
     const auth = createClientAuth({ client, setSession, onReady, env: webEnv })
 
@@ -175,9 +204,12 @@ describe('client auth controller', () => {
     let resolveBridge!: (cleanup: () => void) => void
     const client = createClient({
       handleRedirectCallback: vi.fn().mockResolvedValue(true),
-      startTauriBridge: vi.fn().mockImplementation(() => new Promise<() => void>((resolve) => {
-        resolveBridge = resolve
-      })),
+      startTauriBridge: vi.fn().mockImplementation(
+        () =>
+          new Promise<() => void>((resolve) => {
+            resolveBridge = resolve
+          }),
+      ),
     })
 
     const auth = createClientAuth({
@@ -219,9 +251,7 @@ describe('client auth controller', () => {
   it('logs unlink failures but not successful unlinks', async () => {
     const logger = { error: vi.fn() }
     const client = createClient({
-      unlinkAccount: vi.fn()
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false),
+      unlinkAccount: vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
     })
 
     const auth = createClientAuth({ client, setSession: vi.fn(), logger, env: webEnv })

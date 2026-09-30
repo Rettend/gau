@@ -18,9 +18,9 @@ Add a `role` column. You can constrain values if you want.
 <Tabs syncKey="db">
   <TabItem label="SQLite">
     ```ts title="schema.ts" ins={5}
-    import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+    import { snakeCase, text } from 'drizzle-orm/sqlite-core'
 
-    export const Users = sqliteTable('users', {
+    export const Users = snakeCase.table('users', {
       // ...
       role: text().$type<'admin' | 'user'>().default('user'),
     })
@@ -28,9 +28,9 @@ Add a `role` column. You can constrain values if you want.
   </TabItem>
   <TabItem label="PostgreSQL">
     ```ts title="schema.ts" ins={5}
-    import { pgTable, text } from 'drizzle-orm/pg-core'
+    import { snakeCase, text } from 'drizzle-orm/pg-core'
 
-    export const Users = pgTable('users', {
+    export const Users = snakeCase.table('users', {
       // ...
       role: text().$type<'admin' | 'user'>().default('user'),
     })

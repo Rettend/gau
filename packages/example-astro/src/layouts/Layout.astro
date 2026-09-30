@@ -1,0 +1,29 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import AuthIsland from '../components/AuthIsland.svelte';
+import '../../../example-shared/styles.css';
+const session = await Astro.locals.getSession();
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gau · Astro</title>
+    <ClientRouter />
+  </head>
+  <body class="example-shell" data-framework="astro">
+    <div class="example-content space-y-6">
+      <header class="example-header">
+        <a href="/" class="example-brand">gau <span>/ astro</span></a>
+        <nav aria-label="Main" class="example-nav">
+          <a href="/" aria-current={Astro.url.pathname === '/' ? 'page' : undefined}>Home</a>
+          <a href="/account" aria-current={Astro.url.pathname === '/account' ? 'page' : undefined}>Account</a>
+          <a href="/protected" data-astro-reload aria-current={Astro.url.pathname === '/protected' ? 'page' : undefined}>Protected page ↗</a>
+        </nav>
+      </header>
+      <AuthIsland session={session} client:load transition:persist="auth-status" />
+      <main><slot /></main>
+    </div>
+  </body>
+</html>

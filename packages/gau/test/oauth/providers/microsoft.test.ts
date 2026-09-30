@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Microsoft } from '../../../src/oauth/providers/microsoft'
 
 const mockUser = { id: 'user-id-123', displayName: 'Test User', mail: 'fallback@example.com', userPrincipalName: 'upn@example.com' }

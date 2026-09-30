@@ -1,5 +1,5 @@
 import type { Auth } from '../../../src/core/createAuth'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { SESSION_COOKIE_NAME } from '../../../src/core/cookies'
 import { ErrorCodes } from '../../../src/core/errors'
 import { handleSession } from '../../../src/core/handlers/session'

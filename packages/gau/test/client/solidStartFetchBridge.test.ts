@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { installSolidStartFetchBridge } from '../../src/client/shared/solidStartFetchBridge'
 import { REFRESHED_TOKEN_HEADER, SESSION_TOKEN_KEY } from '../../src/client/token'
 

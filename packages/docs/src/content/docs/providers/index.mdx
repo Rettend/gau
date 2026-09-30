@@ -1,6 +1,6 @@
 ---
-title: OAuth Providers
-description: How to use OAuth providers with gau.
+title: Providers
+description: Sign in with email or an OAuth provider.
 ---
 
 import IconLink from 'starlight-plugin-icons/components/IconLink.astro'
@@ -8,7 +8,10 @@ import Link from '~/components/Link.astro'
 
 `gau` uses <Link href="https://arcticjs.dev/">ArcticJS</Link> and can work with any OAuth provider, it's just a little extra work sometimes to get the user's verified email.
 
+For email codes and magic links, use the [Email provider](/providers/email/). You can combine email and social logins in the same provider list.
+
 <div class="row">
+  <IconLink href="/providers/email/" icon="i-ph:envelope-duotone" title="Email" flat />
   <IconLink href="/providers/github/" icon="i-simple-icons:github" title="GitHub" flat />
   <IconLink href="/providers/discord/" icon="i-bigicons:discord" title="Discord" flat />
   <IconLink href="/providers/google/" icon="i-logos:google-icon" title="Google" flat />

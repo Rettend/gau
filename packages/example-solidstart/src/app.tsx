@@ -5,6 +5,7 @@ import { FileRoutes } from '@solidjs/start/router'
 import { Suspense } from 'solid-js'
 import { clientEnv } from '~/env/client'
 import { getSession } from '~/server/session'
+import Shell from '~/components/Shell'
 import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
 
@@ -17,7 +18,7 @@ export default function App() {
         return (
           <Suspense>
             <AuthProvider session={session} baseUrl={clientEnv.VITE_API_URL}>
-              {props.children}
+              <Shell>{props.children}</Shell>
             </AuthProvider>
           </Suspense>
         )

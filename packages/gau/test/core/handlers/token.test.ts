@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { ErrorCodes } from '../../../src/core/errors'
 import { handleToken } from '../../../src/core/handlers/token'
 

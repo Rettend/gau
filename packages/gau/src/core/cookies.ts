@@ -1,7 +1,8 @@
 import type { SerializeOptions } from 'cookie'
-import { parse, serialize } from 'cookie'
+import { parseCookie, stringifySetCookie } from 'cookie'
 
 export const DEFAULT_COOKIE_SERIALIZE_OPTIONS: SerializeOptions = {
+  encode: encodeURIComponent,
   path: '/',
   sameSite: 'lax',
   secure: true,
@@ -13,7 +14,7 @@ export type Cookie = [string, string, SerializeOptions]
 export function parseCookies(cookieHeader: string | null | undefined): Map<string, string> {
   const cookies = new Map<string, string>()
   if (cookieHeader) {
-    const parsed = parse(cookieHeader)
+    const parsed = parseCookie(cookieHeader)
     for (const name in parsed)
       cookies.set(name, parsed[name]!)
   }
@@ -44,7 +45,7 @@ export class Cookies {
   toHeaders(): Headers {
     const headers = new Headers()
     for (const [name, value, options] of this.#new)
-      headers.append('Set-Cookie', serialize(name, value, options))
+      headers.append('Set-Cookie', stringifySetCookie({ ...options, name, value }, { encode: options.encode ?? encodeURIComponent }))
 
     return headers
   }

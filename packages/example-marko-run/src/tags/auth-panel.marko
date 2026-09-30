@@ -1,0 +1,75 @@
+import type { MarkoAuthValue } from "@rttnd/gau/client/marko";
+import { providers } from "../providers";
+
+export interface Input { auth: MarkoAuthValue; }
+
+<const/session=input.auth.session>
+<const/linked=session.accounts?.map(account => account.provider) ?? []>
+<const/available=(session.providers ?? []).filter(provider => !linked.includes(provider))>
+<let/busy=false>
+<let/error="">
+<const/run=async (action: () => Promise<void>) => {
+  busy = true;
+  error = "";
+  try { await action(); }
+  catch { error = "Could not update the session. Try again."; }
+  finally { busy = false; }
+}>
+
+<div class="space-y-6">
+  <if=session.user>
+    <div class="p-4 border border-emerald-900/30 rounded bg-zinc-800/50 flex flex-wrap gap-4 items-center justify-between backdrop-blur">
+      <div>
+        <h2 class="text-xl tracking-tight">&gt; ${session.user.name ?? session.user.email ?? session.user.id}</h2>
+        <p class="text-sm text-zinc-400">Role: ${session.user.role ?? "user"}</p>
+      </div>
+      <form method="post" action="/api/auth/signout?redirectTo=/">
+        <button aria-label="Sign out" class="text-sm tracking-wider px-4 py-2 border border-red-900/30 rounded bg-red-900/20 transition-colors hover:border-red-800/50 hover:bg-red-900/40">/logout</button>
+      </form>
+    </div>
+    <section class="space-y-3">
+      <h3 class="text-lg tracking-wider">Linked Accounts</h3>
+      <div class="flex flex-wrap gap-4">
+        <for|provider| of=linked by=(provider) => provider>
+          <div class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-3 items-center">
+            <span aria-hidden="true" class=[providers[provider]?.icon, "size-5"]></span>
+            <span>${providers[provider]?.label ?? provider}</span>
+            <button
+              aria-label=`Unlink ${providers[provider]?.label ?? provider}`
+              title=(linked.length === 1 ? "Keep at least one linked account" : "Unlink account")
+              disabled=busy || linked.length === 1
+              class="i-ph:x-bold transition-colors hover:text-red-400 disabled:opacity-30"
+              onClick() { run(() => input.auth.unlinkAccount(provider)); }
+            ></button>
+          </div>
+        </for>
+      </div>
+    </section>
+  </if>
+  <if=available.length>
+    <section class="space-y-3">
+      <h2 class="text-lg tracking-wider">${session.user ? "Link More Accounts" : "Sign In"}</h2>
+      <div class="flex flex-wrap gap-4">
+        <for|provider| of=available by=(provider) => provider>
+          <a href=`/api/auth/${session.user ? "link/" : ""}${provider}?redirectTo=/account`
+            class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 items-center transition-colors hover:border-emerald-800/50 hover:bg-zinc-700">
+            <span aria-hidden="true" class=[providers[provider]?.icon, "size-5"]></span>
+            <span>${providers[provider]?.label ?? provider}</span>
+          </a>
+        </for>
+      </div>
+    </section>
+  </if>
+  <div class="flex flex-wrap gap-4 items-center">
+    <button disabled=busy || input.auth.isLoading onClick() { run(() => input.auth.refresh()); }
+      class="text-sm px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50">
+      ${busy ? "Updating…" : "Refresh session"}
+    </button>
+    <a href="/protected" class="text-sm text-zinc-400 hover:text-emerald-200">View protected page →</a>
+  </div>
+  <if=error><p role="alert" class="text-sm text-red-400">${error}</p></if>
+  <details class="text-sm p-4 border border-zinc-700 rounded bg-zinc-800/30">
+    <summary class="cursor-pointer text-zinc-400">Session data</summary>
+    <pre class="mt-4 overflow-x-auto">${JSON.stringify(session, null, 2)}</pre>
+  </details>
+</div>

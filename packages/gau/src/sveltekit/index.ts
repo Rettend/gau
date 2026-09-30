@@ -1,7 +1,7 @@
 import type { Handle, RequestEvent } from '@sveltejs/kit'
 import type { CreateAuthOptions, RefreshSessionOptions } from '../core'
 import type { AuthInstance } from '../core/serverSession'
-import type { OAuthProvider } from '../oauth'
+import type { AuthProvider } from '../core/providers'
 import { createHandler, REFRESHED_TOKEN_HEADER } from '../core'
 import { createRequestSessionCache, resolveAuth } from '../core/serverSession'
 
@@ -23,7 +23,7 @@ export { REFRESHED_TOKEN_HEADER }
  * export const { GET, POST, handle } = SvelteKitAuth(auth)
  * ```
  */
-export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
+export function SvelteKitAuth<const TProviders extends AuthProvider[]>(optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>) {
   const auth = resolveAuth(optionsOrAuth)
 
   if (!auth.errorRedirect)
@@ -75,7 +75,7 @@ export function SvelteKitAuth<const TProviders extends OAuthProvider<any>[]>(opt
  * export const handle = sequence(authHandle, createRefreshHandle(auth, { threshold: 0.5 }))
  * ```
  */
-export function createRefreshHandle<const TProviders extends OAuthProvider<any>[]>(
+export function createRefreshHandle<const TProviders extends AuthProvider[]>(
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
   options: RefreshSessionOptions = {},
 ): Handle {

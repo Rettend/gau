@@ -1,4 +1,5 @@
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
+import type { AuthAction, EmailOptions, EmailProviderId, EmailResult, OAuthProviderIds } from './email'
 import { isTauri as detectTauri } from '../../runtimes/tauri'
 
 const EMPTY_CLIENT_SESSION = {
@@ -10,8 +11,8 @@ const EMPTY_CLIENT_SESSION = {
 type Session<TAuth = unknown> = GauSession<ProviderIds<TAuth>>
 
 export interface ClientAuthControls<TAuth = unknown> {
-  signIn: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
-  linkAccount: <P extends ProviderIds<TAuth>>(provider: P, options?: { redirectTo?: string, profile?: ProfileName<TAuth, P> }) => Promise<void>
+  signIn: AuthAction<TAuth, void>
+  linkAccount: AuthAction<TAuth, void>
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<void>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
@@ -24,8 +25,8 @@ interface ClientAuthClient<TAuth = unknown> {
   handleRedirectCallback: (replaceUrl?: (url: string) => void | Promise<void>) => Promise<boolean>
   onSessionChange: (listener: (session: Session<TAuth>) => void) => () => void
   startTauriBridge: () => Promise<(() => void) | void>
-  signIn: <P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }) => Promise<string>
-  linkAccount: <P extends ProviderIds<TAuth>, PR extends (ProfileName<TAuth, P> | string) | undefined>(provider: P, options?: { redirectTo?: string, profile?: PR }) => Promise<string>
+  signIn: AuthAction<TAuth, string>
+  linkAccount: AuthAction<TAuth, string>
   unlinkAccount: (provider: ProviderIds<TAuth>) => Promise<boolean>
   signOut: () => Promise<void>
 }
@@ -65,7 +66,9 @@ function createBrowserEnvironment(env: Partial<BrowserAuthEnvironment> = {}): Br
     isTauri: () => isBrowser() && detectTauri(),
     origin: () => window.location.origin,
     href: () => window.location.href,
-    navigate: (url) => { window.location.href = url },
+    navigate: (url) => {
+      window.location.href = url
+    },
     ...env,
   }
 }
@@ -80,110 +83,140 @@ export function createClientAuth<const TAuth = unknown>({
   replaceUrl,
   logger = console,
   env,
-}: ClientAuthOptions<TAuth>): { mount: () => () => void, controls: ClientAuthControls<TAuth> } {
+}: ClientAuthOptions<TAuth>): { mount: () => () => void; controls: ClientAuthControls<TAuth> } {
   const browser = createBrowserEnvironment(env)
 
   function resolveRedirectTo(type: 'signIn' | 'linkAccount', redirectTo?: string) {
     let next = redirectTo ?? defaultRedirectTo
-    if (!next && browser.isBrowser())
-      next = type === 'signIn' ? browser.origin() : browser.href()
+    if (!next && browser.isBrowser()) next = type === 'signIn' ? browser.origin() : browser.href()
     return next
   }
 
   function navigateTo(url: string) {
-    if (browser.isBrowser() && !browser.isTauri())
-      browser.navigate(url)
+    if (browser.isBrowser() && !browser.isTauri()) browser.navigate(url)
   }
 
   async function refresh() {
     onRefreshing?.(true)
     try {
       setSession(browser.isBrowser() ? await client.refreshSession() : createEmptyClientSession<ProviderIds<TAuth>>())
-    }
-    finally {
+    } finally {
       onRefreshing?.(false)
     }
   }
 
   async function refreshWhileMounted(isMounted: () => boolean) {
-    if (isMounted())
-      onRefreshing?.(true)
+    if (isMounted()) onRefreshing?.(true)
     try {
       const session = browser.isBrowser()
         ? await client.refreshSession()
         : createEmptyClientSession<ProviderIds<TAuth>>()
-      if (isMounted())
-        setSession(session)
-    }
-    finally {
-      if (isMounted())
-        onRefreshing?.(false)
+      if (isMounted()) setSession(session)
+    } finally {
+      if (isMounted()) onRefreshing?.(false)
     }
   }
 
-  async function signIn<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
+  function signIn<O extends EmailOptions>(provider: EmailProviderId<TAuth>, options: O): Promise<EmailResult<O>>
+  function signIn<
+    P extends OAuthProviderIds<TAuth>,
+    PR extends (ProfileName<TAuth, P> | string) | undefined = undefined,
+  >(provider: P, options?: { redirectTo?: string; profile?: PR }): Promise<void>
+  async function signIn(
+    provider: string,
+    options: EmailOptions | { redirectTo?: string; profile?: string } = {},
+  ): Promise<any> {
+    if (provider === 'email') return client.signIn(provider as EmailProviderId<TAuth>, options as EmailOptions)
+    return oauthSignIn(
+      provider as OAuthProviderIds<TAuth>,
+      options as { redirectTo?: string; profile?: ProfileName<TAuth, OAuthProviderIds<TAuth>> },
+    )
+  }
+
+  async function oauthSignIn<P extends OAuthProviderIds<TAuth>>(
+    provider: P,
+    options: { redirectTo?: string; profile?: ProfileName<TAuth, P> } = {},
+  ) {
     const profile = options.profile
-    const url = await client.signIn<P, typeof profile>(provider, { redirectTo: resolveRedirectTo('signIn', options.redirectTo), profile })
+    const url = await client.signIn<P, typeof profile>(provider, {
+      redirectTo: resolveRedirectTo('signIn', options.redirectTo),
+      profile,
+    })
     navigateTo(url)
   }
 
-  async function linkAccount<P extends ProviderIds<TAuth>>(provider: P, options: { redirectTo?: string, profile?: ProfileName<TAuth, P> } = {}) {
+  function linkAccount<O extends EmailOptions>(provider: EmailProviderId<TAuth>, options: O): Promise<EmailResult<O>>
+  function linkAccount<
+    P extends OAuthProviderIds<TAuth>,
+    PR extends (ProfileName<TAuth, P> | string) | undefined = undefined,
+  >(provider: P, options?: { redirectTo?: string; profile?: PR }): Promise<void>
+  async function linkAccount(
+    provider: string,
+    options: EmailOptions | { redirectTo?: string; profile?: string } = {},
+  ): Promise<any> {
+    if (provider === 'email') return client.linkAccount(provider as EmailProviderId<TAuth>, options as EmailOptions)
+    return oauthLinkAccount(
+      provider as OAuthProviderIds<TAuth>,
+      options as { redirectTo?: string; profile?: ProfileName<TAuth, OAuthProviderIds<TAuth>> },
+    )
+  }
+
+  async function oauthLinkAccount<P extends OAuthProviderIds<TAuth>>(
+    provider: P,
+    options: { redirectTo?: string; profile?: ProfileName<TAuth, P> } = {},
+  ) {
     const profile = options.profile
-    const url = await client.linkAccount<P, typeof profile>(provider, { redirectTo: resolveRedirectTo('linkAccount', options.redirectTo), profile })
+    const url = await client.linkAccount<P, typeof profile>(provider, {
+      redirectTo: resolveRedirectTo('linkAccount', options.redirectTo),
+      profile,
+    })
     navigateTo(url)
   }
 
   async function unlinkAccount(provider: ProviderIds<TAuth>) {
     const ok = await client.unlinkAccount(provider)
-    if (!ok)
-      logger.error('Failed to unlink account')
+    if (!ok) logger.error('Failed to unlink account')
   }
 
   function mount(): () => void {
-    if (!browser.isBrowser())
-      return () => {}
+    if (!browser.isBrowser()) return () => {}
 
     let disposed = false
     let cleanup: (() => void) | undefined
     const isMounted = () => !disposed
     const unsubscribe = client.onSessionChange((session) => {
-      if (isMounted())
-        setSession(session)
+      if (isMounted()) setSession(session)
     })
 
     const reportError = (message: string, error: unknown) => {
       try {
         logger.error(message, error)
-      }
-      catch {}
+      } catch {}
     }
 
     const initialize = async () => {
       try {
-        const handled = await client.handleRedirectCallback(replaceUrl && (async (url) => {
-          if (isMounted())
-            await replaceUrl(url)
-        }))
-        if (!handled && refreshOnMount)
-          await refreshWhileMounted(isMounted)
-      }
-      finally {
-        if (isMounted())
-          onReady?.()
+        const handled = await client.handleRedirectCallback(
+          replaceUrl &&
+            (async (url) => {
+              if (isMounted()) await replaceUrl(url)
+            }),
+        )
+        if (!handled && (refreshOnMount || browser.isTauri())) await refreshWhileMounted(isMounted)
+      } finally {
+        if (isMounted()) onReady?.()
       }
     }
 
-    void initialize().catch(error => reportError('Failed to initialize auth client', error))
+    void initialize().catch((error) => reportError('Failed to initialize auth client', error))
 
     if (browser.isTauri()) {
       const initializeTauri = async () => {
         const unlisten = await client.startTauriBridge()
-        if (!isMounted())
-          unlisten?.()
-        else
-          cleanup = unlisten ?? undefined
+        if (!isMounted()) unlisten?.()
+        else cleanup = unlisten ?? undefined
       }
-      void initializeTauri().catch(error => reportError('Failed to start Tauri auth bridge', error))
+      void initializeTauri().catch((error) => reportError('Failed to start Tauri auth bridge', error))
     }
 
     return () => {

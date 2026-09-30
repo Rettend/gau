@@ -1,0 +1,105 @@
+<script lang='ts'>
+  import type { Provider } from '$lib/auth'
+  import { useAuth } from '$lib/auth'
+  import SessionDetails from '../../../example-shared/SessionDetails.svelte'
+
+  const auth = useAuth()
+
+  const { linkedProviders, unlinkedProviders } = $derived.by(() => {
+    if (auth.session?.user) {
+      const linkedProviders = (auth.session.accounts?.map(a => a.provider) ?? []) as Provider[]
+      const all = auth.session.providers ?? []
+      const unlinkedProviders = all.filter(p => !linkedProviders.includes(p))
+
+      return {
+        linkedProviders,
+        unlinkedProviders,
+      }
+    }
+    return {
+      linkedProviders: [] as Provider[],
+      unlinkedProviders: auth.session?.providers ?? [],
+    }
+  })
+</script>
+
+<div class='example-stack'>
+  <div class='space-y-6'>
+    {#if auth.session?.user}
+      <div
+        class='p-4 border border-emerald-900/30 rounded bg-zinc-800/50 flex flex-wrap gap-4 items-center justify-between backdrop-blur'
+      >
+        <h2 class='text-xl tracking-tight'>> {auth.session.user.name}</h2>
+        <button
+          class='text-sm tracking-wider px-4 py-2 border border-red-900/30 rounded bg-red-900/20 transition-all duration-200 hover:border-red-800/50 hover:bg-red-900/40'
+          onclick={() => auth.signOut()}
+        >
+          /logout
+        </button>
+      </div>
+      <div class='space-y-4'>
+        <div>
+          <h3 class='text-lg tracking-wider mb-2'>Linked Accounts</h3>
+          <div class='example-row'>
+            {#each linkedProviders as provider}
+              <div class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 items-center justify-center'>
+                <div class:i-ph:github-logo={provider === 'github'} class:i-ph:google-logo-bold={provider === 'google'} class:i-mdi:microsoft={provider === 'microsoft'} class='size-5'></div>
+                <p class='capitalize'>{provider}</p>
+                <button
+                  class='i-ph:x-bold transition-colors hover:text-red-500'
+                  aria-label='Unlink account'
+                  onclick={() => auth.unlinkAccount(provider)}
+                >
+                </button>
+              </div>
+            {/each}
+          </div>
+        </div>
+        {#if unlinkedProviders.length > 0}
+          <div>
+            <h3 class='text-lg tracking-wider mb-2'>Link More Accounts</h3>
+            <div class='example-row'>
+              {#each unlinkedProviders as provider}
+                <button
+                  class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
+                  onclick={() => auth.linkAccount(provider)}
+                >
+                  <div class:i-ph:github-logo={provider === 'github'} class:i-ph:google-logo-bold={provider === 'google'} class:i-mdi:microsoft={provider === 'microsoft'} class='size-5'></div>
+                  <p class='capitalize'>{provider}</p>
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <div class='example-stack'>
+        <span class='text-lg tracking-wider'>Sign In</span>
+        <div class='example-row'>
+          <button
+            class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
+            onclick={() => auth.signIn('github')}
+          >
+            <div class='i-ph:github-logo size-5'></div>
+            <p>GitHub</p>
+          </button>
+          <button
+            class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
+            onclick={() => auth.signIn('google')}
+          >
+            <div class='i-ph:google-logo-bold size-5'></div>
+            <p>Google</p>
+          </button>
+          <button
+            class='px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 flex gap-2 transition-all duration-200 items-center justify-center hover:border-emerald-800/50 hover:bg-zinc-700'
+            onclick={() => auth.signIn('microsoft')}
+          >
+            <div class='i-mdi:microsoft size-5'></div>
+            <p>Microsoft</p>
+          </button>
+        </div>
+      </div>
+    {/if}
+  </div>
+</div>
+<SessionDetails />

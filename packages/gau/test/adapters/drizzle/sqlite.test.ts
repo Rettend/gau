@@ -4,11 +4,19 @@ import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SQLiteDrizzleAdapter } from '../../../src/adapters/drizzle/sqlite'
+import { integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
+import { afterEach, beforeEach, describe, expect, it } from 'vite-plus/test'
+import { DrizzleAdapter } from '../../../src/adapters/drizzle'
+import { verificationTests } from '../verification'
 
-const usersTable = sqliteTable('users', {
+const verificationTable = snakeCase.table('verification', {
+  id: text().primaryKey(),
+  value: text().notNull(),
+  expiresAt: integer().notNull(),
+  version: integer().notNull(),
+})
+
+const usersTable = snakeCase.table('auth_users', {
   id: text().primaryKey(),
   name: text(),
   email: text().unique(),
@@ -18,7 +26,7 @@ const usersTable = sqliteTable('users', {
   updatedAt: integer({ mode: 'timestamp' }).notNull(),
 })
 
-const accountsTable = sqliteTable('accounts', {
+const accountsTable = snakeCase.table('auth_accounts', {
   userId: text().notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
   provider: text().notNull(),
   providerAccountId: text().notNull(),
@@ -35,12 +43,13 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
   let db: ReturnType<typeof drizzle>
   let adapter: Adapter
   let client: Database.Database
+  verificationTests(() => adapter.verification!)
 
   beforeEach(async () => {
     client = new Database(':memory:')
-    db = drizzle(client, { casing: 'snake_case' })
+    db = drizzle({ client })
     db.run(sql`
-      CREATE TABLE "users" (
+      CREATE TABLE "auth_users" (
         "id" text PRIMARY KEY NOT NULL,
         "name" text,
         "email" text,
@@ -51,7 +60,7 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
       );
     `)
     db.run(sql`
-      CREATE TABLE "accounts" (
+      CREATE TABLE "auth_accounts" (
         "user_id" text NOT NULL,
         "provider" text NOT NULL,
         "provider_account_id" text NOT NULL,
@@ -62,16 +71,17 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
         "token_type" text,
         "scope" text,
         "id_token" text,
-        FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade
+        FOREIGN KEY ("user_id") REFERENCES "auth_users"("id") ON DELETE cascade
       );
     `)
 
-    adapter = SQLiteDrizzleAdapter(db, usersTable, accountsTable)
+    db.run(sql`CREATE TABLE verification (id text PRIMARY KEY, value text NOT NULL, expires_at integer NOT NULL, version integer NOT NULL)`)
+    adapter = DrizzleAdapter(db, usersTable, accountsTable, verificationTable)
   })
 
   afterEach(async () => {
-    db.run(sql`DROP TABLE IF EXISTS "accounts"`)
-    db.run(sql`DROP TABLE IF EXISTS "users"`)
+    db.run(sql`DROP TABLE IF EXISTS "auth_accounts"`)
+    db.run(sql`DROP TABLE IF EXISTS "auth_users"`)
     client.close()
   })
 
@@ -157,6 +167,14 @@ describe('sqlite drizzle adapter with better-sqlite3', () => {
       id: 'missing-user',
       name: 'Missing',
     })).rejects.toThrow('User not found')
+  })
+
+  it('ignores roles when the user table has no role column', async () => {
+    const created = await adapter.createUser({ email: 'roleless@example.com', role: 'admin' })
+    expect(created).not.toHaveProperty('role')
+    const updated = await adapter.updateUser({ id: created.id, name: 'Updated', role: 'user' })
+    expect(updated.name).toBe('Updated')
+    expect(updated).not.toHaveProperty('role')
   })
 
   it('linkAccount: should link an account to a user', async () => {
@@ -299,12 +317,13 @@ describe('sqlite drizzle adapter with libsql', () => {
   let db: ReturnType<typeof drizzleLibsql>
   let adapter: Adapter
   let client: ReturnType<typeof createClient>
+  verificationTests(() => adapter.verification!)
 
   beforeEach(async () => {
     client = createClient({ url: ':memory:' })
-    db = drizzleLibsql(client, { casing: 'snake_case' })
+    db = drizzleLibsql({ client })
     await db.run(sql`
-      CREATE TABLE "users" (
+      CREATE TABLE "auth_users" (
         "id" text PRIMARY KEY NOT NULL,
         "name" text,
         "email" text,
@@ -315,7 +334,7 @@ describe('sqlite drizzle adapter with libsql', () => {
       );
     `)
     await db.run(sql`
-      CREATE TABLE "accounts" (
+      CREATE TABLE "auth_accounts" (
         "user_id" text NOT NULL,
         "provider" text NOT NULL,
         "provider_account_id" text NOT NULL,
@@ -326,16 +345,17 @@ describe('sqlite drizzle adapter with libsql', () => {
         "token_type" text,
         "scope" text,
         "id_token" text,
-        FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade
+        FOREIGN KEY ("user_id") REFERENCES "auth_users"("id") ON DELETE cascade
       );
     `)
 
-    adapter = SQLiteDrizzleAdapter(db, usersTable, accountsTable)
+    await db.run(sql`CREATE TABLE verification (id text PRIMARY KEY, value text NOT NULL, expires_at integer NOT NULL, version integer NOT NULL)`)
+    adapter = DrizzleAdapter(db, usersTable, accountsTable, verificationTable)
   })
 
   afterEach(async () => {
-    await db.run(sql`DROP TABLE IF EXISTS "accounts"`)
-    await db.run(sql`DROP TABLE IF EXISTS "users"`)
+    await db.run(sql`DROP TABLE IF EXISTS "auth_accounts"`)
+    await db.run(sql`DROP TABLE IF EXISTS "auth_users"`)
     client.close()
   })
 

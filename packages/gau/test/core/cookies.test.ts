@@ -1,5 +1,5 @@
 import type { SerializeOptions } from 'cookie'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { Cookies, DEFAULT_COOKIE_SERIALIZE_OPTIONS, parseCookies } from '../../src/core/cookies'
 
 describe('cookie utilities', () => {
@@ -73,6 +73,23 @@ describe('cookie utilities', () => {
       cookies.set('new', 'cookie', { httpOnly: false, sameSite: 'strict' })
       const headers = cookies.toHeaders()
       expect(headers.get('Set-Cookie')).toBe('new=cookie; Path=/; SameSite=Strict')
+    })
+
+    it('should preserve URL encoding and decoding of cookie values', () => {
+      const cookies = new Cookies(new Map(), defaultOptions)
+      const value = '/protected?next=/account&label=hello world;✓%'
+      cookies.set('callback', value)
+
+      const header = cookies.toHeaders().get('Set-Cookie')!
+      const pair = header.split(';')[0]!
+      expect(pair).toBe(`callback=${encodeURIComponent(value)}`)
+      expect(parseCookies(pair).get('callback')).toBe(value)
+    })
+
+    it('should honor a custom cookie encoder', () => {
+      const cookies = new Cookies(new Map(), DEFAULT_COOKIE_SERIALIZE_OPTIONS)
+      cookies.set('callback', '/protected', { encode: value => value })
+      expect(cookies.toHeaders().get('Set-Cookie')).toContain('callback=/protected;')
     })
 
     it('should set a cookie with an expires date', () => {

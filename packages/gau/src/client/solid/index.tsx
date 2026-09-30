@@ -1,12 +1,22 @@
 import type { Accessor, ParentProps, Resource } from 'solid-js'
 import type { GauSession, ProviderIds } from '../../core'
 import type { ClientAuthControls } from '../shared/clientAuth'
-import { createContext, createMemo, createSignal, onCleanup, onMount, untrack, useContext } from 'solid-js'
+import {
+  createContext,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  untrack,
+  useContext,
+} from 'solid-js'
 import { isServer } from 'solid-js/web'
 import { isTauri } from '../../runtimes/tauri'
 import { createClientAuth, createEmptyClientSession } from '../shared/clientAuth'
 import { installSolidStartFetchBridge } from '../shared/solidStartFetchBridge'
 import { createAuthClient } from '../vanilla'
+import type { AuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>
@@ -16,6 +26,7 @@ interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
 const AuthContext = createContext<any>()
 
 interface AuthProviderProps<TAuth = unknown> extends ParentProps {
+  client?: AuthClient<TAuth>
   auth?: TAuth
   baseUrl?: string
   scheme?: string
@@ -37,13 +48,14 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   const scheme = untrack(() => props.scheme ?? 'gau')
   const baseUrl = untrack(() => props.baseUrl ?? '/api/auth')
 
-  if (!isServer && isTauri())
-    installSolidStartFetchBridge()
+  if (!isServer && isTauri()) installSolidStartFetchBridge()
 
-  const client = createAuthClient<TAuth>({
-    baseUrl,
-    scheme,
-  })
+  const client =
+    untrack(() => props.client) ??
+    createAuthClient<TAuth>({
+      baseUrl,
+      scheme,
+    })
 
   // Check if we're in SSR mode (session prop provided)
   const hasExternalSession = () => props.session !== undefined
@@ -56,20 +68,24 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   // For SSR mode: track refreshed session after client-side mutations
   const [clientOverride, setClientOverride] = createSignal<GauSession<ProviderIds<TAuth>> | null>(null)
   const [clientSession, setClientSession] = createSignal<GauSession<ProviderIds<TAuth>> | null>(null)
+  createEffect(() => {
+    const next = props.session?.()
+    if (next) {
+      untrack(() => client.setSession(next))
+      setClientOverride(null)
+    }
+  })
 
   const setResolvedSession = (next: GauSession<ProviderIds<TAuth>>) => {
-    if (hasExternalSession())
-      setClientOverride(next)
-    else
-      setClientSession(next)
+    if (hasExternalSession()) setClientOverride(next)
+    else setClientSession(next)
   }
 
   // Combined session accessor
   const session = createMemo<GauSession<ProviderIds<TAuth>>>(() => {
     // If we have a client override from a mutation, use it
     const override = clientOverride()
-    if (override !== null)
-      return override
+    if (override !== null) return override
 
     // SSR mode: use external session
     if (hasExternalSession()) {
@@ -78,7 +94,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     }
 
     // CSR mode: use client-managed session state
-    return clientSession() ?? createEmptyClientSession()
+    return clientSession() ?? client.session ?? createEmptyClientSession()
   })
 
   const isLoading = createMemo(() => {
@@ -92,32 +108,34 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
 
   const auth = createClientAuth<TAuth>({
     client,
+    refreshOnMount: !untrack(hasExternalSession) && !untrack(() => props.client),
     redirectTo: untrack(() => props.redirectTo),
     setSession: setResolvedSession,
-    onReady: () => { setIsReady(true) },
-    onRefreshing: (refreshing) => { setIsRefreshing(refreshing) },
+    onReady: () => {
+      setIsReady(true)
+    },
+    onRefreshing: (refreshing) => {
+      setIsRefreshing(refreshing)
+    },
   })
 
   onMount(() => {
     // For CSR-only mode: trigger the resource to fetch
     // Use untrack to avoid reactivity warning - props.session won't change after mount
-    if (!untrack(hasExternalSession))
+    if (!untrack(hasExternalSession)) {
       setMounted(true)
+      setClientSession(client.session)
+    }
 
     onCleanup(auth.mount())
   })
 
-  return (
-    <AuthContext.Provider value={{ session, isLoading, ...auth.controls }}>
-      {props.children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ session, isLoading, ...auth.controls }}>{props.children}</AuthContext.Provider>
 }
 
 export function useAuth<const TAuth = unknown>(): AuthContextValue<TAuth> {
   const context = useContext(AuthContext)
-  if (!context)
-    throw new Error('useAuth must be used within an AuthProvider')
+  if (!context) throw new Error('useAuth must be used within an AuthProvider')
   return context as AuthContextValue<TAuth>
 }
 

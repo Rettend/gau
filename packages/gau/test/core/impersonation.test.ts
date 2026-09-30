@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { MemoryAdapter } from '../../src/adapters/memory/index'
 import { SESSION_COOKIE_NAME, SESSION_STASH_COOKIE_NAME } from '../../src/core/cookies'
 import { createAuth } from '../../src/core/createAuth'

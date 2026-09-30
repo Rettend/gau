@@ -1,5 +1,6 @@
 import type { Auth } from '../createAuth'
 import type { User } from '../index'
+import { isEmailProvider } from '../providers'
 import {
   CALLBACK_URI_COOKIE_NAME,
   CLIENT_CHALLENGE_COOKIE_NAME,
@@ -165,7 +166,7 @@ async function buildFinalResponse(
 
 export async function handleCallback(request: Request, auth: Auth, providerId: string): Promise<Response> {
   const provider = auth.providerMap.get(providerId)
-  if (!provider)
+  if (!provider || isEmailProvider(provider))
     throw new GauError(ErrorCodes.PROVIDER_NOT_FOUND)
 
   const url = new URL(request.url)

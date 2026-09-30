@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vite-plus/test'
 import { MemoryAdapter } from '../../src/adapters/memory/index'
 import { createAuth } from '../../src/core/createAuth'
 import { AuthError } from '../../src/core/index'

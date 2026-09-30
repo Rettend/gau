@@ -1,4 +1,5 @@
 import type { Auth } from '../createAuth'
+import { isEmailProvider } from '../providers'
 import { createOAuthUris } from '../../oauth/utils'
 import {
   CALLBACK_URI_COOKIE_NAME,
@@ -54,7 +55,7 @@ export async function prepareOAuthRedirect(
   linkingToken: string | null,
 ): Promise<Response> {
   const provider = auth.providerMap.get(providerId)
-  if (!provider)
+  if (!provider || isEmailProvider(provider))
     throw new GauError(ErrorCodes.PROVIDER_NOT_FOUND)
 
   const { state: originalState, codeVerifier } = createOAuthUris()

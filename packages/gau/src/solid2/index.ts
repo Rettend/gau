@@ -1,6 +1,6 @@
 import type { CreateAuthOptions, GauServerSession, GauSession, ProviderIds, RefreshSessionOptions } from '../core'
 import type { AuthInstance } from '../core/serverSession'
-import type { OAuthProvider } from '../oauth'
+import type { AuthProvider } from '../core/providers'
 import type { RequestEvent, ResponseStub } from '@solidjs/web'
 import { getRequestEvent } from '@solidjs/web'
 import { DEV } from 'esm-env'
@@ -55,7 +55,7 @@ export interface GauSolid2Locals<TAuth = unknown> {
  * Creates filesystem-routing-compatible handlers for Gau's Fetch API.
  * The supplied auth instance is never mutated.
  */
-export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(
+export function SolidAuth<const TProviders extends AuthProvider[]>(
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
 ) {
   const auth = resolveAuth(optionsOrAuth)
@@ -70,7 +70,7 @@ export function SolidAuth<const TProviders extends OAuthProvider<any>[]>(
 }
 
 /** Attaches memoized, request-local safe and sensitive session resolvers. */
-export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
+export function authMiddleware<const TProviders extends AuthProvider[]>(
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
 ): Solid2Middleware {
   const auth = resolveAuth(optionsOrAuth)
@@ -89,7 +89,7 @@ export function authMiddleware<const TProviders extends OAuthProvider<any>[]>(
 }
 
 /** Adds Gau's CORS policy to a Solid 2 server-function endpoint. */
-export function serverFunctionsMiddleware<const TProviders extends OAuthProvider<any>[]>(
+export function serverFunctionsMiddleware<const TProviders extends AuthProvider[]>(
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
   options: ServerFunctionsMiddlewareOptions = {},
 ): Solid2Middleware {
@@ -123,7 +123,7 @@ export function serverFunctionsMiddleware<const TProviders extends OAuthProvider
  * Auth API requests are skipped so refresh cannot overwrite callback or
  * signout cookies produced by Gau's handler.
  */
-export function refreshMiddleware<const TProviders extends OAuthProvider<any>[]>(
+export function refreshMiddleware<const TProviders extends AuthProvider[]>(
   optionsOrAuth: CreateAuthOptions<TProviders> | AuthInstance<TProviders>,
   options: RefreshSessionOptions = {},
 ): Solid2Middleware {

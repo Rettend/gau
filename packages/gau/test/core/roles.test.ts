@@ -1,5 +1,5 @@
 import type { Auth } from '../../src/core/createAuth'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vite-plus/test'
 import { MemoryAdapter } from '../../src/adapters'
 import { CSRF_COOKIE_NAME, PKCE_COOKIE_NAME } from '../../src/core/cookies'
 import { createAuth } from '../../src/core/createAuth'

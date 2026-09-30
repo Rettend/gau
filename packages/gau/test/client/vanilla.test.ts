@@ -1,5 +1,5 @@
-import type { MockInstance } from 'vitest'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockInstance } from 'vite-plus/test'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import * as token from '../../src/client/token'
 import { createAuthClient } from '../../src/client/vanilla'
 import * as tauriHelpers from '../../src/runtimes/tauri/index'

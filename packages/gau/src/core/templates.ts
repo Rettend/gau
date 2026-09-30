@@ -199,13 +199,25 @@ export function htmlResponse(html: string, status = 200): Response {
   })
 }
 
-function escapeHtml(str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+export function renderEmailConfirmation(options: { email: string, linking: boolean, action: string, challengeId: string, token: string }): string {
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm ${options.linking ? 'email' : 'sign-in'}</title>
+<style>${baseStyles} button { margin-top: 1.5rem; padding: .75rem 1.5rem; border: 0; border-radius: .5rem; background: #fafafa; color: #09090b; font: inherit; cursor: pointer; }</style></head>
+<body><main class="card"><h1>${options.linking ? 'Link your email' : 'Continue signing in'}</h1><p>${escapeHtml(options.email)}</p>
+<form method="post" action="${escapeHtml(options.action)}">
+<input type="hidden" name="challengeId" value="${escapeHtml(options.challengeId)}">
+<input type="hidden" name="token" value="${escapeHtml(options.token)}">
+<button type="submit">Continue</button></form></main></body></html>`
 }
 
 function renderAutoCloseScript(redirectTargetExpression: string, autoClose: boolean): string {

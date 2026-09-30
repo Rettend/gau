@@ -5,6 +5,7 @@ import { GitHub, Google } from '@rttnd/gau/oauth'
 
 export const auth = createAuth({
   adapter: MemoryAdapter(),
+  errorRedirect: '/auth/error',
   providers: [
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID!,

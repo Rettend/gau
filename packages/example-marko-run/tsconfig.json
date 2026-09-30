@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "dist/marko-check.tsbuildinfo",
+    "types": ["@marko/run", "vite/client"]
+  },
+  "include": ["src", ".marko-run/*.d.ts"]
+}

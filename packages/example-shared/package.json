@@ -1,0 +1,9 @@
+{
+  "name": "@gau/example-shared",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rttnd/gau": "workspace:*",
+    "svelte": "^5.57.1"
+  }
+}

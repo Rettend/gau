@@ -1,9 +1,9 @@
 // @ts-check
 import { fileURLToPath } from 'node:url'
 import starlightLlmsTxt from '@rttnd/starlight-llms-txt'
+import UnoCSS from '@unocss/astro'
 import { defineConfig } from 'astro/config'
 import Icons from 'starlight-plugin-icons'
-import UnoCSS from 'unocss/astro'
 
 export default defineConfig({
   site: 'https://gau.rettend.me',
@@ -49,7 +49,11 @@ export default defineConfig({
               { icon: 'i-ph:arrows-counter-clockwise-duotone', label: 'Refresh Tokens', slug: 'guides/refresh-tokens' },
               { icon: 'i-ph:rows-duotone', label: 'Middleware', slug: 'guides/middleware' },
               { icon: 'i-ph:folder-lock-duotone', label: 'Protected Routes', slug: 'guides/protected-routes' },
-              { icon: 'i-ph:user-check-duotone', label: 'Role-Based Access Control', slug: 'guides/role-based-access-control' },
+              {
+                icon: 'i-ph:user-check-duotone',
+                label: 'Role-Based Access Control',
+                slug: 'guides/role-based-access-control',
+              },
               { icon: 'i-ph:plug-duotone', label: 'Hooks', slug: 'guides/hooks' },
               { icon: 'i-ph:shield-warning-duotone', label: 'Error Handling', slug: 'guides/error-handling' },
               { icon: 'i-ph:shield-check-duotone', label: 'Security', slug: 'guides/security' },
@@ -61,6 +65,8 @@ export default defineConfig({
               { icon: 'i-ph:puzzle-piece-duotone', label: 'Integrations', slug: 'integrations' },
               { icon: 'i-material-icon-theme:svelte', label: 'SvelteKit', slug: 'integrations/sveltekit' },
               { icon: 'i-devicon:solidjs', label: 'SolidStart', slug: 'integrations/solidstart' },
+              { icon: 'i-material-icon-theme:markojs', label: 'Marko', slug: 'integrations/marko' },
+              { icon: 'i-vscode-icons:file-type-astro light:i-vscode-icons:file-type-light-astro sidebar-active-dark:i-vscode-icons:file-type-light-astro sidebar-active-light:i-vscode-icons:file-type-astro', label: 'Astro', slug: 'integrations/astro' },
               { icon: 'i-material-icon-theme:typescript', label: 'Vanilla', slug: 'integrations/vanilla' },
               { icon: 'i-logos:bun', label: 'Bun.serve', slug: 'integrations/bun-serve' },
               { icon: 'i-icons:elysia', label: 'Elysia', slug: 'integrations/elysia' },
@@ -81,9 +87,10 @@ export default defineConfig({
             ],
           },
           {
-            label: 'OAuth Providers',
+            label: 'Providers',
             items: [
               { icon: 'i-ph:plugs-duotone', label: 'Providers', slug: 'providers' },
+              { icon: 'i-ph:envelope-duotone', label: 'Email', slug: 'providers/email' },
               { icon: 'i-simple-icons:github', label: 'GitHub', slug: 'providers/github' },
               { icon: 'i-bigicons:discord', label: 'Discord', slug: 'providers/discord' },
               { icon: 'i-logos:google-icon', label: 'Google', slug: 'providers/google' },

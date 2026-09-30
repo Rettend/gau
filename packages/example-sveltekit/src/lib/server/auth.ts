@@ -39,7 +39,6 @@ export const auth = createAuth({
   impersonation: {
     enabled: true,
     onImpersonate: ({ adminUserId, targetUserId, reason }) => {
-      // eslint-disable-next-line no-console
       console.log(`[IMPERSONATION] ${adminUserId} → ${targetUserId} (reason: ${reason ?? 'none'})`)
     },
   },

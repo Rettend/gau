@@ -2,9 +2,10 @@ import { fileURLToPath } from 'node:url'
 import { createHandler } from '@rttnd/gau/core'
 import { Elysia, file } from 'elysia'
 import { auth } from './auth'
+import { createPages } from '../../example-shared/pages'
 
 async function buildClientBundle() {
-  const entry = fileURLToPath(new URL('./client.ts', import.meta.url))
+  const entry = fileURLToPath(new URL('../src/client.ts', import.meta.url))
   const outdir = fileURLToPath(new URL('../public', import.meta.url))
 
   const result = await Bun.build({
@@ -17,8 +18,7 @@ async function buildClientBundle() {
 
   if (!result.success) {
     console.error('Failed to build client bundle:')
-    for (const log of result.logs)
-      console.error(log)
+    for (const log of result.logs) console.error(log)
     throw new Error('client bundle build failed')
   }
 }
@@ -26,12 +26,17 @@ async function buildClientBundle() {
 await buildClientBundle()
 
 const handler = createHandler(auth)
+const pages = createPages(auth, 'elysia')
+const styles = fileURLToPath(new URL('../../example-shared/styles.css', import.meta.url))
 
 const app = new Elysia()
   .mount(handler)
-  .get('/', () => file('./index.html'))
+  .get('/', ({ request }) => pages(request))
+  .get('/account', ({ request }) => pages(request))
+  .get('/protected', ({ request }) => pages(request))
+  .get('/auth/error', ({ request }) => pages(request))
+  .get('/styles.css', () => file(styles))
   .get('/client.js', () => file('./public/client.js'))
   .listen(3000)
 
-// eslint-disable-next-line no-console
 console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`)

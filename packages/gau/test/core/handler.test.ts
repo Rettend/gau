@@ -1,5 +1,5 @@
 import type { Auth } from '../../src/core/createAuth'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { createHandler } from '../../src/core/handler'
 import { setup } from '../handler'
 

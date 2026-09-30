@@ -1,13 +1,12 @@
-import type { Mock } from 'vitest'
-import type { Auth } from '../../../src/core/createAuth'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vite-plus/test'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { SESSION_COOKIE_NAME } from '../../../src/core/cookies'
 import { ErrorCodes } from '../../../src/core/errors'
 import { handleLink, handleUnlink } from '../../../src/core/handlers/link'
 import { setup } from '../../handler'
 
 describe('link handler', () => {
-  let auth: Auth
+  let auth: ReturnType<typeof setup>['auth']
   let mockProvider: ReturnType<typeof setup>['mockProvider']
 
   beforeEach(() => {

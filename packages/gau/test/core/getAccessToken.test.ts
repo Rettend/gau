@@ -1,5 +1,5 @@
 import type { OAuthProvider } from '../../src/oauth'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { MemoryAdapter } from '../../src/adapters/memory/index'
 import { createAuth } from '../../src/core/createAuth'
 

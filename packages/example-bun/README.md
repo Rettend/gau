@@ -1,13 +1,15 @@
-# bun
+# Gau with Bun
 
-To install dependencies:
+Copy `.env.example` to `.env` and set your auth secret and OAuth credentials. Callback URLs use `http://localhost:3000/api/auth/callback/github` and `http://localhost:3000/api/auth/callback/google`.
 
-```bash
+From the repository root:
+
+```sh
 bun install
+bun run build
+bun run --cwd packages/example-bun dev
 ```
 
-To run:
+Open `http://localhost:3000`. Home, Account, and Protected page use full-page navigation. Account and Protected page redirect home when signed out. Sign in, link another provider, refresh the session, or expand Session data.
 
-```bash
-bun run index.ts
-```
+The memory adapter resets when the server restarts. The layout and browser controls are shared with Elysia in `packages/example-shared`.

@@ -15,7 +15,9 @@ It provides client-side components and hooks for frameworks. This section covers
 <div class="row">
   <IconLink href="/integrations/sveltekit/" icon="i-material-icon-theme:svelte" title="SvelteKit" flat />
   <IconLink href="/integrations/solidstart/" icon="i-devicon:solidjs" title="SolidStart" flat />
-</div> 
+  <IconLink href="/integrations/marko/" icon="i-material-icon-theme:markojs" title="Marko" flat />
+  <IconLink href="/integrations/astro/" icon="i-vscode-icons:file-type-astro light:i-vscode-icons:file-type-light-astro" title="Astro" flat />
+</div>
 
 And backend-only frameworks:
 
@@ -28,11 +30,11 @@ For backend-only setups, you can use the vanilla client on the frontend:
 
 <div class="row">
   <IconLink href="/integrations/vanilla/" icon="i-material-icon-theme:typescript" title="Vanilla" flat />
-</div> 
+</div>
 
 ## AuthProvider
 
-To get started, you need to wrap your application's root component with the `AuthProvider`. This component manages the authentication state and makes it available throughout your app.
+In Solid and Svelte, wrap the components that need client-side auth state in an `AuthProvider`. Marko uses an explicit client tag. Server-rendered pages can read sessions without a client provider.
 
 ### Props
 
@@ -46,7 +48,8 @@ You can configure the `AuthProvider` with the following props:
 The base URL for the authentication API endpoints. This should match the `basePath` configured in your `createAuth` setup on the server.
 
 <Aside type="note">
-  If your frontend and backend are on different hosts, you'll need to set this to the full URL of your backend's auth API.
+  If your frontend and backend are on different hosts, you'll need to set this to the full URL of your backend's auth
+  API.
 </Aside>
 
 #### `scheme`
@@ -62,6 +65,14 @@ The URL scheme used for deep linking in desktop applications (e.g., Tauri). This
 > **Default**: The current host URL
 
 A default URL to redirect to after a successful sign-in. This can be overridden by passing a `redirectTo` option to the `signIn` function.
+
+#### `session`
+
+Supply the safe session from your server to show the signed-in state immediately. Later changes to this prop update the client session too. Solid uses a session accessor; Solid 2 accepts an accessor or a value, and Svelte accepts a value.
+
+#### `client`
+
+Pass a [vanilla client](/integrations/vanilla) to share session updates between separate component roots, such as Astro islands. `baseUrl` and `scheme` are taken from that client. Create shared clients in browser code, not at server module scope.
 
 ## useAuth
 
@@ -100,14 +111,15 @@ A function to initiate the sign-in process with a specific OAuth provider.
 <Aside type="note">
   You can get full TypeScript support for your provider IDs by creating a typed `useAuth` hook. See the framework integration guides for examples.
 
-  You can also extract the union type of your configured providers using the `ProviderIds` utility:
-  
-  ```ts
-  import type { ProviderIds } from '@rttnd/gau'
-  import type { Auth } from './server/auth'
+You can also extract the union type of your configured providers using the `ProviderIds` utility:
 
-  export type Provider = ProviderIds<Auth> // 'github' | 'google'
-  ```
+```ts
+import type { ProviderIds } from '@rttnd/gau'
+import type { Auth } from './server/auth'
+
+export type Provider = ProviderIds<Auth> // 'github' | 'google'
+```
+
 </Aside>
 
 #### `signOut`
@@ -134,7 +146,8 @@ A function to unlink an OAuth provider from the user's account.
 - `provider`: The ID of the provider to unlink.
 
 <Aside type="caution">
-  A user cannot unlink their last remaining account, as this would leave them with no way to sign in. `gau` will prevent this action and return an error.
+  A user cannot unlink their last remaining account, as this would leave them with no way to sign in. `gau` will prevent
+  this action and return an error.
 </Aside>
 
 #### `refresh`
@@ -144,6 +157,7 @@ A function to unlink an OAuth provider from the user's account.
 A function to manually refresh the session from the server. This fetches the latest session data and updates the local state.
 
 This might be useful when:
+
 - You've updated user data on the server and want to reflect changes immediately
 - You want to check if the session is still valid
 - You've linked or unlinked accounts and want to update the accounts list
@@ -164,12 +178,14 @@ const res = await fetch('/api/my-endpoint', {
 ```
 
 **What it handles:**
+
 - Adds `Authorization: Bearer <token>` if a token is stored (Tauri/mobile)
 - Falls back to `credentials: 'include'` for cookie-based auth (web)
 - Auto-stores refreshed tokens from the `X-Refreshed-Token` header
 
 <Aside type="tip">
-  For pure web apps using cookies, you don't need `fetch` from useAuth, regular `fetch` with `credentials: 'include'` works fine. This is mainly useful for Tauri/mobile apps that use bearer tokens.
+  For pure web apps using cookies, you don't need `fetch` from useAuth, regular `fetch` with `credentials: 'include'`
+  works fine. This is mainly useful for Tauri/mobile apps that use bearer tokens.
 </Aside>
 
 See the [Middleware](/guides/middleware) guide for setting up automatic session refresh on the server.

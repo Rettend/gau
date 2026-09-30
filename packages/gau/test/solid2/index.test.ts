@@ -1,5 +1,5 @@
 import { DEV } from 'esm-env'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { REFRESHED_TOKEN_HEADER, SESSION_COOKIE_NAME } from '../../src/core'
 import { authMiddleware, refreshMiddleware, SolidAuth } from '../../src/solid2'
 
