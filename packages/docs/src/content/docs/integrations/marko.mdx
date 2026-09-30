@@ -1,0 +1,157 @@
+---
+title: Marko
+description: How to integrate gau with Marko 6 and Marko Run.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+import FileTree from 'starlight-plugin-icons/components/FileTree.astro'
+import Aside from 'starlight-plugin-icons/components/Aside.astro'
+
+This guide shows how to integrate `gau` with Marko 6 and Marko Run, using GitHub as an example.
+
+<br />
+
+<Steps>
+1. ##### Follow the Basic Setup
+
+    Complete the [Getting Started](/guides/getting-started) guide.
+
+    Create your auth instance in `src/server/auth.ts`. For a persistent database, follow the [Drizzle](/adapters/drizzle) guide.
+
+    For GitHub, set the callback URL to `http://localhost:3000/api/auth/callback/github` during development.
+
+2. ##### Set up the API Route
+
+    Export the Marko Run helpers alongside your auth instance:
+
+    ```ts title="src/server/auth.ts"
+    import { MarkoRunAuth } from '@rttnd/gau/marko-run'
+
+    // After creating your auth instance:
+    export const gau = MarkoRunAuth(auth)
+    ```
+
+    Create a catch-all route for the auth endpoints.
+
+    ```ts title="src/routes/api/auth/$$gau/+handler.ts"
+    import { gau } from '../../../../server/auth'
+
+    export const GET = Run.GET((ctx) => gau.handle(ctx.request))
+    export const POST = Run.POST((ctx) => gau.handle(ctx.request))
+    export const OPTIONS = Run.OPTIONS((ctx) => gau.handle(ctx.request))
+    ```
+
+3. ##### Add Middleware
+
+    Add middleware to refresh the session cookie when needed.
+
+    ```ts title="src/routes/+middleware.ts"
+    import { gau } from '../server/auth'
+
+    export default Run.ALL((ctx, next) => gau.refresh(ctx.request, () => next()))
+    ```
+
+4. ##### Load the Session
+
+    Pass the session from your page handler:
+
+    ```ts title="src/routes/+handler.ts"
+    import { gau } from '../server/auth'
+
+    export const GET = Run.GET((ctx, next) => next({ session: gau.getSession(ctx.request) }))
+    ```
+
+    Use `<await>` to read the session in your page. Use a link to sign in and a form to sign out:
+
+    ```marko title="src/routes/+page.marko"
+    <await|session|=$global.data.session>
+      <if=session.user>
+        <p>Welcome, ${session.user.name}!</p>
+        <form method="post" action="/api/auth/signout?redirectTo=/">
+          <button>Sign out</button>
+        </form>
+      </if>
+      <else>
+        <a href="/api/auth/github?redirectTo=/account">Sign in with GitHub</a>
+      </else>
+    </await>
+    ```
+
+    `getSession(request)` returns data that can be sent to the browser. Use `getServerSession(request)` only when you need account tokens on the server.
+
+    <Aside type="note">
+      The sign-out form redirects to a fresh page. Its `redirectTo` must stay on the same origin.
+    </Aside>
+
+5. ##### Set up the Client
+
+    Add the client tag when you need reactive session data. This is optional for server-rendered pages.
+
+    ```marko title="src/routes/+page.marko"
+    import GauAuth from "@rttnd/gau/client/marko/Auth.marko";
+
+    <await|session|=$global.data.session>
+      <GauAuth/auth session=session/>
+      <p>${auth.session.user?.name}</p>
+      <button onClick() { auth.refresh(); } disabled=auth.isLoading>
+        Refresh session
+      </button>
+    </await>
+    ```
+
+    Pass the returned `auth` value to components that need it. No context provider is required.
+
+    The tag starts with the supplied session and accepts later session updates. Without a session, it loads one in the browser.
+
+    <Aside type="note" title="Different origins">
+      If your frontend and backend use different origins, set `baseUrl` to the full URL of the auth API.
+
+      ```marko
+      <GauAuth/auth baseUrl="https://api.example.com/api/auth"/>
+      ```
+    </Aside>
+
+    After signing out through JavaScript, navigate to a fresh page to update content rendered by the server. Use normal browser navigation for auth changes; Marko's persisted pages are still under development.
+
+6. ##### Protect a Page
+
+    Check the session before rendering the page or loading private data.
+
+    ```ts title="src/routes/account/+handler.ts"
+    import { gau } from '../../server/auth'
+
+    export const GET = Run.GET(async (ctx, next) => {
+      const session = await gau.getSession(ctx.request)
+      if (!session.user)
+        return ctx.redirect('/')
+
+      return next({ session })
+    })
+    ```
+
+7. ##### File Structure
+
+    <FileTree>
+      - src
+        - server
+          - auth.ts
+        - routes
+          - api
+            - auth
+              - $$gau
+                - +handler.ts
+          - account
+            - +handler.ts
+          - +handler.ts
+          - +middleware.ts
+          - +page.marko
+      - package.json
+      - vite.config.ts
+    </FileTree>
+
+8. ##### Next Steps
+
+    - See the [Marko example](https://github.com/Rettend/gau/tree/main/packages/example-marko-run) for a complete app.
+    - Explore other [OAuth Providers](/providers).
+    - Learn about [Protected Routes](/guides/protected-routes).
+</Steps>

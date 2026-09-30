@@ -1,0 +1,24 @@
+import "virtual:uno.css";
+import "../../../example-shared/styles.css";
+export interface Input { content: Marko.Body; }
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gau · Marko</title>
+  </head>
+  <body class="example-shell" data-framework="marko">
+    <div class="example-content">
+      <header class="example-header">
+        <a href="/" class="example-brand">gau <span>/ marko</span></a>
+        <nav aria-label="Main" class="example-nav">
+          <a href="/" aria-current=($global.url.pathname === "/" ? "page" : undefined)>Home</a>
+          <a href="/account" aria-current=($global.url.pathname === "/account" ? "page" : undefined)>Account</a>
+          <a href="/protected" aria-current=($global.url.pathname === "/protected" ? "page" : undefined)>Protected page</a>
+        </nav>
+      </header>
+      <main><${input.content}/></main>
+    </div>
+  </body>
+</html>

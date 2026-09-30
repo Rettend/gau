@@ -7,6 +7,8 @@
   "i-logos:facebook",
   "i-logos:google-icon",
   "i-logos:microsoft-icon",
+  "i-material-icon-theme:astro",
+  "i-material-icon-theme:astro-config",
   "i-material-icon-theme:document",
   "i-material-icon-theme:drizzle",
   "i-material-icon-theme:folder-api",
@@ -21,7 +23,10 @@
   "i-material-icon-theme:folder-server-open",
   "i-material-icon-theme:folder-src",
   "i-material-icon-theme:folder-src-open",
+  "i-material-icon-theme:folder-views",
+  "i-material-icon-theme:folder-views-open",
   "i-material-icon-theme:json",
+  "i-material-icon-theme:markojs",
   "i-material-icon-theme:nodejs",
   "i-material-icon-theme:react-ts",
   "i-material-icon-theme:routing",
@@ -56,5 +61,7 @@
   "i-simple-icons:github",
   "i-simple-icons:xbox",
   "i-starlight-plugin-icons:folder",
-  "i-starlight-plugin-icons:folder-open"
+  "i-starlight-plugin-icons:folder-open",
+  "i-vscode-icons:file-type-astro",
+  "i-vscode-icons:file-type-light-astro"
 ]

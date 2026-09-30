@@ -8,11 +8,10 @@ import Aside from 'starlight-plugin-icons/components/Aside.astro'
 import IconLink from 'starlight-plugin-icons/components/IconLink.astro'
 
 The vanilla client can be used with any frontend setup. It's perfect for:
+
 - Backend-only auth setups (Bun.serve, Elysia, etc.)
 - Frameworks not yet supported by `gau`
 - Frameworkless apps
-
-The downside is that 
 
 <br />
 
@@ -30,107 +29,118 @@ The downside is that
 
 2. ##### Create the client
 
-    Import `createAuthClient` and initialize it with your auth API base URL:
+   Import `createAuthClient` and initialize it with your auth API base URL:
 
-    ```ts title="src/auth.ts"
-    import process from 'node:process'
-    import { createAuthClient } from '@rttnd/gau/client/vanilla'
-    import type { Auth } from './server/auth'
+   ```ts title="src/auth.ts"
+   import process from 'node:process'
+   import { createAuthClient } from '@rttnd/gau/client/vanilla'
+   import type { Auth } from './server/auth'
 
-    export const auth = createAuthClient<Auth>({
-      baseUrl: process.env.AUTH_BASE_URL // http://localhost:3000/api/auth in dev
-    })
-    ```
+   export const auth = createAuthClient<Auth>({
+     baseUrl: process.env.AUTH_BASE_URL, // http://localhost:3000/api/auth in dev
+   })
+   ```
 
-    <Aside type="note">
-      The `Auth` type import is optional but provides better types for your configured providers.
-    </Aside>
+   <Aside type="note">
+     The `Auth` type import is optional but provides better types for your configured providers.
+   </Aside>
 
 3. ##### Use the client
 
-    The client provides methods to manage authentication:
+   The client provides methods to manage authentication:
 
-    ###### Fetch Session
+   ###### Fetch Session
 
-    ```ts
-    const session = await auth.fetchSession()
-    console.log(session.user) // User | null
-    ```
+   ```ts
+   const session = await auth.fetchSession()
+   console.log(session.user) // User | null
+   ```
 
-    ###### Sign In
-    
-    Redirects to OAuth provider
+   ###### Sign In
 
-    ```ts
-    await auth.signIn('github', {
-      redirectTo: '/dashboard', // Optional
-    })
-    ```
+   Redirects to OAuth provider
 
-    ###### Sign Out
+   ```ts
+   await auth.signIn('github', {
+     redirectTo: '/dashboard', // Optional
+   })
+   ```
 
-    ```ts
-    await auth.signOut()
-    ```
+   ###### Sign Out
 
-    ###### Link Account
+   ```ts
+   await auth.signOut()
+   ```
 
-    ```ts
-    await auth.linkAccount('google', {
-      redirectTo: '/profile',
-    })
-    ```
+   ###### Link Account
 
-    ###### Unlink Account
+   ```ts
+   await auth.linkAccount('google', {
+     redirectTo: '/profile',
+   })
+   ```
 
-    ```ts
-    await auth.unlinkAccount('google')
-    ```
+   ###### Unlink Account
 
-    ###### Refresh Session
+   ```ts
+   await auth.unlinkAccount('google')
+   ```
 
-    ```ts
-    await auth.refreshSession()
-    ```
+   ###### Refresh Session
 
-    ###### Listen to Session Changes
+   ```ts
+   await auth.refreshSession()
+   ```
 
-    ```ts
-    const unsubscribe = auth.onSessionChange((session) => {
-      console.log('Session updated:', session)
-      // Update UI, store in state management, etc.
-    })
+   ###### Use a Server Session
 
-    // Later: clean up listener
-    unsubscribe()
-    ```
+   Start with the safe session returned by your server helper:
 
-    ###### Handle Redirect Callbacks
+   ```ts
+   const auth = createAuthClient({ baseUrl: '/api/auth', session })
+   ```
 
-    After OAuth redirects back to your app, handle the callback:
+   After navigation, apply fresh server data with `auth.setSession(session)`. This updates subscribers without making a request. To fetch current data from the server instead, use `auth.refreshSession()`.
 
-    ```ts
-    const handled = await auth.handleRedirectCallback((url) => {
-      window.history.replaceState({}, '', url) // Example
-    })
+   Create shared clients only in browser code. On the server, keep each visitor's session separate.
 
-    if (handled) {
-      console.log('OAuth callback handled, session updated')
-    }
-    ```
+   ###### Listen to Session Changes
+
+   ```ts
+   const unsubscribe = auth.onSessionChange((session) => {
+     console.log('Session updated:', session)
+     // Update UI, store in state management, etc.
+   })
+
+   // Later: clean up listener
+   unsubscribe()
+   ```
+
+   ###### Handle Redirect Callbacks
+
+   After OAuth redirects back to your app, handle the callback:
+
+   ```ts
+   const handled = await auth.handleRedirectCallback((url) => {
+     window.history.replaceState({}, '', url) // Example
+   })
+
+   if (handled) {
+     console.log('OAuth callback handled, session updated')
+   }
+   ```
 
 4. ##### Next Steps
-
-    - Learn about [Session Management](/guides/session-management)
-    - Explore [OAuth Providers](/providers/)
-    - See [Security best practices](/guides/security)
+   - Learn about [Session Management](/guides/session-management)
+   - Explore [OAuth Providers](/providers/)
+   - See [Security best practices](/guides/security)
 
 </Steps>
-
 
 #### Session Token Storage
 
 The vanilla client stores and retrieves session tokens using:
+
 - `localStorage.getItem('gau-token')`
 - `document.cookie` for `__gau-session-token`
 
@@ -141,9 +151,11 @@ The vanilla client stores and retrieves session tokens using:
 Creates a new auth client instance.
 
 **Options:**
+
 - `baseUrl` (required): Base URL of your auth API
 
 **Returns:**
+
 - `fetchSession()`: Fetches the current session from the server
 - `refreshSession()`: Alias for `fetchSession()`, refreshes the session
 - `applySessionToken(token)`: Applies a session token manually

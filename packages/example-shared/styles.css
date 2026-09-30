@@ -1,0 +1,198 @@
+/* One layout and accent palette for every example. */
+[data-framework='marko'] {
+  --example-accent: #42b8f5;
+}
+[data-framework='astro'] {
+  --example-accent: #ff5d01;
+}
+[data-framework='sveltekit'] {
+  --example-accent: #ff3e00;
+}
+[data-framework='solidstart'],
+[data-framework='solid2'] {
+  --example-accent: #6c9ed8;
+}
+[data-framework='tauri'],
+[data-framework='tauri-mobile'] {
+  --example-accent: #24c8db;
+}
+[data-framework='bun'] {
+  --example-accent: #fbf0df;
+}
+[data-framework='elysia'] {
+  --example-accent: #c4a7e7;
+}
+
+.example-shell {
+  --example-text: color-mix(in srgb, var(--example-accent) 24%, #fafafa);
+  --example-border: color-mix(in srgb, var(--example-accent) 24%, #27272a);
+  /* Existing auth panels use Uno's emerald utilities as their accent palette. */
+  --colors-emerald-100: var(--example-text);
+  --colors-emerald-200: color-mix(in srgb, var(--example-accent) 50%, white);
+  --colors-emerald-400: var(--example-accent);
+  --colors-emerald-500: var(--example-accent);
+  --colors-emerald-800: color-mix(in srgb, var(--example-accent) 70%, #27272a);
+  --colors-emerald-900: color-mix(in srgb, var(--example-accent) 50%, #27272a);
+  box-sizing: border-box;
+  min-height: 100dvh;
+  margin: 0;
+  padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
+    max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+  color: var(--example-text);
+  font:
+    1rem/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  background-color: #18181b;
+  background-image:
+    linear-gradient(#ffffff03 1px, transparent 1px), linear-gradient(90deg, #ffffff03 1px, transparent 1px);
+  background-size: 32px 32px;
+  color-scheme: dark;
+}
+.example-shell * {
+  box-sizing: border-box;
+}
+.example-shell :where(h1, h2, h3, p, pre) {
+  margin: 0;
+}
+.example-shell :where(h2, h3) {
+  font-size: 1.125rem;
+  font-weight: 400;
+}
+.example-shell :where(button, input) {
+  font: inherit;
+}
+.example-shell :where(button:not(:disabled), summary) {
+  cursor: pointer;
+}
+.example-shell button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.example-shell a {
+  color: inherit;
+  text-decoration: none;
+}
+.example-shell :focus-visible {
+  outline: 2px solid var(--example-accent);
+  outline-offset: 4px;
+}
+.example-content {
+  max-width: 48rem;
+  margin-inline: auto;
+}
+.example-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.example-brand {
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+  overflow-wrap: anywhere;
+}
+.example-brand span {
+  color: var(--example-accent);
+}
+.example-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+.example-nav a:hover,
+.example-nav a[aria-current='page'] {
+  color: var(--example-accent);
+}
+.example-title {
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  margin-bottom: 1.5rem !important;
+}
+.example-stack {
+  display: grid;
+  gap: 1.5rem;
+}
+.example-stack > * {
+  min-width: 0;
+}
+.example-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.example-muted {
+  color: #a1a1aa;
+  font-size: 0.875rem;
+}
+.example-panel {
+  padding: 1rem;
+  border: 1px solid var(--example-border);
+  border-radius: 0.25rem;
+  background: #27272a80;
+}
+.example-button {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--example-border);
+  border-radius: 0.25rem;
+  background: #27272a;
+  color: var(--example-text);
+  font-size: 0.875rem;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.example-button:hover {
+  background: #3f3f46;
+  border-color: var(--example-accent);
+}
+.example-provider {
+  font-size: 1rem;
+}
+.example-provider svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+.example-danger {
+  border-color: #7f1d1d80;
+  background: #7f1d1d33;
+  color: #fca5a5;
+}
+.example-danger:hover {
+  border-color: #f87171;
+  background: #7f1d1d66;
+}
+.example-session {
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+}
+.example-session pre {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+.example-stack > .example-session {
+  margin-top: 0;
+}
+.example-error {
+  color: #f87171;
+}
+.example-shell pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.example-shell [hidden] {
+  display: none !important;
+}

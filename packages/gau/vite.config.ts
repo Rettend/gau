@@ -82,7 +82,7 @@ export default defineConfig(async () => {
               { pattern: 'package.json', base: 'workspace' },
               { pattern: '.node-version', base: 'workspace' },
             ],
-            output: ['dist/**'],
+            output: ['dist/**', 'client/marko/**'],
           },
         },
       },
@@ -96,7 +96,7 @@ export default defineConfig(async () => {
             name: 'watch-framework-sources',
             async buildStart() {
               // Refresh declarations and copied components on client-only edits too.
-              for await (const file of glob('src/**/*.{ts,tsx,svelte}', {
+              for await (const file of glob('src/**/*.{ts,tsx,svelte,marko}', {
                 exclude: ['**/.svelte-kit/**', '**/*.d.ts'],
               }))
                 this.addWatchFile(resolve(file))
@@ -119,9 +119,11 @@ export default defineConfig(async () => {
             exec('bun', ['tsgo', '--project', 'tsconfig.json', '--outDir', 'dist/src']),
             exec('bun', ['tsgo', '--project', 'src/client/solid/tsconfig.json']),
             exec('bun', ['tsgo', '--project', 'src/client/solid2/tsconfig.json']),
+            exec('bun', ['tsgo', '--project', 'src/client/marko/tsconfig.json']),
           ])
           console.log('⚡️ Generating Svelte .d.ts files with svelte2tsx...')
           await generateSvelteDeclarations()
+          await exec('bun', ['run', 'marko-type-check', '-p', 'src/client/marko/tsconfig.tags.json'])
           console.log('✅ Successfully generated .d.ts files.')
 
           const dtsFiles = await Array.fromAsync(glob('src/**/*.d.ts{,.map}'))
@@ -135,6 +137,15 @@ export default defineConfig(async () => {
             await mkdir(dirname(outPath), { recursive: true })
             await copyFile(path, outPath)
           }
+          for await (const path of glob('src/client/marko/*.marko')) {
+            const outPath = path.replace(/^src/, 'dist/src')
+            await mkdir(dirname(outPath), { recursive: true })
+            await copyFile(path, outPath)
+          }
+          // Marko's type checker resolves tag imports by physical package path.
+          await mkdir('client/marko', { recursive: true })
+          await copyFile('src/client/marko/Auth.marko', 'client/marko/Auth.marko')
+          await copyFile('dist/src/client/marko/Auth.d.marko', 'client/marko/Auth.d.marko')
         },
       },
       {

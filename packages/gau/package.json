@@ -27,6 +27,23 @@
     "tauri"
   ],
   "exports": {
+    "./package.json": "./package.json",
+    "./astro": {
+      "types": "./dist/src/astro/index.d.ts",
+      "import": "./dist/src/astro/index.js"
+    },
+    "./marko-run": {
+      "types": "./dist/src/marko-run/index.d.ts",
+      "import": "./dist/src/marko-run/index.js"
+    },
+    "./client/marko": {
+      "types": "./dist/src/client/marko/index.d.ts",
+      "import": "./dist/src/client/marko/index.js"
+    },
+    "./client/marko/Auth.marko": {
+      "types": "./client/marko/Auth.d.marko",
+      "default": "./client/marko/Auth.marko"
+    },
     ".": {
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js"
@@ -118,6 +135,7 @@
     "gau": "dist/src/cli/index.js"
   },
   "files": [
+    "client/marko",
     "README.md",
     "dist"
   ],
@@ -128,7 +146,7 @@
     "dev": "vp pack --watch",
     "build": "vp run bundle",
     "lint": "vp lint",
-    "check": "tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p src/client/solid/tsconfig.json && tsgo --noEmit -p src/client/solid2/tsconfig.json && tsgo --noEmit -p src/client/svelte/tsconfig.json",
+    "check": "tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p src/client/solid/tsconfig.json && tsgo --noEmit -p src/client/solid2/tsconfig.json && tsgo --noEmit -p src/client/svelte/tsconfig.json && tsgo --noEmit -p src/client/marko/tsconfig.json",
     "check:test": "tsgo --noEmit -p tsconfig.test.json",
     "update": "taze latest -wr",
     "test": "bun run --cwd ../.. test",
@@ -137,6 +155,8 @@
     "test:ui": "bun run --cwd ../.. test:ui"
   },
   "peerDependencies": {
+    "astro": "^7.0.0",
+    "marko": "^6.0.0",
     "nodemailer": "^7.0.0 || ^8.0.0",
     "@solidjs/router": "^0.15.3 || ^0.16.0 || >=0.17.0-next.0 <1.0.0 || >=1.0.0 <2.0.0 || >=2.0.0-next.0 <3.0.0",
     "@solidjs/web": "^2.0.0-rc.11",
@@ -150,6 +170,12 @@
     "typescript": "^5.8.3 || ^6.0.0 || ^7.0.0"
   },
   "peerDependenciesMeta": {
+    "astro": {
+      "optional": true
+    },
+    "marko": {
+      "optional": true
+    },
     "nodemailer": {
       "optional": true
     },
@@ -191,6 +217,9 @@
     "esm-env": "^1.2.2"
   },
   "devDependencies": {
+    "@marko/type-check": "^3.2.1",
+    "marko": "^6.3.56",
+    "astro": "^7.3.5",
     "@types/nodemailer": "^7.0.0",
     "nodemailer": "^8.0.0",
     "@electric-sql/pglite": "^0.5.8",

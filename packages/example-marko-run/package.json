@@ -1,0 +1,33 @@
+{
+  "name": "gau-marko-run-example",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "bun@1.4.2",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "dev": "marko-run dev",
+    "build": "marko-run build",
+    "preview": "marko-run preview",
+    "check": "marko-run build && marko-type-check",
+    "lint": "vp lint"
+  },
+  "dependencies": {
+    "@rttnd/gau": "workspace:*",
+    "@marko/run": "^0.11.13",
+    "marko": "^6.3.56"
+  },
+  "devDependencies": {
+    "@unocss/vite": "^66.10.5",
+    "@iconify-json/ph": "^1.2.2",
+    "@iconify-json/mdi": "^1.2.3",
+    "unocss": "^66.10.5",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "@marko/type-check": "^3.2.1",
+    "@types/node": "^24.19.0",
+    "typescript": "^6.0.3"
+  }
+}

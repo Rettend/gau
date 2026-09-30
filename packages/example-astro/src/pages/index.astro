@@ -1,0 +1,9 @@
+---
+import Layout from '../layouts/Layout.astro';
+import AuthIsland from '../components/AuthIsland.svelte';
+const session = await Astro.locals.getSession();
+---
+<Layout>
+  <h1 class="text-2xl tracking-tight mb-6">Authentication</h1>
+  <AuthIsland session={session} controls client:load />
+</Layout>

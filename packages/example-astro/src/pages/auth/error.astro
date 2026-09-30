@@ -1,0 +1,13 @@
+---
+import Layout from '../../layouts/Layout.astro';
+const code = Astro.url.searchParams.get('code');
+const message = Astro.url.searchParams.get('message');
+---
+<Layout>
+  <div class="p-6 border border-red-900/30 rounded bg-zinc-800/50 backdrop-blur space-y-4">
+    <h1 class="text-xl text-red-400 tracking-tight">Authentication error</h1>
+    <p class="text-zinc-300">{message ?? 'Could not complete authentication. Try again.'}</p>
+    {code && <p class="text-sm text-zinc-500">{code}</p>}
+    <a href="/" data-astro-reload class="px-4 py-2 border border-emerald-900/30 rounded bg-zinc-800 inline-block hover:bg-zinc-700">Go back</a>
+  </div>
+</Layout>

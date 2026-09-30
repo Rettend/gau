@@ -3,9 +3,10 @@ import type { Accessor } from 'solid-js'
 import type { GauSession, ProviderIds } from '../../core'
 import type { ClientAuthControls } from '../shared/clientAuth'
 import { isServer } from '@solidjs/web'
-import { createContext, createMemo, createSignal, onSettled, untrack, useContext } from 'solid-js'
+import { createContext, createEffect, createMemo, createSignal, onSettled, untrack, useContext } from 'solid-js'
 import { createClientAuth, createEmptyClientSession } from '../shared/clientAuth'
 import { createAuthClient } from '../vanilla'
+import type { AuthClient } from '../vanilla'
 
 interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>
@@ -18,6 +19,7 @@ type SessionValue<TAuth = unknown> = GauSession<ProviderIds<TAuth>>
 type SessionInput<TAuth = unknown> = SessionValue<TAuth> | Accessor<SessionValue<TAuth>>
 
 interface AuthProviderProps<TAuth = unknown> {
+  client?: AuthClient<TAuth>
   auth?: TAuth
   baseUrl?: string
   scheme?: string
@@ -43,8 +45,7 @@ interface AuthProviderProps<TAuth = unknown> {
 }
 
 function onClientReady(fn: () => void | (() => void)) {
-  if (isServer)
-    return
+  if (isServer) return
 
   onSettled(fn)
 }
@@ -53,10 +54,12 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   const scheme = untrack(() => props.scheme ?? 'gau')
   const baseUrl = untrack(() => props.baseUrl ?? '/api/auth')
 
-  const client = createAuthClient<TAuth>({
-    baseUrl,
-    scheme,
-  })
+  const client =
+    untrack(() => props.client) ??
+    createAuthClient<TAuth>({
+      baseUrl,
+      scheme,
+    })
 
   const hasExternalSession = () => props.session !== undefined
 
@@ -70,39 +73,46 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   const [isReady, setIsReady] = createSignal(false)
   const [clientOverride, setClientOverride] = createSignal<SessionValue<TAuth> | null>(null)
   const [clientSession, setClientSession] = createSignal<SessionValue<TAuth> | null>(null)
+  createEffect(
+    () => (props.session === undefined ? undefined : getExternalSession()),
+    (next) => {
+      if (next) {
+        client.setSession(next)
+        setClientOverride(null)
+      }
+    },
+  )
 
   const setResolvedSession = (next: GauSession<ProviderIds<TAuth>>) => {
-    if (hasExternalSession())
-      setClientOverride(next)
-    else
-      setClientSession(next)
+    if (hasExternalSession()) setClientOverride(next)
+    else setClientSession(next)
   }
 
   const session = createMemo<GauSession<ProviderIds<TAuth>>>(() => {
     const override = clientOverride()
-    if (override !== null)
-      return override
+    if (override !== null) return override
 
     if (hasExternalSession()) {
       const ext = getExternalSession()
       return ext
     }
 
-    return clientSession() ?? createEmptyClientSession()
+    return clientSession() ?? client.session ?? createEmptyClientSession()
   })
 
   const isLoading = createMemo(() => {
-    if (hasExternalSession())
-      return false
+    if (hasExternalSession()) return false
     return !mounted() || !isReady() || (clientSession() === null && isRefreshing())
   })
 
   const auth = createClientAuth<TAuth>({
     client,
     redirectTo: untrack(() => props.redirectTo),
-    refreshOnMount: !untrack(hasExternalSession),
+    refreshOnMount: !untrack(hasExternalSession) && !untrack(() => props.client),
     setSession: setResolvedSession,
-    onReady: () => { setIsReady(true) },
+    onReady: () => {
+      setIsReady(true)
+    },
     onRefreshing: setIsRefreshing,
   })
 
@@ -112,15 +122,13 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     ...auth.controls,
   }
 
-  const provider = (
-    <AuthContext value={contextValue as AuthContextValue<any>}>
-      {props.children}
-    </AuthContext>
-  )
+  const provider = <AuthContext value={contextValue as AuthContextValue<any>}>{props.children}</AuthContext>
 
   onClientReady(() => {
-    if (!untrack(hasExternalSession))
+    if (!untrack(hasExternalSession)) {
       setMounted(true)
+      setClientSession(client.session)
+    }
 
     return auth.mount()
   })

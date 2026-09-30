@@ -1,0 +1,40 @@
+import type { GauSession } from "@rttnd/gau";
+import type { MarkoAuthValue } from "@rttnd/gau/client/marko";
+client import { createMarkoAuth } from "@rttnd/gau/client/marko";
+
+export interface Input {
+  session?: GauSession;
+  baseUrl?: string;
+}
+
+<let/session=input.session ?? { user: null, session: null, accounts: null, providers: [] }>
+<let/isLoading=!input.session>
+<let/controller=(undefined as ReturnType<typeof createMarkoAuth> | undefined)>
+<lifecycle
+  onMount() {
+    controller = createMarkoAuth({
+      session: input.session,
+      baseUrl: input.baseUrl,
+      onSession(next) { session = next; },
+      onLoading(next) { isLoading = next; },
+    });
+  }
+  onUpdate() {
+    if (input.session) controller?.setSession(input.session);
+  }
+  onDestroy() { controller?.dispose(); }
+/>
+<const/ready() {
+  if (!controller) throw new Error("Auth is not ready in the browser yet.");
+  return controller;
+}>
+<return=({
+  session,
+  isLoading,
+  refresh: () => ready().refresh(),
+  signIn: (provider: string, options?: any) => ready().signIn(provider, options),
+  linkAccount: (provider: string, options?: any) => ready().linkAccount(provider, options),
+  signOut: () => ready().signOut(),
+  unlinkAccount: (provider) => ready().unlinkAccount(provider),
+  fetch: (resource, options) => ready().fetch(resource, options),
+} as MarkoAuthValue)/>

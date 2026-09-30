@@ -3,6 +3,30 @@ import { presetStarlightIcons } from 'starlight-plugin-icons/uno'
 import { defineConfig, presetIcons } from 'unocss'
 
 export default defineConfig({
+  safelist: [
+    'light:i-vscode-icons:file-type-light-astro',
+    'sidebar-active-dark:i-vscode-icons:file-type-light-astro',
+    'sidebar-active-light:i-vscode-icons:file-type-astro',
+  ],
+  variants: [
+    (matcher) => {
+      for (const theme of ['dark', 'light']) {
+        const prefix = `sidebar-active-${theme}:`
+        if (matcher.startsWith(prefix)) {
+          return {
+            matcher: matcher.slice(prefix.length),
+            selector: selector => `html[data-theme="${theme}"] a[aria-current="page"] ${selector}`,
+          }
+        }
+      }
+      if (matcher.startsWith('light:')) {
+        return {
+          matcher: matcher.slice(6),
+          selector: selector => `html[data-theme="light"] ${selector}`,
+        }
+      }
+    },
+  ],
   presets: [
     presetStarlightIcons(),
     presetIcons({

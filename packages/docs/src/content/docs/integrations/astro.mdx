@@ -1,0 +1,167 @@
+---
+title: Astro
+description: How to integrate gau with Astro 7.
+---
+
+import { Steps } from '@astrojs/starlight/components'
+import FileTree from 'starlight-plugin-icons/components/FileTree.astro'
+import Aside from 'starlight-plugin-icons/components/Aside.astro'
+
+This guide shows how to integrate `gau` with Astro 7, using GitHub as an example.
+
+<br />
+
+<Steps>
+1. ##### Follow the Basic Setup
+
+    Complete the [Getting Started](/guides/getting-started) guide.
+
+    Create your auth instance in `src/server/auth.ts`. For a persistent database, follow the [Drizzle](/adapters/drizzle) guide.
+
+    For GitHub, set the callback URL to `http://localhost:4321/api/auth/callback/github` during development.
+
+2. ##### Configure Astro
+
+    Install an [Astro server adapter](https://docs.astro.build/en/guides/on-demand-rendering/) so auth routes can run on each request. For example, with the Node adapter:
+
+    ```js title="astro.config.mjs"
+    import { defineConfig } from 'astro/config'
+    import node from '@astrojs/node'
+
+    export default defineConfig({
+      output: 'server',
+      adapter: node({ mode: 'standalone' }),
+      session: false,
+    })
+    ```
+
+    Gau does not require Astro's session storage. Omit `session: false` if your app otherwise uses `Astro.session`.
+
+3. ##### Set up the API Route
+
+    Export the Astro helpers alongside your auth instance:
+
+    ```ts title="src/server/auth.ts"
+    import { AstroAuth } from '@rttnd/gau/astro'
+
+    // After creating your auth instance:
+    export const gau = AstroAuth(auth)
+    ```
+
+    Create a catch-all route for the auth endpoints.
+
+    ```ts title="src/pages/api/auth/[...gau].ts"
+    import { gau } from '../../../server/auth'
+
+    export const prerender = false
+    export const { GET, POST, OPTIONS } = gau
+    ```
+
+4. ##### Add Middleware
+
+    Add the Gau middleware to make sessions available in `Astro.locals` and refresh the session cookie when needed.
+
+    ```ts title="src/middleware.ts"
+    import { gau } from './server/auth'
+
+    export const onRequest = gau.onRequest
+    ```
+
+    Server code can now call `Astro.locals.getSession()`. Use `getServerSession()` only when you need account tokens on the server.
+
+    Add the locals to `src/env.d.ts` for full type safety:
+
+    ```ts title="src/env.d.ts"
+    import type { GauAstroLocals } from '@rttnd/gau/astro'
+    import type { auth } from './server/auth'
+
+    declare global {
+      namespace App {
+        interface Locals extends GauAstroLocals<typeof auth> {}
+      }
+    }
+    ```
+
+5. ##### Load the Session
+
+    Read the session in your page. Use a link to sign in and a form to sign out:
+
+    ```astro title="src/pages/index.astro"
+    ---
+    const { user } = await Astro.locals.getSession()
+    ---
+
+    {user ? (
+      <>
+        <p>Welcome, {user.name}!</p>
+        <form method="post" action="/api/auth/signout?redirectTo=/" data-astro-reload>
+          <button>Sign out</button>
+        </form>
+      </>
+    ) : (
+      <a href="/api/auth/github?redirectTo=/account" data-astro-reload>
+        Sign in with GitHub
+      </a>
+    )}
+    ```
+
+    <Aside type="note">
+      `data-astro-reload` keeps auth links and forms as full-page navigations when using Astro's `ClientRouter`. The sign-out redirect must stay on the same origin.
+    </Aside>
+
+6. ##### Protect a Page
+
+    Check the session before rendering the page or loading private data.
+
+    ```astro title="src/pages/account.astro"
+    ---
+    export const prerender = false
+
+    const { user } = await Astro.locals.getSession()
+    if (!user)
+      return Astro.redirect('/')
+    ---
+
+    <h1>Welcome, {user.name}!</h1>
+    ```
+
+    Check the session in each endpoint or action that accesses private data too. Keep personalized pages out of shared route caches.
+
+7. ##### File Structure
+
+    <FileTree>
+      - src
+        - server
+          - auth.ts
+        - pages
+          - api
+            - auth
+              - [...gau].ts
+          - account.astro
+          - index.astro
+        - env.d.ts
+        - middleware.ts
+      - package.json
+      - astro.config.mjs
+    </FileTree>
+
+8. ##### Next Steps
+
+    - See the [Astro example](https://github.com/Rettend/gau/tree/main/packages/example-astro) for a complete app.
+    - Explore other [OAuth Providers](/providers).
+    - Learn about [Protected Routes](/guides/protected-routes).
+</Steps>
+
+## Set up the Client
+
+A browser client is optional. Use the [vanilla client](/integrations/vanilla) in browser scripts, or a Gau [Solid](/integrations/solidstart) or [Svelte](/integrations/sveltekit) provider inside a hydrated island.
+
+Pass the session from `Astro.locals.getSession()` to the island to show the signed-in state immediately.
+
+Separate islands do not share component context. To share updates, create one vanilla client in browser code and pass it through the providers' `client` prop. Never share a mutable session client between server requests.
+
+For a retained island, pass fresh server session props after navigation. A client-side sign-out only updates subscribed components; navigate afterward to update other server-rendered content.
+
+## Static Pages
+
+A prerendered page cannot read a visitor's session at build time. Use an on-demand page for private content, or a [server island](https://docs.astro.build/en/guides/server-islands/) for a personalized section of a public page. Read the session inside the island's own request.

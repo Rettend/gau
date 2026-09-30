@@ -1,0 +1,6 @@
+import GauAuth from "@rttnd/gau/client/marko/Auth.marko";
+<await|session|=$global.data.session>
+  <GauAuth/auth session=session/>
+  <h1 class="text-2xl tracking-tight mb-6">Your account</h1>
+  <auth-panel auth=auth/>
+</await>
