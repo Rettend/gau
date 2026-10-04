@@ -273,7 +273,7 @@
     },
     "packages/gau": {
       "name": "@rttnd/gau",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "bin": {
         "gau": "dist/src/cli/index.js",
       },

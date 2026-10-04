@@ -4290,7 +4290,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-gau"
-version = "0.1.0"
+version = "1.7.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
