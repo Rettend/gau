@@ -23,7 +23,9 @@
     "test:ui": "vp test --project fast --ui",
     "update": "taze latest -wr",
     "clean": "bun --bun scripts/clean.ts",
-    "release": "bun node_modules/@rttnd/release/dist/cli.js"
+    "release": "bun scripts/release.ts",
+    "test:release": "bun test scripts/release.test.ts",
+    "release:cargo:check": "cargo publish --dry-run --locked --manifest-path packages/tauri-plugin-gau/Cargo.toml"
   },
   "devDependencies": {
     "@rttnd/release": "^0.1.1",
