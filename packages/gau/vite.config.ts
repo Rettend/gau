@@ -125,6 +125,7 @@ export default defineConfig(async () => {
           console.log('⚡️ Generating Svelte .d.ts files with svelte2tsx...')
           await generateSvelteDeclarations()
           await exec('bun', ['run', 'marko-type-check', '-p', 'src/client/marko/tsconfig.tags.json'])
+          for await (const path of glob('dist/**/*.tsbuildinfo')) await unlink(path)
           console.log('✅ Successfully generated .d.ts files.')
 
           const dtsFiles = await Array.fromAsync(glob('src/**/*.d.ts{,.map}'))

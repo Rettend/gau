@@ -1127,11 +1127,50 @@ async fn rejects_untrusted_discovery_and_does_not_poison_the_cache_after_failure
     signed_in(&provider).await;
     signed_in(&provider).await;
     assert_eq!(server.request_count("/keys").await, 1);
-    provider.discovery.lock().await.as_mut().unwrap().fetched_at = Instant::now() - DISCOVERY_TTL;
+    let fetched_at = provider.discovery.lock().await.as_ref().unwrap().fetched_at;
+    // Move the comparison clock forward, not the timestamp before Windows boot.
+    let expires_at = fetched_at + DISCOVERY_TTL;
+    let requests = server
+        .request_count("/.well-known/openid-configuration")
+        .await;
+    provider
+        .get_discovery_with_clock(|| expires_at - Duration::from_nanos(1))
+        .await
+        .unwrap();
+    assert_eq!(
+        server
+            .request_count("/.well-known/openid-configuration")
+            .await,
+        requests
+    );
     server.fixture.lock().await.discovery_status = 503;
-    assert_error(provider.get_discovery().await, "discovery_failed");
+    assert_error(
+        provider.get_discovery_with_clock(|| expires_at).await,
+        "discovery_failed",
+    );
+    assert_eq!(
+        provider.discovery.lock().await.as_ref().unwrap().fetched_at,
+        fetched_at
+    );
     server.fixture.lock().await.discovery_status = 200;
-    provider.get_discovery().await.unwrap();
+    provider
+        .get_discovery_with_clock(|| expires_at)
+        .await
+        .unwrap();
+    assert_eq!(
+        provider.discovery.lock().await.as_ref().unwrap().fetched_at,
+        expires_at
+    );
+    provider
+        .get_discovery_with_clock(|| expires_at)
+        .await
+        .unwrap();
+    assert_eq!(
+        server
+            .request_count("/.well-known/openid-configuration")
+            .await,
+        requests + 2
+    );
 }
 
 #[tokio::test]

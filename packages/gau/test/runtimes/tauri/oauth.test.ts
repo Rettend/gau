@@ -1,3 +1,4 @@
+import { queryObjects } from 'node:v8'
 import { Channel } from '@tauri-apps/api/core'
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -678,6 +679,9 @@ describe('native ChatGPT client', () => {
     const stream = await native.fetch()
     stream.headers()
     const response = await first
+    // This runs a full GC while the caller no longer holds the temporary input Request.
+    // Node forwards Request aborts through weak controller references.
+    queryObjects(Request)
     const body = response.text().catch((error: Error) => error)
     controller.abort()
     await expect(body).resolves.toMatchObject({ name: 'AbortError' })

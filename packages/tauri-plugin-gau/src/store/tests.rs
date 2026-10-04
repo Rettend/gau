@@ -584,6 +584,30 @@ async fn process_death_releases_an_os_lock_without_unlinking_it() {
 
 #[cfg(unix)]
 #[tokio::test]
+async fn store_directory_symlink_ancestors_fail_closed() {
+    use std::os::unix::fs::symlink;
+
+    let (directory, store, keys) = setup();
+    assert!(store
+        .lock(None)
+        .await
+        .unwrap()
+        .read()
+        .await
+        .unwrap()
+        .is_none());
+    let alias = directory.path().join("alias");
+    symlink(directory.path(), &alias).unwrap();
+    let store = Store::with_keys(alias.join("connections"), "dev.test.app".into(), keys).unwrap();
+    assert_eq!(
+        store.lock(None).await.err().unwrap().code,
+        "unsafe_store_path"
+    );
+    assert!(!directory.path().join("connections").exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn symbolic_links_hard_links_and_public_files_fail_closed() {
     use std::os::unix::fs::{symlink, PermissionsExt};
     let (directory, store, _) = setup();

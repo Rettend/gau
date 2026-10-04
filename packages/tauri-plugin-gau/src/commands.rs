@@ -881,7 +881,7 @@ mod tests {
     async fn vetoed_exit_requests_leave_prepare_and_native_list_work_usable() {
         let registry = Arc::new(RequestRegistry::default());
         let work = Arc::new(CriticalWorkTracker::default());
-        let directory = tempfile::tempdir().unwrap();
+        let directory = crate::store::test_keys::directory();
         let native = crate::ChatGPT {
             engine: Arc::new(
                 crate::ChatGPTConnection::new(

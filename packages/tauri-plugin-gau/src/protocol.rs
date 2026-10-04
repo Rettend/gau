@@ -165,12 +165,16 @@ impl OpenAI {
     }
 
     async fn get_discovery(&self) -> Result<Discovery> {
+        self.get_discovery_with_clock(Instant::now).await
+    }
+
+    async fn get_discovery_with_clock(&self, now: impl Fn() -> Instant) -> Result<Discovery> {
         // Serialize cache misses as well as key refreshes. A failed request does
         // not become a cached failure, and every network operation is bounded.
         let mut cache = self.discovery.lock().await;
         if let Some(cached) = cache
             .as_ref()
-            .filter(|cached| cached.fetched_at.elapsed() < DISCOVERY_TTL)
+            .filter(|cached| now().saturating_duration_since(cached.fetched_at) < DISCOVERY_TTL)
         {
             return Ok(cached.metadata.clone());
         }
@@ -201,7 +205,7 @@ impl OpenAI {
         };
         *cache = Some(CachedDiscovery {
             metadata: metadata.clone(),
-            fetched_at: Instant::now(),
+            fetched_at: now(),
         });
         Ok(metadata)
     }

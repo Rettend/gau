@@ -325,6 +325,10 @@ export function createChatGPT(): ChatGPTClient {
       const req = new Request(input, init)
       validateUrl(req.url)
       const op = operation(req.signal)
+      // Node forwards Request aborts through weak controller references. Keep the
+      // input and normalized Requests alive until the response body finishes.
+      const requests = new Set([req])
+      if (input instanceof Request) requests.add(input)
       const result = deferred<Response>()
       let channel: import('@tauri-apps/api/core').Channel<FetchEvent> | undefined
       let stream: ReadableStreamDefaultController<Uint8Array> | undefined
@@ -339,6 +343,7 @@ export function createChatGPT(): ChatGPTClient {
       let native: { api: Core; requestId: string } | undefined
 
       function cleanup() {
+        requests.clear()
         if (completionTimeout !== undefined) {
           globalThis.clearTimeout(completionTimeout)
           completionTimeout = undefined
