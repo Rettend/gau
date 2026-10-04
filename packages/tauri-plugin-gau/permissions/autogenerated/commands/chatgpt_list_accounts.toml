@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-chatgpt-list-accounts"
+description = "Enables the chatgpt_list_accounts command without any pre-configured scope."
+commands.allow = ["chatgpt_list_accounts"]
+
+[[permission]]
+identifier = "deny-chatgpt-list-accounts"
+description = "Denies the chatgpt_list_accounts command without any pre-configured scope."
+commands.deny = ["chatgpt_list_accounts"]

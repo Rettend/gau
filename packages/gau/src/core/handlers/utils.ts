@@ -1,6 +1,7 @@
 import type { Auth } from '../createAuth'
 import { isEmailProvider } from '../providers'
 import { createOAuthUris } from '../../oauth/utils'
+import { generateState } from 'arctic'
 import {
   CALLBACK_URI_COOKIE_NAME,
   CLIENT_CHALLENGE_COOKIE_NAME,
@@ -14,6 +15,7 @@ import {
 } from '../cookies'
 import { ErrorCodes, GauError } from '../errors'
 import { json, redirect } from '../index'
+import { storeOAuthTransaction } from './oauthTransaction'
 
 export function verifyRequestOrigin(request: Request, trustHosts: 'all' | string[], development: boolean): boolean {
   if (trustHosts === 'all')
@@ -119,12 +121,14 @@ export async function prepareOAuthRedirect(
     throw new GauError(ErrorCodes.LINK_ONLY_PROVIDER)
 
   let authUrl: URL | null
+  const nonce = provider.requiresNonce ? generateState() : undefined
   try {
     authUrl = await provider.getAuthorizationUrl(state, codeVerifier, {
       redirectUri: callbackUri ?? undefined,
       scopes: scopesOverride,
       params: extraParams,
       overrides,
+      ...(nonce ? { nonce } : {}),
     })
   }
   catch (error) {
@@ -137,6 +141,22 @@ export async function prepareOAuthRedirect(
 
   const requestCookies = parseCookies(request.headers.get('Cookie'))
   const cookies = new Cookies(requestCookies, auth.cookieOptions)
+
+  if (provider.requiresNonce) {
+    // Use the actual URI chosen by the provider, not a mutable browser cookie.
+    const transactionCallbackUri = authUrl.searchParams.get('redirect_uri') ?? callbackUri ?? undefined
+    await storeOAuthTransaction(auth, cookies, {
+      providerId, state, codeVerifier, nonce: nonce!, redirectTo: redirectTo ?? '/',
+      callbackUri: transactionCallbackUri, overrides, linkingToken: linkingToken ?? undefined,
+      clientChallenge: url.searchParams.get('code_challenge') ?? undefined,
+    })
+    // Only the opaque browser binding is sent to the browser; verifier and nonce stay in storage.
+    const response = url.searchParams.get('redirect') === 'false'
+      ? json({ url: authUrl.toString() })
+      : redirect(authUrl.toString())
+    cookies.toHeaders().forEach((value, key) => response.headers.append(key, value))
+    return response
+  }
 
   const temporaryCookieOptions = {
     maxAge: CSRF_MAX_AGE,

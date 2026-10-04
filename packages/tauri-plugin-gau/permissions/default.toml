@@ -1,0 +1,13 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Connect ChatGPT accounts and stream authenticated requests to the supported OpenAI API routes. Credentials are not returned to JavaScript."
+permissions = [
+  "allow-chatgpt-prepare",
+  "allow-chatgpt-sign-in",
+  "allow-chatgpt-list-accounts",
+  "allow-chatgpt-sign-out",
+  "allow-chatgpt-cancel",
+  "allow-chatgpt-fetch",
+  "allow-chatgpt-ack",
+]

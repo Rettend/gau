@@ -110,6 +110,7 @@ export default defineConfig(async () => {
             '@solidjs/router',
             '@solidjs/web',
             '@tauri-apps/plugin-opener',
+            '@tauri-apps/api/core',
             '@tauri-apps/api/event',
           ],
         },
@@ -153,7 +154,14 @@ export default defineConfig(async () => {
         entry: toEntryObject(solidEntries),
         tsconfig: 'src/client/solid/tsconfig.json',
         minify: false,
-        deps: { neverBundle: ['@solidjs/router', '@tauri-apps/plugin-opener', '@tauri-apps/api/event'] },
+        deps: {
+          neverBundle: [
+            '@solidjs/router',
+            '@tauri-apps/plugin-opener',
+            '@tauri-apps/api/event',
+            '@tauri-apps/api/core',
+          ],
+        },
         outExtensions() {
           return { js: '.jsx' }
         },
@@ -169,6 +177,7 @@ export default defineConfig(async () => {
             '@solidjs/web',
             '@tauri-apps/plugin-opener',
             '@tauri-apps/api/event',
+            '@tauri-apps/api/core',
             'solid-js',
           ],
         },
@@ -183,7 +192,13 @@ export default defineConfig(async () => {
         entry: toEntryObject(svelteTsEntries),
         tsconfig: 'src/client/svelte/tsconfig.json',
         deps: {
-          neverBundle: ['@sveltejs/kit', '$app/navigation', '@tauri-apps/plugin-opener', '@tauri-apps/api/event'],
+          neverBundle: [
+            '@sveltejs/kit',
+            '$app/navigation',
+            '@tauri-apps/plugin-opener',
+            '@tauri-apps/api/event',
+            '@tauri-apps/api/core',
+          ],
         },
         outExtensions() {
           return { js: '.svelte.js' }

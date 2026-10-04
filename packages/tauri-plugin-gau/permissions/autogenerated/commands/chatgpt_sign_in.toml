@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-chatgpt-sign-in"
+description = "Enables the chatgpt_sign_in command without any pre-configured scope."
+commands.allow = ["chatgpt_sign_in"]
+
+[[permission]]
+identifier = "deny-chatgpt-sign-in"
+description = "Denies the chatgpt_sign_in command without any pre-configured scope."
+commands.deny = ["chatgpt_sign_in"]

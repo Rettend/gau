@@ -14,6 +14,7 @@
 - `packages/gau/src/adapters` exports `drizzle` and `memory`; `oauth` holds providers; `client` holds vanilla/Svelte/Solid helpers; `sveltekit`, `solidstart`, and `runtimes/tauri` are integration layers.
 - `packages/gau/test` mirrors `packages/gau/src`.
 - `packages/docs` is the Astro/Starlight docs site.
+- `packages/tauri-plugin-gau` is the native Rust Tauri plugin for ChatGPT connections. Its TypeScript client lives in `packages/gau/src/runtimes/tauri/oauth` and is exported from `@rttnd/gau/runtimes/tauri`.
 - `packages/example-*` are standalone apps; root scripts do not verify them.
 
 ## Library Shape
@@ -29,6 +30,7 @@
 - Default library verification: `bun run check && bun run test`
 - Add `bun run test:pg` when touching the Postgres Drizzle adapter.
 - Add `bun run build` when changing public exports, build logic, or client entrypoints.
+- Native Tauri verification: `bun run check:tauri`, `bun run test:tauri`, and `cargo fmt --manifest-path packages/tauri-plugin-gau/Cargo.toml --check`. Changes to the native bridge also need the TypeScript Tauri tests and library build.
 - Single fast test file: `bun run test --run packages/gau/test/core/createAuth.test.ts`
 - PG adapter test file: `bun run test:pg --run packages/gau/test/adapters/drizzle/pg.test.ts`
 - Docs/examples use package-local scripts, e.g. `bun run --cwd packages/docs check` or `bun run --cwd packages/example-sveltekit check`.

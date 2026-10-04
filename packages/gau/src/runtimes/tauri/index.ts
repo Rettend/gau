@@ -2,6 +2,8 @@ import type { ProfileName, ProviderIds } from '../../core'
 import { BROWSER } from 'esm-env'
 import { generatePKCE, getSessionToken } from '../../client/token'
 
+export * from './oauth'
+
 export function isTauri(): boolean {
   return BROWSER && '__TAURI_INTERNALS__' in globalThis
 }

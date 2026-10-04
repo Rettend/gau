@@ -3,8 +3,6 @@ title: Email
 description: Sign in with an email code or magic link.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components'
-
 The email provider sends a six-digit code, a sign-in link, or both. Add it to your provider list alongside social logins, or use it on its own.
 
 ### Environment variables
@@ -45,38 +43,9 @@ Use your framework's usual Gau handler and session setup. See [Getting Started](
 
 ### Verification storage
 
-Email login needs a table for short-lived challenges and sending limits. Add it to your existing [Drizzle schema](/adapters/drizzle/), apply the migration, and pass it as the fourth argument to `DrizzleAdapter`.
+Follow the shared [verification storage setup](/adapters/drizzle/#verification-storage) for the schema and adapter configuration.
 
-<Tabs syncKey="db">
-  <TabItem label="SQLite">
-    ```ts title="schema.ts"
-    import { index, integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
-
-    export const Verification = snakeCase.table('verification', {
-      id: text().primaryKey(),
-      value: text().notNull(),
-      expiresAt: integer().notNull(),
-      version: integer().notNull(),
-    }, table => [index('verification_expiry').on(table.expiresAt)])
-    ```
-  </TabItem>
-  <TabItem label="PostgreSQL">
-    ```ts title="schema.ts"
-    import { bigint, index, integer, snakeCase, text } from 'drizzle-orm/pg-core'
-
-    export const Verification = snakeCase.table('verification', {
-      id: text().primaryKey(),
-      value: text().notNull(),
-      expiresAt: bigint({ mode: 'number' }).notNull(),
-      version: integer().notNull(),
-    }, table => [index('verification_expiry').on(table.expiresAt)])
-    ```
-  </TabItem>
-</Tabs>
-
-`expiresAt` stores Unix milliseconds, not a `Date`. Gau removes expired records when it starts a new email request. OAuth-only apps do not need this table.
-
-`MemoryAdapter()` includes verification storage for tests and local development. Use shared, persistent storage when running more than one server. Custom adapters can implement `Adapter.verification`; its `set` operation must compare the version and write the record atomically.
+Email uses this storage for short-lived challenges and sending limits. Gau removes expired records when it starts a new email request.
 
 ### Sign in
 

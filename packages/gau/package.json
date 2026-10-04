@@ -163,7 +163,6 @@
     "@sveltejs/kit": "^2.25.1",
     "@tauri-apps/api": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2.3.0",
-    "@tauri-apps/plugin-shell": "^2.3.0",
     "drizzle-orm": "^1.0.0-rc.4",
     "solid-js": "^1.9.7 || ^2.0.0-rc.11",
     "svelte": "^5.41.1",
@@ -194,9 +193,6 @@
     "@tauri-apps/plugin-opener": {
       "optional": true
     },
-    "@tauri-apps/plugin-shell": {
-      "optional": true
-    },
     "drizzle-orm": {
       "optional": true
     },
@@ -214,7 +210,8 @@
     "@oslojs/jwt": "^0.3.0",
     "arctic": "^3.7.0",
     "cookie": "^2.0.1",
-    "esm-env": "^1.2.2"
+    "esm-env": "^1.2.2",
+    "jose": "^6.2.12"
   },
   "devDependencies": {
     "@marko/type-check": "^3.2.1",

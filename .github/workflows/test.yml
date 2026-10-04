@@ -36,3 +36,30 @@ jobs:
 
       - name: Test PostgreSQL adapter
         run: bun run test:pg
+
+  tauri:
+    name: Native Tauri (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.93.1
+        with:
+          components: rustfmt, clippy
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/tauri-plugin-gau -> target
+      - name: Check formatting
+        run: cargo fmt --manifest-path packages/tauri-plugin-gau/Cargo.toml --check
+      - name: Check native code
+        run: cargo clippy --locked --manifest-path packages/tauri-plugin-gau/Cargo.toml --all-targets -- -D warnings
+      - name: Test native code
+        run: cargo test --locked --manifest-path packages/tauri-plugin-gau/Cargo.toml

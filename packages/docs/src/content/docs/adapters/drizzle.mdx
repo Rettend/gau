@@ -7,7 +7,7 @@ import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
 
 `gau` supports Drizzle ORM 1.0, starting with `1.0.0-rc.4`, for SQLite and PostgreSQL. Drizzle 0.x is no longer supported. This guide uses Turso for SQLite; Cloudflare D1 uses the same schema with a different client.
 
-Email login also needs a [verification table](/providers/email/#verification-storage), passed as the fourth argument to `DrizzleAdapter`.
+Some providers also need [verification storage](#verification-storage).
 
 <br />
 
@@ -289,6 +289,49 @@ Email login also needs a [verification table](/providers/email/#verification-sto
     ```
 
 </Steps>
+
+### Verification storage
+
+Email and ChatGPT web sign-in require `Adapter.verification` to store short-lived records. With Drizzle, add this table to your schema, apply the migration, and pass it as the fourth argument to `DrizzleAdapter`.
+
+<Tabs syncKey="db">
+  <TabItem label="SQLite">
+    ```ts title="schema.ts"
+    import { index, integer, snakeCase, text } from 'drizzle-orm/sqlite-core'
+
+    export const Verification = snakeCase.table('verification', {
+      id: text().primaryKey(),
+      value: text().notNull(),
+      expiresAt: integer().notNull(),
+      version: integer().notNull(),
+    }, table => [index('verification_expiry').on(table.expiresAt)])
+    ```
+  </TabItem>
+  <TabItem label="PostgreSQL">
+    ```ts title="schema.ts"
+    import { bigint, index, integer, snakeCase, text } from 'drizzle-orm/pg-core'
+
+    export const Verification = snakeCase.table('verification', {
+      id: text().primaryKey(),
+      value: text().notNull(),
+      expiresAt: bigint({ mode: 'number' }).notNull(),
+      version: integer().notNull(),
+    }, table => [index('verification_expiry').on(table.expiresAt)])
+    ```
+  </TabItem>
+</Tabs>
+
+`expiresAt` stores Unix milliseconds, not a `Date`.
+
+```ts title="auth.ts"
+import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
+import { db } from './db'
+import { Accounts, Users, Verification } from './schema'
+
+const adapter = DrizzleAdapter(db, Users, Accounts, Verification)
+```
+
+`MemoryAdapter()` includes verification storage for tests and local development. Use shared, persistent storage when running more than one server. Custom adapters must implement `Adapter.verification` with a `set` operation that compares the version and writes the record atomically.
 
 ## Upgrading from Drizzle 0.x
 

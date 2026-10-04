@@ -7,6 +7,7 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
+        builder = builder.plugin(tauri_plugin_gau::init());
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();

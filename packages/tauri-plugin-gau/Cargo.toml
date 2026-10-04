@@ -1,0 +1,56 @@
+[package]
+name = "tauri-plugin-gau"
+version = "0.1.0"
+description = "Native ChatGPT account connections for Gau and Tauri"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/Rettend/gau"
+links = "tauri-plugin-gau"
+build = "build.rs"
+
+[lib]
+name = "tauri_plugin_gau"
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-plugin = { version = "2.7", features = ["build"] }
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+chacha20poly1305 = "0.10"
+fs2 = "0.4"
+futures-util = "0.3"
+jsonwebtoken = "9.3"
+rand = "0.8"
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2.6"
+tauri = { version = "2.12", default-features = false }
+tauri-plugin-opener = "2.6"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+url = { version = "2", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+zeroize = { version = "1", features = ["derive"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6", features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6", features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6", features = ["sync-secret-service", "crypto-rust"] }
+
+[dev-dependencies]
+tauri = { version = "2.12", default-features = false, features = ["test"] }
+
+[package.metadata.platforms.support]
+windows = { level = "full" }
+macos = { level = "full" }
+linux = { level = "full" }

@@ -1,5 +1,6 @@
 import type { Auth } from '../createAuth'
 import type { User } from '../index'
+import type { OAuthTransaction } from './oauthTransaction'
 import { isEmailProvider } from '../providers'
 import {
   CALLBACK_URI_COOKIE_NAME,
@@ -12,10 +13,11 @@ import {
   PROVIDER_OPTIONS_COOKIE_NAME,
   SESSION_COOKIE_NAME,
 } from '../cookies'
-import { ErrorCodes, GauError } from '../errors'
+import { ErrorCodes, GauError, handleError } from '../errors'
 import { maybeMapExternalProfile, runOnAfterLinkAccount, runOnBeforeLinkAccount, runOnOAuthExchange } from '../hooks'
 import { json, redirect } from '../index'
 import { htmlResponse, renderCancelledPage, renderSuccessPage } from '../templates'
+import { clearOAuthTransactionCookie, consumeOAuthTransaction } from './oauthTransaction'
 
 type Session = Awaited<ReturnType<Auth['validateSession']>>
 interface TokenSnapshot {
@@ -88,7 +90,9 @@ function readOptionalToken<T>(read: () => T, fallback: T): T {
   }
 }
 
-function normalizeTokens(tokens: any, fallback?: Partial<TokenSnapshot>, options: { requireAccessToken?: boolean } = {}): TokenSnapshot {
+function normalizeTokens(tokens: any, fallback?: Partial<TokenSnapshot>, options: { requireAccessToken?: boolean, identityOnly?: boolean } = {}): TokenSnapshot {
+  if (options.identityOnly)
+    return { accessToken: null, refreshToken: null, expiresAt: undefined, tokenType: null, scope: null, idToken: null }
   return {
     accessToken: options.requireAccessToken
       ? tokens.accessToken()
@@ -113,6 +117,7 @@ async function buildFinalResponse(
   url: URL,
   cookies: Cookies,
   callbackUri?: string | null,
+  transaction?: OAuthTransaction,
 ): Promise<Response> {
   const requestUrl = new URL(request.url)
   const redirectUrl = new URL(redirectTo, request.url)
@@ -125,7 +130,7 @@ async function buildFinalResponse(
 
   if (forceToken || (!forceCookie && (isCustomScheme || isCrossHost))) {
     const destination = new URL(redirectUrl)
-    const clientChallenge = cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)
+    const clientChallenge = transaction ? transaction.clientChallenge : cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)
 
     if (!clientChallenge)
       throw new GauError(ErrorCodes.PKCE_CHALLENGE_MISSING, { redirectUrl: redirectTo })
@@ -143,7 +148,7 @@ async function buildFinalResponse(
 
   cookies.set(SESSION_COOKIE_NAME, sessionToken, {
     maxAge: auth.jwt.ttl,
-    sameSite: auth.development ? 'lax' : 'none',
+    sameSite: transaction || auth.development ? 'lax' : 'none',
     secure: !auth.development,
   })
   clearTemporaryCookies(cookies, callbackUri)
@@ -166,6 +171,42 @@ async function buildFinalResponse(
 
 export async function handleCallback(request: Request, auth: Auth, providerId: string): Promise<Response> {
   const provider = auth.providerMap.get(providerId)
+  if (!provider || isEmailProvider(provider) || !provider.requiresNonce)
+    return completeCallback(request, auth, providerId)
+
+  const cookies = new Cookies(parseCookies(request.headers.get('Cookie')), auth.cookieOptions)
+  clearOAuthTransactionCookie(cookies, auth)
+  // Apply cleanup to success, cancellation, hook responses, and every failure.
+  clearTemporaryCookies(cookies, cookies.get(CALLBACK_URI_COOKIE_NAME), { clientChallenge: true })
+  cookies.delete(LINKING_TOKEN_COOKIE_NAME)
+  try {
+    const url = new URL(request.url)
+    const transaction = await consumeOAuthTransaction(auth, cookies, providerId, url.searchParams.get('state'))
+    if (url.searchParams.getAll('state').length !== 1 || url.searchParams.getAll('code').length > 1)
+      throw new GauError(ErrorCodes.CSRF_INVALID)
+    if (!url.searchParams.get('code') || url.searchParams.has('error'))
+      return appendCookieHeaders(htmlResponse(renderCancelledPage({ redirectUrl: transaction.redirectTo })), cookies)
+    return appendCookieHeaders(await completeCallback(request, auth, providerId, transaction), cookies)
+  }
+  catch (error) {
+    // Keep failed exchange/verification details out of logs and browser responses.
+    const gauError = error instanceof GauError ? error : new GauError(ErrorCodes.TOKEN_INVALID)
+    return appendCookieHeaders(
+      await handleError(
+        { error: gauError, request },
+        {
+          basePath: auth.basePath,
+          onError: auth.onError,
+          errorRedirect: auth.errorRedirect,
+        },
+      ),
+      cookies,
+    )
+  }
+}
+
+async function completeCallback(request: Request, auth: Auth, providerId: string, transaction?: OAuthTransaction): Promise<Response> {
+  const provider = auth.providerMap.get(providerId)
   if (!provider || isEmailProvider(provider))
     throw new GauError(ErrorCodes.PROVIDER_NOT_FOUND)
 
@@ -180,18 +221,20 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   const requestCookies = parseCookies(request.headers.get('Cookie'))
   const cookies = new Cookies(requestCookies, auth.cookieOptions)
 
-  const { savedState, redirectTo } = parseCallbackState(state)
+  const { savedState, redirectTo } = transaction
+    ? { savedState: transaction.state, redirectTo: transaction.redirectTo }
+    : parseCallbackState(state)
 
   const csrfToken = cookies.get(CSRF_COOKIE_NAME)
 
-  if (!csrfToken || csrfToken !== savedState)
+  if (!transaction && (!csrfToken || csrfToken !== savedState))
     throw new GauError(ErrorCodes.CSRF_INVALID, { redirectUrl: redirectTo })
 
-  const codeVerifier = cookies.get(PKCE_COOKIE_NAME)
+  const codeVerifier = transaction ? transaction.codeVerifier : cookies.get(PKCE_COOKIE_NAME)
   if (!codeVerifier)
     throw new GauError(ErrorCodes.PKCE_MISSING, { redirectUrl: redirectTo })
 
-  const callbackUri = cookies.get(CALLBACK_URI_COOKIE_NAME)
+  const callbackUri = transaction ? transaction.callbackUri : cookies.get(CALLBACK_URI_COOKIE_NAME)
   const providerOptionsRaw = cookies.get(PROVIDER_OPTIONS_COOKIE_NAME)
   let providerOverrides: any | undefined
   if (providerOptionsRaw) {
@@ -202,7 +245,9 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     }
     catch {}
   }
-  const linkingToken = cookies.get(LINKING_TOKEN_COOKIE_NAME)
+  if (transaction)
+    providerOverrides = transaction.overrides
+  const linkingToken = transaction ? transaction.linkingToken : cookies.get(LINKING_TOKEN_COOKIE_NAME)
 
   if (linkingToken)
     cookies.delete(LINKING_TOKEN_COOKIE_NAME)
@@ -214,7 +259,9 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     return appendCookieHeaders(redirect(redirectTo), cookies)
   }
 
-  const { user: rawProviderUser, tokens } = await provider.validateCallback(code, codeVerifier, callbackUri ?? undefined, providerOverrides)
+  const { user: rawProviderUser, tokens, identityOnly } = transaction
+    ? await provider.validateCallback(code, codeVerifier, callbackUri ?? undefined, providerOverrides, { nonce: transaction.nonce })
+    : await provider.validateCallback(code, codeVerifier, callbackUri ?? undefined, providerOverrides)
 
   {
     const hookResult = await runOnOAuthExchange(auth, {
@@ -244,6 +291,8 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     tokens,
     isLinking,
   })
+  if (provider.allowEmailAutoLink === false)
+    providerUser.id = rawProviderUser.id
 
   // Enforce provider-level link-only when not linking (profile-level enforced at redirect time)
   if (!isLinking && (auth.providerMap.get(providerId)?.linkOnly === true)) {
@@ -322,7 +371,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   }
 
   if (!user) {
-    const autoLink = auth.autoLink ?? 'verifiedEmail'
+    const autoLink = provider.allowEmailAutoLink === false ? false : auth.autoLink ?? 'verifiedEmail'
     const shouldLinkByEmail = providerUser.email && (
       (autoLink === 'always')
       || (autoLink === 'verifiedEmail' && providerUser.emailVerified === true)
@@ -345,7 +394,10 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     }
     if (!user) {
       try {
-        if (providerUser.email && providerUser.emailVerified === true && auth.autoLink === false) {
+        if (providerUser.email && (
+          provider.allowEmailAutoLink === false
+          || (providerUser.emailVerified === true && auth.autoLink === false)
+        )) {
           const existingWithSameEmail = await auth.getUserByEmail(providerUser.email)
           if (existingWithSameEmail)
             throw new GauError(ErrorCodes.EMAIL_ALREADY_EXISTS, { redirectUrl: redirectTo })
@@ -435,7 +487,7 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
     }
 
     try {
-      const normalizedTokens = normalizeTokens(tokens, undefined, { requireAccessToken: true })
+      const normalizedTokens = normalizeTokens(tokens, undefined, { requireAccessToken: !identityOnly, identityOnly })
 
       await auth.linkAccount({
         userId: user.id,
@@ -476,13 +528,13 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
           tokenType: existing.tokenType ?? null,
           scope: existing.scope ?? null,
           idToken: existing.idToken ?? null,
-        })
+        }, { identityOnly })
 
         await auth.updateAccount({
           userId: user!.id,
           provider: providerId,
           providerAccountId: providerUser.id,
-          accessToken: normalizedTokens.accessToken ?? undefined,
+          accessToken: identityOnly ? null : normalizedTokens.accessToken ?? undefined,
           refreshToken: normalizedTokens.refreshToken,
           expiresAt: normalizedTokens.expiresAt,
           tokenType: normalizedTokens.tokenType,
@@ -505,5 +557,5 @@ export async function handleCallback(request: Request, auth: Auth, providerId: s
   }
 
   const sessionToken = await auth.createSession(user.id)
-  return buildFinalResponse(request, auth, user, redirectTo, sessionToken, url, cookies, callbackUri)
+  return buildFinalResponse(request, auth, user, redirectTo, sessionToken, url, cookies, callbackUri, transaction)
 }

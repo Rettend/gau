@@ -1,0 +1,214 @@
+---
+title: ChatGPT
+description: Use a ChatGPT plan in a local app or add ChatGPT sign-in to a website.
+---
+
+ChatGPT supports two flows:
+
+- **[Local apps](#local-apps)** can use an eligible user's ChatGPT plan with their permission, without a preregistered client ID or secret.
+- **[Web apps](#web-apps)** can sign users in with a registered OpenAI OAuth client. This flow is currently limited to selected commercial partners in OpenAI's limited trial.
+
+## Local apps
+
+For eligible open-source and locally hosted apps, users can grant access to their ChatGPT plan without a preregistered client ID or secret. Local support currently targets Tauri desktop apps. See [OpenAI's availability guidance](https://developers.openai.com/siwc/token-sharing-open-source) for eligibility and plan access.
+
+### Tauri desktop apps
+
+The native plugin handles browser sign-in, credential storage, refresh, and requests to OpenAI. Tokens stay in Rust, outside the webview. This connection is separate from a gau app session.
+
+#### Install
+
+Add gau to your frontend:
+
+```sh
+bun add @rttnd/gau @tauri-apps/api@2
+```
+
+Add the Rust plugin from your app's `src-tauri` directory:
+
+```sh
+cargo add tauri-plugin-gau
+```
+
+Register the plugin on your existing Tauri builder:
+
+```rust title="src-tauri/src/lib.rs"
+tauri::Builder::default()
+    .plugin(tauri_plugin_gau::init())
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
+```
+
+Add `gau:default` to the capability for the window that uses ChatGPT:
+
+```json title="src-tauri/capabilities/default.json"
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "gau:default"
+  ]
+}
+```
+
+The plugin uses `productName` and `identifier` from your Tauri config and saves data in Tauri's app-local data directory. Set your app's name and keep its identifier stable. App registration and local identity are saved automatically.
+
+Credentials are stored in an encrypted file with its key in the operating system's credential store. On Linux, a Secret Service keyring, such as GNOME Keyring or KWallet with Secret Service enabled, must be running and unlocked.
+
+For app sessions through a hosted backend instead, follow the shared [Tauri guide](/runtimes/tauri/).
+
+#### Sign in and make requests
+
+```ts title="src/chatgpt.ts"
+import { createChatGPT } from '@rttnd/gau/runtimes/tauri'
+
+export const chatgpt = createChatGPT()
+
+const account = await chatgpt.signIn()
+if (account.status !== 'ready') throw new Error('ChatGPT plan access is needed')
+
+const fetch = chatgpt.createFetch(account.id)
+const catalog = await fetch('https://api.openai.com/v1/models')
+if (!catalog.ok) throw new Error(`Could not load models (${catalog.status})`)
+
+const { models } = await catalog.json()
+const model = models.find((model: { visibility: string }) => model.visibility === 'list')
+if (!model) throw new Error('No models are available')
+
+const response = await fetch('https://api.openai.com/v1/responses', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    model: model.slug,
+    input: [{ role: 'user', content: 'Hello!' }],
+    store: false,
+    stream: true,
+  }),
+})
+if (!response.ok) throw new Error(`Request failed (${response.status})`)
+// Read response.body as a stream of server-sent events.
+```
+
+Use the selected account's catalog for your model picker: display `display_name` and send `slug` as the model. Reload it when the user switches accounts.
+
+`createFetch(account.id)` returns a fetch-compatible function for plain requests or a JavaScript inference SDK's custom fetch option. It adds credentials and refreshes them in Rust; you do not need an API key. HTTP errors return a standard `Response`, so check `response.ok` and `response.status`.
+
+<details>
+<summary>Use the OpenAI JavaScript SDK</summary>
+
+Install `openai`, then pass the native fetch function to the SDK:
+
+```ts
+import OpenAI from 'openai'
+
+const openai = new OpenAI({
+  apiKey: 'native-managed',
+  dangerouslyAllowBrowser: true,
+  fetch: chatgpt.createFetch(account.id),
+  maxRetries: 0,
+})
+```
+
+The SDK requires an `apiKey` value and permission to run in the webview. This value is a placeholder; Rust supplies the real credential. Use `openai.responses.create()` with the same streaming options shown above.
+
+</details>
+
+The fetch function supports only `GET /v1/models`, `GET /v1/models/{id}`, and `POST /v1/responses` at `https://api.openai.com`.
+
+Responses requests must use `store: false`, `stream: true`, and an input array. Read the stream through its terminal event; success means receiving `response.completed`, not just an HTTP success status. See [OpenAI's models and inference guide](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) for request limits and stream handling.
+
+### Manage saved accounts
+
+`chatgpt.listAccounts()` returns saved account metadata without tokens. Let users choose an account, and pass its ID to `createFetch` or `signOut`; there is no default account. Use `chatgpt.signIn()` to add one, or `chatgpt.signIn({ accountId: account.id })` to sign in again for a saved account.
+
+Check `account.status` before making requests:
+
+- `ready`: the account has ChatGPT plan permission.
+- `identity-only`: the user signed in without granting plan access.
+- `signed-out`: local credentials were removed.
+- `reauth-required`: the user needs to sign in again.
+
+When the user chooses to grant plan access, ask for consent again:
+
+```ts
+await chatgpt.signIn({ accountId: account.id, prompt: 'consent' })
+```
+
+To disconnect an account:
+
+```ts
+const result = await chatgpt.signOut(account.id)
+```
+
+This removes its local credentials and keeps the saved registration. If `result.revocation` is `failed`, local sign-out succeeded but remote revocation was not confirmed. The user can disconnect the app in ChatGPT settings.
+
+Pass an `AbortSignal` as `signIn({ signal })` or in the fetch options to cancel work. `chatgpt.close()` cancels this client's pending work without signing out saved accounts.
+
+## Web apps
+
+The `ChatGPT` provider signs users in to your app. It does not grant access to their ChatGPT plan or conversations. This web flow requires a registered OpenAI OAuth client and is currently available only to selected commercial partners through OpenAI's limited trial.
+
+### Resources
+
+- [OpenAI website sign-in guide](https://developers.openai.com/siwc/website)
+- [Request an OAuth client](https://developers.openai.com/siwc/request-client-id)
+
+### Environment variables
+
+```txt title=".env"
+OPENAI_CLIENT_ID=
+```
+
+Set `OPENAI_CLIENT_SECRET` only if OpenAI issued one for your client. Keep it on the server.
+
+### Callback URL
+
+Register the full callback URL with OpenAI, including your app's origin:
+
+```txt
+https://example.com/api/auth/callback/chatgpt
+```
+
+The URL must match exactly. Register the callback for each environment you use.
+
+### Config
+
+Set up [verification storage](/adapters/drizzle/#verification-storage) before enabling this provider.
+
+The `openid`, `profile`, and `email` identity scopes are requested by default.
+
+```ts title="auth.ts"
+import process from 'node:process'
+import { DrizzleAdapter } from '@rttnd/gau/adapters/drizzle'
+import { createAuth } from '@rttnd/gau/core'
+import { ChatGPT } from '@rttnd/gau/oauth'
+import { db } from './db'
+import { Accounts, Users, Verification } from './schema'
+
+export const auth = createAuth({
+  adapter: DrizzleAdapter(db, Users, Accounts, Verification),
+  providers: [
+    ChatGPT({
+      clientId: process.env.OPENAI_CLIENT_ID!,
+    }),
+  ],
+})
+```
+
+If OpenAI issued a client secret, add it to the `ChatGPT` config:
+
+```ts
+clientSecret: process.env.OPENAI_CLIENT_SECRET!,
+```
+
+### Sign in
+
+Use your [client integration](/integrations/) with the provider ID `chatgpt`:
+
+```ts
+await auth.signIn('chatgpt')
+```
+
+ChatGPT accounts are not automatically linked by email. A signed-in user can link ChatGPT with `auth.linkAccount('chatgpt')`; see [Account Linking](/guides/account-linking/).

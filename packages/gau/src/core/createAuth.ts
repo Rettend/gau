@@ -394,6 +394,8 @@ export function createAuth<const TProviders extends AuthProvider[]>({
   const providerMap = new Map(providers.map(p => [p.id, p]))
   if (providers.some(isEmailProvider) && (!adapter.verification || !secret))
     throw new AuthError('Email requires verification storage and a JWT secret.')
+  if (providers.some(provider => !isEmailProvider(provider) && provider.requiresNonce) && !adapter.verification)
+    throw new AuthError('OIDC sign-in requires atomic verification storage.')
   if (providerMap.size !== providers.length)
     throw new AuthError('Provider IDs must be unique.')
 
