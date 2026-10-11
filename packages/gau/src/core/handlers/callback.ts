@@ -127,10 +127,10 @@ async function buildFinalResponse(
 
   const isCustomScheme = redirectUrl.protocol !== 'http:' && redirectUrl.protocol !== 'https:'
   const isCrossHost = requestUrl.host !== redirectUrl.host
+  const clientChallenge = transaction ? transaction.clientChallenge : cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)
 
-  if (forceToken || (!forceCookie && (isCustomScheme || isCrossHost))) {
+  if (forceToken || (!forceCookie && (clientChallenge || isCustomScheme || isCrossHost))) {
     const destination = new URL(redirectUrl)
-    const clientChallenge = transaction ? transaction.clientChallenge : cookies.get(CLIENT_CHALLENGE_COOKIE_NAME)
 
     if (!clientChallenge)
       throw new GauError(ErrorCodes.PKCE_CHALLENGE_MISSING, { redirectUrl: redirectTo })
@@ -151,7 +151,7 @@ async function buildFinalResponse(
     sameSite: transaction || auth.development ? 'lax' : 'none',
     secure: !auth.development,
   })
-  clearTemporaryCookies(cookies, callbackUri)
+  clearTemporaryCookies(cookies, callbackUri, { clientChallenge: true })
 
   const response = url.searchParams.get('redirect') === 'false'
     ? json({

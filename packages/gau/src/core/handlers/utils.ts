@@ -185,6 +185,8 @@ export async function prepareOAuthRedirect(
   const codeChallenge = url.searchParams.get('code_challenge')
   if (codeChallenge)
     cookies.set(CLIENT_CHALLENGE_COOKIE_NAME, codeChallenge, temporaryCookieOptions)
+  else
+    cookies.delete(CLIENT_CHALLENGE_COOKIE_NAME)
 
   const redirectParam = url.searchParams.get('redirect')
 

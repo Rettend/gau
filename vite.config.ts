@@ -30,7 +30,7 @@ export default defineConfig({
     coverage: {
       enabled: true,
       provider: 'v8',
-      reporter: ['text', 'html', ['json-summary', { file: '../coverage.json' }]],
+      reporter: ['text', 'html', 'json-summary'],
       include: ['packages/gau/src/**/*.@(ts|tsx|svelte)'],
       exclude: [...generatedFiles, '**/*.d.ts', '**/migrations/**', '**/*.config.ts'],
     },
@@ -74,6 +74,6 @@ export default defineConfig({
     singleQuote: true,
     printWidth: 120,
     sortPackageJson: false,
-    ignorePatterns: [...generatedFiles, 'coverage.json', 'bun.lock'],
+    ignorePatterns: [...generatedFiles, 'bun.lock'],
   },
 })

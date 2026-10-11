@@ -61,7 +61,7 @@ The vanilla client can be used with any frontend setup. It's perfect for:
    Redirects to OAuth provider
 
    ```ts
-   await auth.signIn('github', {
+    window.location.href = await auth.signIn('github', {
      redirectTo: '/dashboard', // Optional
    })
    ```
@@ -75,7 +75,7 @@ The vanilla client can be used with any frontend setup. It's perfect for:
    ###### Link Account
 
    ```ts
-   await auth.linkAccount('google', {
+    window.location.href = await auth.linkAccount('google', {
      redirectTo: '/profile',
    })
    ```
@@ -139,10 +139,20 @@ The vanilla client can be used with any frontend setup. It's perfect for:
 
 #### Session Token Storage
 
-The vanilla client stores and retrieves session tokens using:
+For browser apps that use bearer tokens instead of session cookies, set `credentials: 'omit'`:
 
-- `localStorage.getItem('gau-token')`
-- `document.cookie` for `__gau-session-token`
+```ts
+const auth = createAuthClient({
+  baseUrl: 'https://auth.example.com/api/auth',
+  credentials: 'omit',
+})
+```
+
+Use the server's default `session.strategy: 'auto'` or `'token'`. Add the frontend host to `trustHosts` and allow its origin in CORS. Use an absolute frontend URL for `redirectTo` when the backend is on another origin.
+
+Browser sign-in uses PKCE and stores the returned bearer token in `localStorage` under `__gau-session-token`. Call `handleRedirectCallback()` after returning to the app; framework providers do this on mount. Bearer-authenticated requests omit cookies.
+
+Bearer account linking requires the adapter's atomic `verification` store, supported by the built-in memory and Drizzle adapters. Navigate to the URL returned by `linkAccount()` promptly: it is single-use and expires after one minute.
 
 #### API Reference
 
@@ -153,11 +163,12 @@ Creates a new auth client instance.
 **Options:**
 
 - `baseUrl` (required): Base URL of your auth API
+- `credentials`: Fetch credentials mode; defaults to `'include'` in browsers and `'omit'` in Tauri
 
 **Returns:**
 
 - `fetchSession()`: Fetches the current session from the server
-- `refreshSession()`: Alias for `fetchSession()`, refreshes the session
+- `refreshSession()`: Fetches the session, updates client state, and notifies subscribers
 - `applySessionToken(token)`: Applies a session token manually
 - `onSessionChange(listener)`: Subscribes to session changes, returns unsubscribe function
 - `handleRedirectCallback(replaceUrl?)`: Handles OAuth redirect callbacks

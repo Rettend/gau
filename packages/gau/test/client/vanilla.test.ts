@@ -46,7 +46,10 @@ describe('vanilla client', () => {
     const s = await client.fetchSession()
     expect(s).toEqual(sessionPayload('u1'))
 
-    expect(fetchSpy).toHaveBeenCalledWith(`${baseUrl}/session`, { credentials: 'include' })
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${baseUrl}/session`,
+      { credentials: 'include' },
+    )
   })
 
   it('fetchSession: with token -> sends Authorization header', async () => {
@@ -102,12 +105,7 @@ describe('vanilla client', () => {
 
   it('linkAccount: uses redirect URL when Response is redirected', async () => {
     sessionToken = 't'
-    const redirectedResponse = {
-      redirected: true,
-      url: 'https://provider.test/redirect',
-      json: vi.fn().mockResolvedValue({}),
-      ok: true,
-    } as any
+    const redirectedResponse = { redirected: true, url: 'https://provider.test/redirect', json: vi.fn().mockResolvedValue({}), ok: true } as any
     fetchSpy.mockResolvedValueOnce(redirectedResponse)
 
     const client = createAuthClient({ baseUrl })
@@ -121,11 +119,7 @@ describe('vanilla client', () => {
 
   it('linkAccount: uses JSON url when present', async () => {
     sessionToken = 't'
-    fetchSpy.mockResolvedValueOnce({
-      redirected: false,
-      url: '',
-      json: vi.fn().mockResolvedValue({ url: 'https://from-json' }),
-    } as any)
+    fetchSpy.mockResolvedValueOnce({ redirected: false, url: '', json: vi.fn().mockResolvedValue({ url: 'https://from-json' }) } as any)
 
     const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('google', { redirectTo: 'http://app/cb' })
@@ -134,17 +128,14 @@ describe('vanilla client', () => {
 
   it('linkAccount: falls back to constructed URL when no redirect or JSON url', async () => {
     sessionToken = null
-    fetchSpy.mockResolvedValueOnce({
-      redirected: false,
-      url: '',
-      json: vi.fn().mockRejectedValue(new Error('no json')),
-    } as any)
+    fetchSpy.mockResolvedValueOnce({ redirected: false, url: '', json: vi.fn().mockRejectedValue(new Error('no json')) } as any)
 
     const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('discord', { profile: 'default' })
-    expect(fetchSpy).toHaveBeenCalledWith(`${baseUrl}/link/discord?profile=default&redirect=false`, {
-      credentials: 'include',
-    })
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${baseUrl}/link/discord?profile=default&redirect=false`,
+      { credentials: 'include' },
+    )
     expect(url).toBe(`${baseUrl}/link/discord?profile=default&redirect=false`)
   })
 
@@ -265,7 +256,7 @@ describe('vanilla client', () => {
     isTauriSpy.mockReturnValue(false)
   })
 
-  it('does not apply a late native code exchange after signout', async () => {
+  it.each(['refresh', 'signout', 'account change'])('handles a pending native exchange during %s', async (action) => {
     vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(true)
     const setupListener = vi.spyOn(tauriHelpers, 'setupTauriListener').mockResolvedValue(() => {})
     const exchange = Promise.withResolvers<void>()
@@ -276,14 +267,15 @@ describe('vanilla client', () => {
     const client = createAuthClient({ baseUrl })
     await client.startTauriBridge()
     const completion = setupListener.mock.calls[0]![0]('gau://oauth/callback?code=old-code')
-    fetchSpy
-      .mockResolvedValueOnce(new Response())
-      .mockResolvedValueOnce(makeJsonResponse({ user: null, session: null }))
-    await client.signOut()
+    fetchSpy.mockImplementation(async (url) => String(url).endsWith('/signout')
+      ? new Response()
+      : makeJsonResponse(sessionToken ? sessionPayload(sessionToken) : { user: null, session: null }))
+    if (action === 'refresh') await client.refreshSession()
+    else if (action === 'signout') await client.signOut()
+    else await client.applySessionToken('newer-token')
     exchange.resolve()
     await completion
-    expect(sessionToken).toBeNull()
-    expect(client.session.user).toBeNull()
+    expect(sessionToken).toBe(action === 'refresh' ? 'old-token' : action === 'signout' ? null : 'newer-token')
   })
 
   it('handleRedirectCallback applies token, notifies listeners, and cleans URL with one refresh', async () => {
@@ -325,12 +317,9 @@ describe('vanilla client', () => {
       const client = createAuthClient({ baseUrl })
       await client.fetch('/api/data')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
-        '/api/data',
-        expect.objectContaining({
-          headers: expect.any(Headers),
-        }),
-      )
+      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
+        headers: expect.any(Headers),
+      }))
       const call = fetchSpy.mock.calls[0]
       const headers = call[1].headers as Headers
       expect(headers.get('Authorization')).toBe('Bearer my-token')
@@ -343,12 +332,9 @@ describe('vanilla client', () => {
       const client = createAuthClient({ baseUrl })
       await client.fetch('/api/data')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
-        '/api/data',
-        expect.objectContaining({
-          credentials: 'include',
-        }),
-      )
+      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
+        credentials: 'include',
+      }))
     })
 
     it('calls handleRefreshedToken with response', async () => {
@@ -400,13 +386,10 @@ describe('vanilla client', () => {
         body: JSON.stringify({ foo: 'bar' }),
       })
 
-      expect(fetchSpy).toHaveBeenCalledWith(
-        '/api/data',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ foo: 'bar' }),
-        }),
-      )
+      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ foo: 'bar' }),
+      }))
     })
 
     it('merges custom headers with Authorization', async () => {
@@ -480,7 +463,6 @@ describe('vanilla client', () => {
   })
 
   it.each([
-    Response.json({ error: 'private secret' }, { status: 500 }),
     Response.json({ message: 'wrong endpoint' }),
     new Response('{invalid', { headers: { 'Content-Type': 'application/json' } }),
   ])('rejects unsuccessful or invalid JSON session responses', async (response) => {

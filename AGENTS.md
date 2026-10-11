@@ -44,5 +44,5 @@
 - The `pg` suite uses in-memory `@electric-sql/pglite`, so it does not require an external Postgres service.
 - `packages/gau/vite.config.ts` configures `vp pack`: it builds every `src/**/index.{ts,tsx,svelte,svelte.ts}` entry, generates declarations with `bun tsgo` plus `svelte2tsx`, and copies `.svelte` components into `dist`. Solid JSX and Svelte runes remain uncompiled for consuming apps. New public entrypoints need both an `index.*` file and a matching `packages/gau/package.json` `exports` entry.
 - `bun run build` uses the cached `bundle` task. Its inputs include source, package/compiler config, and the workspace lockfile; outputs are `packages/gau/dist/**`. `bun run --cwd packages/gau vp pack` forces a fresh build.
-- Test runs write `coverage.json` unless a different coverage reporter is selected.
+- Test runs write reports to the ignored `coverage/` directory.
 - Auth `POST` routes enforce origin checks via `trustHosts`; development only auto-trusts `localhost` and `127.0.0.1`.

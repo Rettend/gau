@@ -49,26 +49,20 @@ describe('Solid 2 server integration', () => {
     expect(handlerAuth).not.toBe(auth)
     expect(handlerAuth.development).toBe(DEV)
     expect(handlerAuth.errorRedirect).toBeUndefined()
-    expect(
-      await (
-        await handlers.POST({
-          request: new Request('https://app.test/api/auth/signout', { method: 'POST' }),
-        })
-      ).text(),
-    ).toBe('POST')
+    expect(await (await handlers.POST({
+      request: new Request('https://app.test/api/auth/signout', { method: 'POST' }),
+    })).text()).toBe('POST')
   })
 
   it('attaches memoized safe and sensitive sessions and calls next', async () => {
     const validateSession = vi.fn().mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'secret-session-id', sub: 'user-1', exp: 123 },
-      accounts: [
-        {
-          provider: 'github',
-          providerAccountId: 'account-1',
-          accessToken: 'secret-access-token',
-        },
-      ],
+      accounts: [{
+        provider: 'github',
+        providerAccountId: 'account-1',
+        accessToken: 'secret-access-token',
+      }],
     })
     const auth = createMockAuth({ validateSession })
     const request = new Request('https://app.test/private', {

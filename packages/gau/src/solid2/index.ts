@@ -81,7 +81,8 @@ export function authMiddleware<const TProviders extends AuthProvider[]>(
   return (input, next) => {
     const request = input instanceof Request ? input : input.request
     const event = input instanceof Request ? getRequestEvent() : input
-    if (!event) throw new Error('Gau Solid 2 auth middleware requires an active @solidjs/web request event.')
+    if (!event)
+      throw new Error('Gau Solid 2 auth middleware requires an active @solidjs/web request event.')
 
     const session = createRequestSessionCache(auth, request)
     const locals = event.locals as GauSolid2Locals<AuthInstance<TProviders>>
@@ -105,7 +106,8 @@ export function serverFunctionsMiddleware<const TProviders extends AuthProvider[
     const path = normalizePath(new URL(request.url).pathname)
     if (path !== endpoint && !path.startsWith(`${endpoint === '/' ? '' : endpoint}/`)) return next()
 
-    if (request.method === 'OPTIONS') return handlePreflight(request, auth)
+    if (request.method === 'OPTIONS')
+      return handlePreflight(request, auth)
 
     const origin = request.headers.get('Origin')
     if (origin && origin !== new URL(request.url).origin && !isOriginAllowed(origin, auth))
@@ -114,7 +116,8 @@ export function serverFunctionsMiddleware<const TProviders extends AuthProvider[
     const response = await next()
     try {
       return applyCors(request, response, auth)
-    } catch {
+    }
+    catch {
       return applyCors(request, cloneResponse(response), auth)
     }
   }
@@ -133,20 +136,24 @@ export function refreshMiddleware<const TProviders extends AuthProvider[]>(
 
   return async (input, next) => {
     const request = input instanceof Request ? input : input.request
-    if (isAuthPath(new URL(request.url).pathname, auth.basePath)) return next()
+    if (isAuthPath(new URL(request.url).pathname, auth.basePath))
+      return next()
 
     const event = (input instanceof Request ? getRequestEvent() : input) as EventWithResponse | undefined
     const refreshed = await auth.refreshSession(request, options)
     const response = await next()
-    if (!refreshed) return response
+    if (!refreshed)
+      return response
 
     const name = refreshed.source === 'cookie' ? 'Set-Cookie' : REFRESHED_TOKEN_HEADER
     const value = refreshed.source === 'cookie' ? refreshed.cookie : refreshed.token
     const append = refreshed.source === 'cookie'
 
     if (event?.response && !event.response.committed) {
-      if (append) event.response.headers.append(name, value)
-      else event.response.headers.set(name, value)
+      if (append)
+        event.response.headers.append(name, value)
+      else
+        event.response.headers.set(name, value)
       return response
     }
 
@@ -157,19 +164,28 @@ export function refreshMiddleware<const TProviders extends AuthProvider[]>(
 type EventWithResponse = RequestEvent & { response?: ResponseStub }
 
 function isAuthPath(pathname: string, configuredBasePath: string): boolean {
-  const basePath = configuredBasePath === '/' ? '/' : `/${configuredBasePath.replace(/^\/+|\/+$/g, '')}`
-  return basePath === '/' || pathname === basePath || pathname.startsWith(`${basePath}/`)
+  const basePath = configuredBasePath === '/'
+    ? '/'
+    : `/${configuredBasePath.replace(/^\/+|\/+$/g, '')}`
+  return basePath === '/'
+    || pathname === basePath
+    || pathname.startsWith(`${basePath}/`)
 }
 
 function writeResponseHeader(response: Response, name: string, value: string, append: boolean): Response {
   try {
-    if (append) response.headers.append(name, value)
-    else response.headers.set(name, value)
+    if (append)
+      response.headers.append(name, value)
+    else
+      response.headers.set(name, value)
     return response
-  } catch {
+  }
+  catch {
     const headers = new Headers(response.headers)
-    if (append) headers.append(name, value)
-    else headers.set(name, value)
+    if (append)
+      headers.append(name, value)
+    else
+      headers.set(name, value)
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
@@ -179,7 +195,8 @@ function writeResponseHeader(response: Response, name: string, value: string, ap
 }
 
 function withServerFunctionCors<TAuth extends AuthInstance<any[]>>(auth: TAuth): TAuth {
-  if (auth.cors === false) return auth
+  if (auth.cors === false)
+    return auth
 
   return {
     ...auth,
@@ -193,13 +210,14 @@ function withServerFunctionCors<TAuth extends AuthInstance<any[]>>(auth: TAuth):
 }
 
 function assertRestrictedServerFunctionCors(auth: AuthInstance<any[]>): void {
-  if (auth.cors === false) return
+  if (auth.cors === false)
+    return
 
-  const unrestricted =
-    auth.cors.allowedOrigins === 'all' ||
-    (auth.cors.allowedOrigins === 'trust' && auth.trustHosts === 'all') ||
-    (Array.isArray(auth.cors.allowedOrigins) && auth.cors.allowedOrigins.includes('*'))
-  if (unrestricted) throw new Error('serverFunctionsMiddleware requires restricted CORS origins.')
+  const unrestricted = auth.cors.allowedOrigins === 'all'
+    || (auth.cors.allowedOrigins === 'trust' && auth.trustHosts === 'all')
+    || (Array.isArray(auth.cors.allowedOrigins) && auth.cors.allowedOrigins.includes('*'))
+  if (unrestricted)
+    throw new Error('serverFunctionsMiddleware requires restricted CORS origins.')
 }
 
 function normalizeEndpoint(endpoint: string): string {

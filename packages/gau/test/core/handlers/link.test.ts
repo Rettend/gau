@@ -104,6 +104,30 @@ describe('link handler', () => {
       expect(encodedRedirect && atob(encodedRedirect)).toBe('http://trusted.app.com/profile')
     })
 
+    it.each(['expired', 'wrong provider', 'concurrent'])('protects bearer link navigation codes: %s', async (kind) => {
+      const user = await auth.createUser({ name: 'Test User' })
+      const token = await auth.createSession(user.id)
+      const response = await handleLink(new Request('http://localhost/api/auth/link/mock?redirect=false', {
+        headers: { Authorization: `Bearer ${token}` },
+      }), auth, 'mock')
+      const { url } = await response.json()
+      if (kind === 'expired') {
+        vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 61_000)
+        await expect(handleLink(new Request(url), auth, 'mock')).rejects.toMatchObject({ code: ErrorCodes.UNAUTHORIZED })
+      }
+      else if (kind === 'wrong provider') {
+        await expect(handleLink(new Request(url), auth, 'other')).rejects.toMatchObject({ code: ErrorCodes.UNAUTHORIZED })
+      }
+      else {
+        const results = await Promise.allSettled([
+          handleLink(new Request(url), auth, 'mock'),
+          handleLink(new Request(url), auth, 'mock'),
+        ])
+        expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+        expect(results.filter(result => result.status === 'rejected')).toHaveLength(1)
+      }
+    })
+
     it('should reject an untrusted redirectTo URL', async () => {
       const user = await auth.createUser({ name: 'Test User' })
       const sessionToken = await auth.createSession(user.id)

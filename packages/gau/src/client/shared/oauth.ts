@@ -1,20 +1,11 @@
+import { generatePKCE } from '../token'
 import { AuthClientError, requestAuthJson } from './session'
-
-function encode(bytes: Uint8Array) {
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replace(/=+$/, '')
-}
 
 export function createBrowserOAuthFlow(baseUrl: string) {
   const storageKey = `gau:oauth:${baseUrl}`
   return {
     async authorize(provider: string, options?: { redirectTo?: string; profile?: string }) {
-      const verifier = encode(crypto.getRandomValues(new Uint8Array(32)))
-      const challenge = encode(
-        new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))),
-      )
+      const { codeVerifier: verifier, codeChallenge: challenge } = await generatePKCE()
       window.sessionStorage.setItem(storageKey, JSON.stringify({ verifier, createdAt: Date.now() }))
       const url = new URL(`${baseUrl}/${provider}`, window.location.href)
       url.searchParams.set('code_challenge', challenge)
@@ -36,7 +27,7 @@ export function createBrowserOAuthFlow(baseUrl: string) {
         typeof proof !== 'object' ||
         !('verifier' in proof) ||
         typeof proof.verifier !== 'string' ||
-        !/^[A-Za-z0-9_-]{43}$/.test(proof.verifier) ||
+        !/^[A-Za-z0-9_-]{43,128}$/.test(proof.verifier) ||
         !('createdAt' in proof) ||
         typeof proof.createdAt !== 'number' ||
         !Number.isFinite(proof.createdAt) ||

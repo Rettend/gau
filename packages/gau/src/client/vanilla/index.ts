@@ -57,6 +57,8 @@ export function createAuthClient<const TAuth = unknown>({
     providers: [],
   }
   let revision = 0
+  // Session reads must not cancel an in-flight OAuth exchange.
+  let authRevision = 0
   let currentSessionError: unknown | null = null
   const listeners = new Set<SessionListener<TAuth>>()
   const errorListeners = new Set<(error: unknown | null) => void>()
@@ -99,6 +101,7 @@ export function createAuthClient<const TAuth = unknown>({
   }
 
   async function applySessionToken(token: string): Promise<void> {
+    authRevision++
     try {
       storeSessionToken(token)
     } finally {
@@ -114,7 +117,7 @@ export function createAuthClient<const TAuth = unknown>({
   async function handleRedirectCallback(replaceUrl?: (url: string) => void): Promise<boolean> {
     if (typeof window === 'undefined') return false
     const search = new URLSearchParams(window.location.search)
-    const code = credentials === 'omit' && !isTauri() ? search.get('code') : null
+    const code = (credentials === 'omit' || getSessionToken()) && !isTauri() ? search.get('code') : null
     const token = new URLSearchParams(window.location.hash?.substring(1)).get('token')
     if (!code && !token && window.location.hash !== '#_=_') return false
     if (code) search.delete('code')
@@ -125,13 +128,14 @@ export function createAuthClient<const TAuth = unknown>({
     if (replaceUrl) replaceUrl(cleanUrl)
     else window.history.replaceState(null, '', cleanUrl)
     if (!code && !token) return false
-    const started = ++revision
+    revision++
+    const started = ++authRevision
     try {
       const sessionToken = code ? await oauthFlow.complete(code) : token!
-      if (started !== revision) return false
+      if (started !== authRevision) return false
       await applySessionToken(sessionToken)
     } catch (error) {
-      if (started === revision) reportSessionError(error)
+      if (started === authRevision) reportSessionError(error)
       throw error
     }
     return true
@@ -262,12 +266,21 @@ export function createAuthClient<const TAuth = unknown>({
       })
     }
 
-    const linkUrl = makeLinkUrl<P, PR>(provider, {
+    let linkUrl = makeLinkUrl<P, PR>(provider, {
       redirectTo: options?.redirectTo,
       profile: options?.profile,
       redirect: 'false',
     })
     const token = getSessionToken()
+    if (token && typeof window !== 'undefined') {
+      const url = new URL(await oauthFlow.authorize(`link/${provider}`, {
+        ...options,
+        redirectTo: options?.redirectTo ?? window.location.href,
+        profile: options?.profile == null ? undefined : String(options.profile),
+      }))
+      url.searchParams.set('redirect', 'false')
+      linkUrl = url.href
+    }
     const fetchOptions = requestCredentials(token)
     const res: Response = await fetch(linkUrl, fetchOptions)
     if (res.redirected) return res.url
@@ -293,7 +306,7 @@ export function createAuthClient<const TAuth = unknown>({
     const token = getSessionToken()
     clearSessionToken()
     revision++
-    const started = revision
+    const started = ++authRevision
     currentSession = { user: null, session: null, accounts: null, providers: currentSession.providers }
     reportSessionError(null)
     notify()
@@ -306,7 +319,7 @@ export function createAuthClient<const TAuth = unknown>({
       })
       if (!response.ok) throw new AuthClientError('HTTP_ERROR', `${baseUrl}/signout`, response.status)
     } finally {
-      if (started === revision) await refreshSession()
+      if (started === authRevision) await refreshSession()
     }
   }
 
@@ -315,9 +328,9 @@ export function createAuthClient<const TAuth = unknown>({
 
     const { setupTauriListener, handleTauriDeepLink } = await import('../../runtimes/tauri/index')
     const cleanup = await setupTauriListener(async (url) => {
-      const started = revision
+      const started = authRevision
       await handleTauriDeepLink(url, baseUrl, scheme, (token) => {
-        if (started === revision) return applySessionToken(token)
+        if (started === authRevision) return applySessionToken(token)
       })
     })
     return cleanup

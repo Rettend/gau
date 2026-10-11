@@ -1,12 +1,25 @@
 import type { Auth } from '../createAuth'
+import { generateState } from 'arctic'
 import { ErrorCodes, GauError } from '../errors'
 import { json } from '../index'
 import { getSessionTokenFromRequest } from '../utils'
 import { prepareOAuthRedirect } from './utils'
 
 export async function handleLink(request: Request, auth: Auth, providerId: string): Promise<Response> {
-  const url = new URL(request.url)
+  let url = new URL(request.url)
   let sessionToken = getSessionTokenFromRequest(request).token
+  const linkCode = url.searchParams.get('link_code')
+
+  if (linkCode) {
+    const store = auth.verification
+    const record = await store?.get(`oauth-link:${providerId}:${linkCode}`)
+    if (!store || !record || record.expiresAt <= Date.now() || !record.value ||
+      !await store.set({ ...record, value: '', version: record.version + 1 }, record.version))
+      throw new GauError(ErrorCodes.UNAUTHORIZED)
+    const saved = JSON.parse(record.value) as { url: string, token: string }
+    url = new URL(saved.url)
+    sessionToken = saved.token
+  }
 
   if (!sessionToken)
     sessionToken = url.searchParams.get('token') ?? undefined
@@ -19,6 +32,25 @@ export async function handleLink(request: Request, auth: Auth, providerId: strin
     throw new GauError(ErrorCodes.UNAUTHORIZED)
 
   url.searchParams.delete('token')
+
+  // Set OAuth cookies during top-level navigation, not a cross-site bearer fetch.
+  if (url.searchParams.get('redirect') === 'false' && request.headers.has('Authorization')) {
+    const store = auth.verification
+    if (!store)
+      throw new GauError(ErrorCodes.INVALID_REQUEST, 'Bearer account linking requires atomic verification storage.')
+    url.searchParams.delete('redirect')
+    const code = generateState()
+    await store.deleteExpired(Date.now())
+    if (!await store.set({
+      id: `oauth-link:${providerId}:${code}`,
+      value: JSON.stringify({ url: url.href, token: sessionToken }),
+      expiresAt: Date.now() + 60_000,
+      version: 0,
+    }, null))
+      throw new GauError(ErrorCodes.INTERNAL_ERROR)
+    return json({ url: `${url.origin}${url.pathname}?link_code=${code}` }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+
   const cleanRequest = new Request(url.toString(), request as Request)
 
   return prepareOAuthRedirect(cleanRequest, auth, providerId, sessionToken)

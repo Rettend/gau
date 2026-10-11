@@ -52,7 +52,6 @@ See the [Tauri integration guide](/integrations/tauri) for a practical example.
 
 You can control this behavior using the `session.strategy` option in `createAuth`.
 
--   `'auto'` (Default): `gau` automatically switches between cookie-based and token-based sessions. It uses cookies by default but will switch to the token flow if it detects a redirect to a different host or a custom URL scheme.
+-   `'auto'` (Default): Uses cookies unless the client supplies a PKCE challenge or redirects to a different host or custom URL scheme. Browser clients with `credentials: 'omit'` supply a challenge, including for same-origin sign-in.
 -   `'cookie'`: Forces cookie-based sessions, even for cross-origin redirects (as long as the host is trusted).
 -   `'token'`: Forces token-based sessions, even for same-origin redirects.
-
