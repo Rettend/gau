@@ -16,6 +16,7 @@ export function createMarkoAuth<TAuth = unknown>(options: {
   baseUrl?: string
   onSession: (session: GauSession<ProviderIds<TAuth>>) => void
   onLoading?: (loading: boolean) => void
+  onSessionError?: (error: unknown | null) => void
 }) {
   const client =
     options.client ?? createAuthClient<TAuth>({ baseUrl: options.baseUrl ?? '/api/auth', session: options.session })
@@ -23,9 +24,10 @@ export function createMarkoAuth<TAuth = unknown>(options: {
   const auth = createClientAuth({
     client,
     setSession: options.onSession,
-    refreshOnMount: !options.session && !options.client,
+    refreshOnMount: !client.sessionLoaded,
     onReady: () => options.onLoading?.(false),
     onRefreshing: options.onLoading,
+    onSessionError: options.onSessionError,
   })
   options.onSession(client.session)
   const dispose = auth.mount()

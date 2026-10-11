@@ -70,6 +70,36 @@ describe('client auth controller', () => {
     expect(navigate).not.toHaveBeenCalled()
   })
 
+  it('does not replace the native client deep-link default with a browser origin', async () => {
+    const client = createClient()
+    const auth = createClientAuth({ client, setSession: vi.fn(), env: { ...webEnv, isTauri: () => true } })
+    await auth.controls.signIn('github')
+    expect(client.signIn).toHaveBeenCalledWith('github', { redirectTo: undefined, profile: undefined })
+  })
+
+  it('delivers existing and changing session errors until the provider is disposed', () => {
+    const error = new Error('session unavailable')
+    const unsubscribe = vi.fn()
+    let publish!: (error: unknown) => void
+    const client = createClient({
+      sessionError: error,
+      onSessionError: vi.fn((listener: (error: unknown) => void) => {
+        publish = listener
+        return unsubscribe
+      }),
+    })
+    const onSessionError = vi.fn()
+    const auth = createClientAuth({ client, setSession: vi.fn(), onSessionError, env: webEnv, refreshOnMount: false })
+    const dispose = auth.mount()
+    expect(onSessionError).toHaveBeenCalledWith(error)
+    publish(null)
+    expect(onSessionError).toHaveBeenLastCalledWith(null)
+    dispose()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    publish(error)
+    expect(onSessionError).toHaveBeenCalledTimes(2)
+  })
+
   it('handles redirect callbacks without fallback refresh', async () => {
     const unsubscribe = vi.fn()
     const onReady = vi.fn()

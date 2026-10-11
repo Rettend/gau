@@ -9,6 +9,7 @@ import type { AuthClient } from '../vanilla'
 interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: GauSession<ProviderIds<TAuth>>
   isLoading: boolean
+  sessionError: unknown | null
 }
 
 const AUTH_CONTEXT_KEY = Symbol('gau-auth')
@@ -40,7 +41,8 @@ export function createSvelteAuth<const TAuth = unknown>({
   if (suppliedClient && initialSession) client.setSession(initialSession)
 
   let session: CurrentSession = $state(initialSession ?? suppliedClient?.session ?? createEmptyClientSession())
-  let isLoading = $state(!initialSession && !suppliedClient)
+  let isLoading = $state(!client.sessionLoaded)
+  let sessionError = $state<unknown | null>(client.sessionError)
 
   const auth = createClientAuth<TAuth>({
     client,
@@ -51,7 +53,10 @@ export function createSvelteAuth<const TAuth = unknown>({
     onReady: () => {
       isLoading = false
     },
-    refreshOnMount: !initialSession && !suppliedClient,
+    refreshOnMount: !client.sessionLoaded,
+    onSessionError: (error) => {
+      sessionError = error
+    },
     replaceUrl: replaceUrl ?? replaceUrlSafe,
   })
 
@@ -70,6 +75,9 @@ export function createSvelteAuth<const TAuth = unknown>({
     },
     get isLoading() {
       return isLoading
+    },
+    get sessionError() {
+      return sessionError
     },
     ...auth.controls,
   }

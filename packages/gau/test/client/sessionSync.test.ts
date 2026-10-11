@@ -6,6 +6,7 @@ afterEach(() => vi.unstubAllGlobals())
 it('seeds a client without a request and shares server updates with subscribers', () => {
   const session = { user: { id: 'alice' }, session: { sub: 'alice' } }
   const client = createAuthClient({ baseUrl: '/api/auth', session })
+  expect(client.sessionLoaded).toBe(true)
   expect(client.session).toBe(session)
   const listener = vi.fn()
   const stop = client.onSessionChange(listener)

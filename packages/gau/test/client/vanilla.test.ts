@@ -1,7 +1,7 @@
 import type { MockInstance } from 'vite-plus/test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import * as token from '../../src/client/token'
-import { createAuthClient } from '../../src/client/vanilla'
+import { AuthClientError, createAuthClient } from '../../src/client/vanilla'
 import * as tauriHelpers from '../../src/runtimes/tauri/index'
 
 describe('vanilla client', () => {
@@ -26,6 +26,7 @@ describe('vanilla client', () => {
 
   beforeEach(() => {
     sessionToken = null
+    mockHandleRefreshedToken.mockClear()
     fetchSpy = vi.spyOn(globalThis, 'fetch')
     vi.spyOn(token, 'getSessionToken').mockImplementation(mockGetSessionToken)
     vi.spyOn(token, 'storeSessionToken').mockImplementation(mockStoreSessionToken)
@@ -45,10 +46,7 @@ describe('vanilla client', () => {
     const s = await client.fetchSession()
     expect(s).toEqual(sessionPayload('u1'))
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${baseUrl}/session`,
-      { credentials: 'include' },
-    )
+    expect(fetchSpy).toHaveBeenCalledWith(`${baseUrl}/session`, { credentials: 'include' })
   })
 
   it('fetchSession: with token -> sends Authorization header', async () => {
@@ -59,18 +57,17 @@ describe('vanilla client', () => {
     const s = await client.fetchSession()
     expect(s).toEqual(sessionPayload('u2'))
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${baseUrl}/session`,
-      { headers: { Authorization: 'Bearer tok-123' } },
-    )
+    expect(fetchSpy).toHaveBeenCalledWith(`${baseUrl}/session`, {
+      credentials: 'omit',
+      headers: { Authorization: 'Bearer tok-123' },
+    })
   })
 
-  it('fetchSession: non-JSON response -> returns null session shape', async () => {
+  it('fetchSession rejects a non-JSON fallback rather than reporting a successful anonymous session', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('OK', { headers: { 'content-type': 'text/plain' } }))
 
     const client = createAuthClient({ baseUrl })
-    const s = await client.fetchSession()
-    expect(s).toEqual({ user: null, session: null, accounts: null, providers: [] })
+    await expect(client.fetchSession()).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 })
   })
 
   it('refreshSession updates internal state and notifies listeners', async () => {
@@ -105,21 +102,30 @@ describe('vanilla client', () => {
 
   it('linkAccount: uses redirect URL when Response is redirected', async () => {
     sessionToken = 't'
-    const redirectedResponse = { redirected: true, url: 'https://provider.test/redirect', json: vi.fn().mockResolvedValue({}), ok: true } as any
+    const redirectedResponse = {
+      redirected: true,
+      url: 'https://provider.test/redirect',
+      json: vi.fn().mockResolvedValue({}),
+      ok: true,
+    } as any
     fetchSpy.mockResolvedValueOnce(redirectedResponse)
 
     const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('github', { redirectTo: 'http://app/cb', profile: 'p1' })
     expect(fetchSpy).toHaveBeenCalledWith(
       `${baseUrl}/link/github?redirectTo=http%3A%2F%2Fapp%2Fcb&profile=p1&redirect=false`,
-      { headers: { Authorization: 'Bearer t' } },
+      { credentials: 'omit', headers: { Authorization: 'Bearer t' } },
     )
     expect(url).toBe('https://provider.test/redirect')
   })
 
   it('linkAccount: uses JSON url when present', async () => {
     sessionToken = 't'
-    fetchSpy.mockResolvedValueOnce({ redirected: false, url: '', json: vi.fn().mockResolvedValue({ url: 'https://from-json' }) } as any)
+    fetchSpy.mockResolvedValueOnce({
+      redirected: false,
+      url: '',
+      json: vi.fn().mockResolvedValue({ url: 'https://from-json' }),
+    } as any)
 
     const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('google', { redirectTo: 'http://app/cb' })
@@ -128,14 +134,17 @@ describe('vanilla client', () => {
 
   it('linkAccount: falls back to constructed URL when no redirect or JSON url', async () => {
     sessionToken = null
-    fetchSpy.mockResolvedValueOnce({ redirected: false, url: '', json: vi.fn().mockRejectedValue(new Error('no json')) } as any)
+    fetchSpy.mockResolvedValueOnce({
+      redirected: false,
+      url: '',
+      json: vi.fn().mockRejectedValue(new Error('no json')),
+    } as any)
 
     const client = createAuthClient({ baseUrl })
     const url = await client.linkAccount('discord', { profile: 'default' })
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${baseUrl}/link/discord?profile=default&redirect=false`,
-      { credentials: 'include' },
-    )
+    expect(fetchSpy).toHaveBeenCalledWith(`${baseUrl}/link/discord?profile=default&redirect=false`, {
+      credentials: 'include',
+    })
     expect(url).toBe(`${baseUrl}/link/discord?profile=default&redirect=false`)
   })
 
@@ -172,7 +181,11 @@ describe('vanilla client', () => {
     client.onSessionChange(listener)
     await client.signOut()
     expect(sessionToken).toBeNull()
-    expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/signout`, { method: 'POST', headers: { Authorization: 'Bearer to-clear' } })
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, `${baseUrl}/signout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Authorization: 'Bearer to-clear' },
+    })
     expect(fetchSpy).toHaveBeenNthCalledWith(2, `${baseUrl}/session`, { credentials: 'include' })
     expect(listener).toHaveBeenCalledWith({ user: null, session: null, accounts: null, providers: [] })
   })
@@ -207,38 +220,70 @@ describe('vanilla client', () => {
   it('startTauriBridge starts auth bridge and applies session token', async () => {
     const cleanup = vi.fn()
     const isTauriSpy = vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(true)
-    const startAuthBridgeSpy = vi.spyOn(tauriHelpers, 'startAuthBridge').mockResolvedValue(cleanup)
+    const setupListener = vi.spyOn(tauriHelpers, 'setupTauriListener').mockResolvedValue(cleanup)
+    const handleDeepLink = vi
+      .spyOn(tauriHelpers, 'handleTauriDeepLink')
+      .mockImplementation(async (_url, _base, _scheme, onToken) => {
+        await onToken('token-bridge')
+      })
 
     const client = createAuthClient({ baseUrl })
     const unlisten = await client.startTauriBridge()
 
-    expect(startAuthBridgeSpy).toHaveBeenCalledWith(baseUrl, 'gau', expect.any(Function))
+    expect(setupListener).toHaveBeenCalledWith(expect.any(Function))
     expect(unlisten).toBe(cleanup)
 
-    const handler = startAuthBridgeSpy.mock.calls[0][2]
+    const handler = setupListener.mock.calls[0]![0]
     fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('bridge')))
-    await handler('token-bridge')
+    await handler('gau://oauth/callback?code=one-time-code')
+    expect(handleDeepLink).toHaveBeenCalledWith(
+      'gau://oauth/callback?code=one-time-code',
+      baseUrl,
+      'gau',
+      expect.any(Function),
+    )
 
     expect(mockStoreSessionToken).toHaveBeenCalledWith('token-bridge')
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${baseUrl}/session`,
-      { headers: { Authorization: 'Bearer token-bridge' } },
-    )
+    expect(fetchSpy).toHaveBeenCalledWith(`${baseUrl}/session`, {
+      credentials: 'omit',
+      headers: { Authorization: 'Bearer token-bridge' },
+    })
 
     isTauriSpy.mockReturnValue(false)
   })
 
   it('startTauriBridge is a no-op outside of Tauri', async () => {
     const isTauriSpy = vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(false)
-    const startAuthBridgeSpy = vi.spyOn(tauriHelpers, 'startAuthBridge')
+    const setupListener = vi.spyOn(tauriHelpers, 'setupTauriListener')
 
     const client = createAuthClient({ baseUrl })
     const result = await client.startTauriBridge()
 
     expect(result).toBeUndefined()
-    expect(startAuthBridgeSpy).not.toHaveBeenCalled()
+    expect(setupListener).not.toHaveBeenCalled()
 
     isTauriSpy.mockReturnValue(false)
+  })
+
+  it('does not apply a late native code exchange after signout', async () => {
+    vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(true)
+    const setupListener = vi.spyOn(tauriHelpers, 'setupTauriListener').mockResolvedValue(() => {})
+    const exchange = Promise.withResolvers<void>()
+    vi.spyOn(tauriHelpers, 'handleTauriDeepLink').mockImplementation(async (_url, _base, _scheme, onToken) => {
+      await exchange.promise
+      await onToken('old-token')
+    })
+    const client = createAuthClient({ baseUrl })
+    await client.startTauriBridge()
+    const completion = setupListener.mock.calls[0]![0]('gau://oauth/callback?code=old-code')
+    fetchSpy
+      .mockResolvedValueOnce(new Response())
+      .mockResolvedValueOnce(makeJsonResponse({ user: null, session: null }))
+    await client.signOut()
+    exchange.resolve()
+    await completion
+    expect(sessionToken).toBeNull()
+    expect(client.session.user).toBeNull()
   })
 
   it('handleRedirectCallback applies token, notifies listeners, and cleans URL with one refresh', async () => {
@@ -264,10 +309,10 @@ describe('vanilla client', () => {
 
     expect(mockStoreSessionToken).toHaveBeenCalledWith('redirect-token')
     expect(fetchSpy).toHaveBeenCalledTimes(1)
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${baseUrl}/session`,
-      { headers: { Authorization: 'Bearer redirect-token' } },
-    )
+    expect(fetchSpy).toHaveBeenCalledWith(`${baseUrl}/session`, {
+      credentials: 'omit',
+      headers: { Authorization: 'Bearer redirect-token' },
+    })
     expect(listener).toHaveBeenCalledWith(sessionPayload('redirect-user'))
     expect(replaceState).toHaveBeenCalledWith(null, '', '/callback?from=oauth')
   })
@@ -280,9 +325,12 @@ describe('vanilla client', () => {
       const client = createAuthClient({ baseUrl })
       await client.fetch('/api/data')
 
-      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
-        headers: expect.any(Headers),
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/data',
+        expect.objectContaining({
+          headers: expect.any(Headers),
+        }),
+      )
       const call = fetchSpy.mock.calls[0]
       const headers = call[1].headers as Headers
       expect(headers.get('Authorization')).toBe('Bearer my-token')
@@ -295,12 +343,16 @@ describe('vanilla client', () => {
       const client = createAuthClient({ baseUrl })
       await client.fetch('/api/data')
 
-      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
-        credentials: 'include',
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/data',
+        expect.objectContaining({
+          credentials: 'include',
+        }),
+      )
     })
 
     it('calls handleRefreshedToken with response', async () => {
+      sessionToken = 'to-refresh'
       const response = new Response('ok')
       fetchSpy.mockResolvedValueOnce(response)
 
@@ -308,6 +360,24 @@ describe('vanilla client', () => {
       await client.fetch('/api/data')
 
       expect(mockHandleRefreshedToken).toHaveBeenCalledWith(response)
+    })
+
+    it('never sends a cookie alongside a bearer token, even when the caller requests include', async () => {
+      sessionToken = 'app-token'
+      fetchSpy.mockResolvedValueOnce(new Response('ok'))
+      await createAuthClient({ baseUrl }).fetch('/api/data', { credentials: 'include' })
+      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({ credentials: 'omit' }))
+    })
+
+    it('ignores refreshed tokens from responses to a previous account', async () => {
+      sessionToken = 'old-token'
+      const pending = Promise.withResolvers<Response>()
+      fetchSpy.mockReturnValueOnce(pending.promise)
+      const request = createAuthClient({ baseUrl }).fetch('/api/data')
+      sessionToken = 'new-token'
+      pending.resolve(new Response('ok'))
+      await request
+      expect(mockHandleRefreshedToken).not.toHaveBeenCalled()
     })
 
     it('returns the response', async () => {
@@ -330,10 +400,13 @@ describe('vanilla client', () => {
         body: JSON.stringify({ foo: 'bar' }),
       })
 
-      expect(fetchSpy).toHaveBeenCalledWith('/api/data', expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ foo: 'bar' }),
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/data',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ foo: 'bar' }),
+        }),
+      )
     })
 
     it('merges custom headers with Authorization', async () => {
@@ -350,5 +423,127 @@ describe('vanilla client', () => {
       expect(headers.get('Authorization')).toBe('Bearer tok')
       expect(headers.get('Content-Type')).toBe('application/json')
     })
+
+    it('preserves Request headers unless init supplies replacement headers', async () => {
+      sessionToken = 'tok'
+      fetchSpy.mockResolvedValue(new Response('ok'))
+      const client = createAuthClient({ baseUrl })
+      const request = new Request('https://example.com/api/data', {
+        headers: { 'Content-Type': 'application/json', 'X-Request': 'original' },
+      })
+      await client.fetch(request)
+      const headers = fetchSpy.mock.calls[0][1].headers as Headers
+      expect(headers.get('Content-Type')).toBe('application/json')
+      expect(headers.get('X-Request')).toBe('original')
+      expect(headers.get('Authorization')).toBe('Bearer tok')
+
+      await client.fetch(request, { headers: { 'X-Request': 'replacement' } })
+      const replacement = fetchSpy.mock.calls[1][1].headers as Headers
+      expect(replacement.get('Content-Type')).toBeNull()
+      expect(replacement.get('X-Request')).toBe('replacement')
+      expect(replacement.get('Authorization')).toBe('Bearer tok')
+    })
+  })
+
+  it('keeps client-owned errors and clears them after a successful retry', async () => {
+    const client = createAuthClient({ baseUrl })
+    const healthy = createAuthClient({ baseUrl })
+    const changed = vi.fn()
+    const unsubscribe = client.onSessionError(changed)
+    fetchSpy.mockResolvedValueOnce(new Response('private backend secret', { status: 500 }))
+    await expect(client.refreshSession()).rejects.toBeInstanceOf(AuthClientError)
+    expect(client.sessionError).toMatchObject({ code: 'HTTP_ERROR', status: 500 })
+    expect(changed).toHaveBeenLastCalledWith(client.sessionError)
+    expect(String(client.sessionError)).not.toContain('private backend secret')
+    expect(healthy.sessionError).toBeNull()
+    fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('recovered')))
+    await client.refreshSession()
+    expect(client.sessionError).toBeNull()
+    expect(changed).toHaveBeenLastCalledWith(null)
+    unsubscribe()
+    fetchSpy.mockResolvedValueOnce(new Response('bad response', { status: 403 }))
+    await expect(client.refreshSession()).rejects.toBeInstanceOf(AuthClientError)
+    expect(changed).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let an older failed refresh replace a newer successful session with an error', async () => {
+    const client = createAuthClient({ baseUrl })
+    const pending = Promise.withResolvers<Response>()
+    fetchSpy.mockReturnValueOnce(pending.promise)
+    const oldRefresh = client.refreshSession()
+    fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('new-account')))
+    await client.refreshSession()
+    pending.resolve(new Response('private error', { status: 500 }))
+    await expect(oldRefresh).rejects.toBeInstanceOf(AuthClientError)
+    expect(client.session).toEqual(sessionPayload('new-account'))
+    expect(client.sessionError).toBeNull()
+  })
+
+  it.each([
+    Response.json({ error: 'private secret' }, { status: 500 }),
+    Response.json({ message: 'wrong endpoint' }),
+    new Response('{invalid', { headers: { 'Content-Type': 'application/json' } }),
+  ])('rejects unsuccessful or invalid JSON session responses', async (response) => {
+    fetchSpy.mockResolvedValueOnce(response)
+    await expect(createAuthClient({ baseUrl }).refreshSession()).rejects.toBeInstanceOf(AuthClientError)
+  })
+
+  it('reports safe network diagnostics without causes or URL secrets', async () => {
+    fetchSpy.mockRejectedValueOnce(new Error('private bearer token'))
+    const client = createAuthClient({ baseUrl: 'https://private:password@api.test/auth?secret=private' })
+    await expect(client.refreshSession()).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
+      endpoint: 'https://api.test/auth',
+    })
+    expect(String(client.sessionError)).not.toContain('private')
+    expect(String(client.sessionError)).not.toContain('password')
+  })
+
+  it('uses configured bearer-only credentials before login and after signout', async () => {
+    const guest = { user: null, session: null, accounts: null, providers: ['github'] }
+    fetchSpy.mockResolvedValueOnce(makeJsonResponse(guest))
+    const client = createAuthClient({ baseUrl, credentials: 'omit' })
+    await client.refreshSession()
+    expect(fetchSpy).toHaveBeenLastCalledWith(`${baseUrl}/session`, { credentials: 'omit' })
+    sessionToken = 'app-token'
+    fetchSpy.mockResolvedValueOnce(new Response()).mockResolvedValueOnce(makeJsonResponse(guest))
+    await client.signOut()
+    expect(fetchSpy).toHaveBeenNthCalledWith(2, `${baseUrl}/signout`, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { Authorization: 'Bearer app-token' },
+    })
+    expect(fetchSpy).toHaveBeenLastCalledWith(`${baseUrl}/session`, { credentials: 'omit' })
+    expect(client.session).toEqual(guest)
+  })
+
+  it('invalidates pending bearer refreshes immediately on signout, even when the backend is offline', async () => {
+    sessionToken = 'app-token'
+    const client = createAuthClient({ baseUrl, session: sessionPayload('old-account'), credentials: 'omit' })
+    const pending = Promise.withResolvers<Response>()
+    fetchSpy.mockReturnValueOnce(pending.promise)
+    const oldRefresh = client.refreshSession()
+    fetchSpy.mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(new Error('offline'))
+    await expect(client.signOut()).rejects.toBeInstanceOf(AuthClientError)
+    expect(client.session.user).toBeNull()
+    expect(sessionToken).toBeNull()
+    pending.resolve(makeJsonResponse(sessionPayload('old-account')))
+    await oldRefresh
+    expect(client.session.user).toBeNull()
+  })
+
+  it('does not refresh an old signout over a newly applied session', async () => {
+    sessionToken = 'old-token'
+    const client = createAuthClient({ baseUrl, credentials: 'omit' })
+    const pending = Promise.withResolvers<Response>()
+    fetchSpy.mockReturnValueOnce(pending.promise)
+    const signingOut = client.signOut()
+    fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('new-account')))
+    await client.applySessionToken('new-token')
+    pending.resolve(new Response())
+    await signingOut
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(client.session).toEqual(sessionPayload('new-account'))
+    expect(sessionToken).toBe('new-token')
   })
 })

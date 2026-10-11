@@ -21,6 +21,7 @@ import type { AuthClient } from '../vanilla'
 interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>
   isLoading: Accessor<boolean>
+  sessionError: Accessor<unknown | null>
 }
 
 const AuthContext = createContext<any>()
@@ -64,6 +65,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   const [mounted, setMounted] = createSignal(false)
   const [isRefreshing, setIsRefreshing] = createSignal(false)
   const [isReady, setIsReady] = createSignal(false)
+  const [sessionError, setSessionError] = createSignal<unknown | null>(client.sessionError)
 
   // For SSR mode: track refreshed session after client-side mutations
   const [clientOverride, setClientOverride] = createSignal<GauSession<ProviderIds<TAuth>> | null>(null)
@@ -108,7 +110,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
 
   const auth = createClientAuth<TAuth>({
     client,
-    refreshOnMount: !untrack(hasExternalSession) && !untrack(() => props.client),
+    refreshOnMount: !untrack(hasExternalSession) && !client.sessionLoaded,
     redirectTo: untrack(() => props.redirectTo),
     setSession: setResolvedSession,
     onReady: () => {
@@ -117,6 +119,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     onRefreshing: (refreshing) => {
       setIsRefreshing(refreshing)
     },
+    onSessionError: (error) => setSessionError(() => error),
   })
 
   onMount(() => {
@@ -130,7 +133,11 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
     onCleanup(auth.mount())
   })
 
-  return <AuthContext.Provider value={{ session, isLoading, ...auth.controls }}>{props.children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ session, isLoading, sessionError, ...auth.controls }}>
+      {props.children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth<const TAuth = unknown>(): AuthContextValue<TAuth> {

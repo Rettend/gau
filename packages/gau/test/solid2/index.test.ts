@@ -49,20 +49,26 @@ describe('Solid 2 server integration', () => {
     expect(handlerAuth).not.toBe(auth)
     expect(handlerAuth.development).toBe(DEV)
     expect(handlerAuth.errorRedirect).toBeUndefined()
-    expect(await (await handlers.POST({
-      request: new Request('https://app.test/api/auth/signout', { method: 'POST' }),
-    })).text()).toBe('POST')
+    expect(
+      await (
+        await handlers.POST({
+          request: new Request('https://app.test/api/auth/signout', { method: 'POST' }),
+        })
+      ).text(),
+    ).toBe('POST')
   })
 
   it('attaches memoized safe and sensitive sessions and calls next', async () => {
     const validateSession = vi.fn().mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'secret-session-id', sub: 'user-1', exp: 123 },
-      accounts: [{
-        provider: 'github',
-        providerAccountId: 'account-1',
-        accessToken: 'secret-access-token',
-      }],
+      accounts: [
+        {
+          provider: 'github',
+          providerAccountId: 'account-1',
+          accessToken: 'secret-access-token',
+        },
+      ],
     })
     const auth = createMockAuth({ validateSession })
     const request = new Request('https://app.test/private', {
@@ -88,6 +94,25 @@ describe('Solid 2 server integration', () => {
     expect(clientOne.session).toEqual({ sub: 'user-1', exp: 123 })
     expect(clientOne.accounts).toEqual([{ provider: 'github', providerAccountId: 'account-1' }])
     expect(clientOne.providers).toEqual(['github'])
+  })
+
+  it('accepts the Solid start-mode request event without relying on ambient event lookup', async () => {
+    const request = new Request('https://app.test/_server/data/read', { headers: { Authorization: 'Bearer token' } })
+    const event = { request, locals: {}, response: { headers: new Headers() } } as any
+    const auth = createMockAuth({ validateSession: vi.fn().mockResolvedValue({ user: null, session: null }) })
+    await authMiddleware(auth)(event, () => new Response())
+    expect(await event.locals.getSession()).toMatchObject({ user: null, session: null })
+  })
+
+  it('writes refresh headers to a provided event while preserving its request body', async () => {
+    const request = new Request('https://app.test/_server/data/write', { method: 'POST', body: 'original body' })
+    const event = { request, locals: {}, response: { headers: new Headers() } } as any
+    const auth = createMockAuth({ refreshSession: vi.fn().mockResolvedValue({ source: 'bearer', token: 'new-token' }) })
+    await refreshMiddleware(auth)(event, async () => {
+      expect(await event.request.text()).toBe('original body')
+      return new Response()
+    })
+    expect(event.response.headers.get(REFRESHED_TOKEN_HEADER)).toBe('new-token')
   })
 
   it('appends refreshed cookies to the response stub without replacing existing cookies', async () => {

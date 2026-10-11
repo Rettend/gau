@@ -11,6 +11,7 @@ import type { AuthClient } from '../vanilla'
 interface AuthContextValue<TAuth = unknown> extends ClientAuthControls<TAuth> {
   session: Accessor<GauSession<ProviderIds<TAuth>>>
   isLoading: Accessor<boolean>
+  sessionError: Accessor<unknown | null>
 }
 
 const AuthContext = createContext<AuthContextValue<any>>()
@@ -71,6 +72,7 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   const [mounted, setMounted] = createSignal(false)
   const [isRefreshing, setIsRefreshing] = createSignal(false)
   const [isReady, setIsReady] = createSignal(false)
+  const [sessionError, setSessionError] = createSignal<unknown | null>(client.sessionError)
   const [clientOverride, setClientOverride] = createSignal<SessionValue<TAuth> | null>(null)
   const [clientSession, setClientSession] = createSignal<SessionValue<TAuth> | null>(null)
   createEffect(
@@ -108,17 +110,19 @@ export function AuthProvider<const TAuth = unknown>(props: AuthProviderProps<TAu
   const auth = createClientAuth<TAuth>({
     client,
     redirectTo: untrack(() => props.redirectTo),
-    refreshOnMount: !untrack(hasExternalSession) && !untrack(() => props.client),
+    refreshOnMount: !untrack(hasExternalSession) && !client.sessionLoaded,
     setSession: setResolvedSession,
     onReady: () => {
       setIsReady(true)
     },
     onRefreshing: setIsRefreshing,
+    onSessionError: (error) => setSessionError(() => error),
   })
 
   const contextValue: AuthContextValue<TAuth> = {
     session,
     isLoading,
+    sessionError,
     ...auth.controls,
   }
 

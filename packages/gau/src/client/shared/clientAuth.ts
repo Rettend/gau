@@ -24,6 +24,8 @@ interface ClientAuthClient<TAuth = unknown> {
   refreshSession: () => Promise<Session<TAuth>>
   handleRedirectCallback: (replaceUrl?: (url: string) => void | Promise<void>) => Promise<boolean>
   onSessionChange: (listener: (session: Session<TAuth>) => void) => () => void
+  sessionError?: unknown | null
+  onSessionError?: (listener: (error: unknown | null) => void) => () => void
   startTauriBridge: () => Promise<(() => void) | void>
   signIn: AuthAction<TAuth, string>
   linkAccount: AuthAction<TAuth, string>
@@ -47,6 +49,7 @@ interface ClientAuthOptions<TAuth = unknown> {
   setSession: (session: Session<TAuth>) => void
   onReady?: () => void
   onRefreshing?: (refreshing: boolean) => void
+  onSessionError?: (error: unknown | null) => void
   replaceUrl?: (url: string) => void | Promise<void>
   logger?: Pick<Console, 'error'>
   env?: Partial<BrowserAuthEnvironment>
@@ -80,6 +83,7 @@ export function createClientAuth<const TAuth = unknown>({
   setSession,
   onReady,
   onRefreshing,
+  onSessionError,
   replaceUrl,
   logger = console,
   env,
@@ -88,7 +92,7 @@ export function createClientAuth<const TAuth = unknown>({
 
   function resolveRedirectTo(type: 'signIn' | 'linkAccount', redirectTo?: string) {
     let next = redirectTo ?? defaultRedirectTo
-    if (!next && browser.isBrowser()) next = type === 'signIn' ? browser.origin() : browser.href()
+    if (!next && browser.isBrowser() && !browser.isTauri()) next = type === 'signIn' ? browser.origin() : browser.href()
     return next
   }
 
@@ -187,6 +191,10 @@ export function createClientAuth<const TAuth = unknown>({
     const unsubscribe = client.onSessionChange((session) => {
       if (isMounted()) setSession(session)
     })
+    onSessionError?.(client.sessionError ?? null)
+    const unsubscribeError = client.onSessionError?.((error) => {
+      if (isMounted()) onSessionError?.(error)
+    })
 
     const reportError = (message: string, error: unknown) => {
       try {
@@ -224,6 +232,7 @@ export function createClientAuth<const TAuth = unknown>({
       cleanup?.()
       cleanup = undefined
       unsubscribe()
+      unsubscribeError?.()
     }
   }
 

@@ -1,6 +1,8 @@
 import type { GauSession, ProfileName, ProviderIds } from '../../core'
 import type { EmailOptions, EmailProviderId, EmailResult, OAuthProviderIds } from '../shared/email'
 import { createEmailFlow } from '../shared/email'
+import { createBrowserOAuthFlow } from '../shared/oauth'
+import { AuthClientError, requestSession } from '../shared/session'
 import { isTauri } from '../../runtimes/tauri/index'
 import { clearSessionToken, getSessionToken, handleRefreshedToken, storeSessionToken } from '../token'
 
@@ -18,11 +20,14 @@ export type {
   EmailChallengeResult,
   EmailAuthenticatedResult,
 } from '../shared/email'
+export { AuthClientError } from '../shared/session'
 
 export interface AuthClientOptions<TAuth = unknown> {
   baseUrl: string
   scheme?: string
   session?: GauSession<ProviderIds<TAuth>>
+  /** Omit uses bearer-only sessions and browser PKCE. Defaults to include in browsers and omit in Tauri. */
+  credentials?: RequestCredentials
 }
 
 type SessionListener<TAuth = unknown> = (session: GauSession<ProviderIds<TAuth>>) => void
@@ -40,8 +45,11 @@ export function createAuthClient<const TAuth = unknown>({
   baseUrl,
   scheme = 'gau',
   session,
+  credentials = isTauri() ? 'omit' : 'include',
 }: AuthClientOptions<TAuth>) {
   const emailFlow = createEmailFlow(baseUrl)
+  const oauthFlow = createBrowserOAuthFlow(baseUrl)
+  let sessionLoaded = session !== undefined
   let currentSession: GauSession<ProviderIds<TAuth>> = session ?? {
     user: null,
     session: null,
@@ -49,7 +57,21 @@ export function createAuthClient<const TAuth = unknown>({
     providers: [],
   }
   let revision = 0
+  let currentSessionError: unknown | null = null
   const listeners = new Set<SessionListener<TAuth>>()
+  const errorListeners = new Set<(error: unknown | null) => void>()
+
+  function reportSessionError(error: unknown | null) {
+    currentSessionError = error
+    for (const listener of errorListeners) listener(error)
+  }
+
+  function requestCredentials(token: string | null): RequestInit {
+    return {
+      credentials: token ? 'omit' : credentials,
+      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    }
+  }
 
   const notify = () => {
     for (const l of listeners) l(currentSession)
@@ -57,20 +79,23 @@ export function createAuthClient<const TAuth = unknown>({
 
   async function fetchSession(): Promise<GauSession<ProviderIds<TAuth>>> {
     const token = getSessionToken()
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await fetch(`${baseUrl}/session`, token ? { headers } : { credentials: 'include' })
-    const contentType = res.headers.get('content-type')
-    if (contentType?.includes('application/json')) return await res.json()
-    return { user: null, session: null, accounts: null, providers: [] }
+    return requestSession<ProviderIds<TAuth>>(`${baseUrl}/session`, requestCredentials(token))
   }
 
   async function refreshSession(): Promise<GauSession<ProviderIds<TAuth>>> {
     const started = ++revision
-    const next = await fetchSession()
-    if (started !== revision) return currentSession
-    currentSession = next
-    notify()
-    return next
+    try {
+      const next = await fetchSession()
+      if (started !== revision) return currentSession
+      currentSession = next
+      sessionLoaded = true
+      reportSessionError(null)
+      notify()
+      return next
+    } catch (error) {
+      if (started === revision) reportSessionError(error)
+      throw error
+    }
   }
 
   async function applySessionToken(token: string): Promise<void> {
@@ -88,27 +113,27 @@ export function createAuthClient<const TAuth = unknown>({
 
   async function handleRedirectCallback(replaceUrl?: (url: string) => void): Promise<boolean> {
     if (typeof window === 'undefined') return false
-
-    if (window.location.hash === '#_=_') {
-      const cleanUrl = window.location.pathname + window.location.search
-      if (replaceUrl) replaceUrl(cleanUrl)
-      else window.history.replaceState(null, '', cleanUrl)
-      return false
-    }
-
-    const hash = window.location.hash?.substring(1) ?? ''
-    if (!hash) return false
-
-    const params = new URLSearchParams(hash)
-    const token = params.get('token')
-    if (!token) return false
-
-    await applySessionToken(token)
-
-    const cleanUrl = window.location.pathname + window.location.search
+    const search = new URLSearchParams(window.location.search)
+    const code = credentials === 'omit' && !isTauri() ? search.get('code') : null
+    const token = new URLSearchParams(window.location.hash?.substring(1)).get('token')
+    if (!code && !token && window.location.hash !== '#_=_') return false
+    if (code) search.delete('code')
+    const cleanUrl =
+      window.location.pathname +
+      (code ? (search.size ? `?${search}` : '') : window.location.search) +
+      (code ? window.location.hash : '')
     if (replaceUrl) replaceUrl(cleanUrl)
     else window.history.replaceState(null, '', cleanUrl)
-
+    if (!code && !token) return false
+    const started = ++revision
+    try {
+      const sessionToken = code ? await oauthFlow.complete(code) : token!
+      if (started !== revision) return false
+      await applySessionToken(sessionToken)
+    } catch (error) {
+      if (started === revision) reportSessionError(error)
+      throw error
+    }
     return true
   }
 
@@ -141,11 +166,15 @@ export function createAuthClient<const TAuth = unknown>({
     const token = linking ? getSessionToken() : null
     const response = await fetch(`${baseUrl}/${linking ? 'link/' : ''}email`, {
       method: 'POST',
-      credentials: 'include',
+      credentials: token ? 'omit' : credentials,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(
         starting
-          ? { ...options, clientChallenge: proof!.clientChallenge, session: isTauri() ? 'token' : 'cookie' }
+          ? {
+              ...options,
+              clientChallenge: proof!.clientChallenge,
+              session: credentials === 'omit' ? 'token' : 'cookie',
+            }
           : { ...options, verifier: emailFlow.get(options.challengeId!) },
       ),
     })
@@ -192,6 +221,11 @@ export function createAuthClient<const TAuth = unknown>({
     if (isTauri()) {
       const { signInWithTauri } = await import('../../runtimes/tauri/index')
       await signInWithTauri<TAuth, P, PR>(provider, baseUrl, scheme, options?.redirectTo, options?.profile)
+    } else if (credentials === 'omit' && typeof window !== 'undefined') {
+      return oauthFlow.authorize(provider, {
+        ...options,
+        profile: options?.profile == null ? undefined : String(options.profile),
+      })
     }
 
     return url
@@ -234,9 +268,7 @@ export function createAuthClient<const TAuth = unknown>({
       redirect: 'false',
     })
     const token = getSessionToken()
-    const fetchOptions: RequestInit = token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : { credentials: 'include' }
+    const fetchOptions = requestCredentials(token)
     const res: Response = await fetch(linkUrl, fetchOptions)
     if (res.redirected) return res.url
     try {
@@ -248,9 +280,7 @@ export function createAuthClient<const TAuth = unknown>({
 
   async function unlinkAccount<P extends ProviderIds<TAuth>>(provider: P): Promise<boolean> {
     const token = getSessionToken()
-    const fetchOptions: RequestInit = token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : { credentials: 'include' }
+    const fetchOptions = requestCredentials(token)
     const res = await fetch(`${baseUrl}/unlink/${provider}`, { method: 'POST', ...fetchOptions })
     if (res.ok) {
       await refreshSession()
@@ -262,17 +292,33 @@ export function createAuthClient<const TAuth = unknown>({
   async function signOut(): Promise<void> {
     const token = getSessionToken()
     clearSessionToken()
+    revision++
+    const started = revision
+    currentSession = { user: null, session: null, accounts: null, providers: currentSession.providers }
+    reportSessionError(null)
+    notify()
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    await fetch(`${baseUrl}/signout`, token ? { method: 'POST', headers } : { method: 'POST', credentials: 'include' })
-    await refreshSession()
+    try {
+      const response = await fetch(`${baseUrl}/signout`, {
+        method: 'POST',
+        credentials,
+        ...(headers ? { headers } : {}),
+      })
+      if (!response.ok) throw new AuthClientError('HTTP_ERROR', `${baseUrl}/signout`, response.status)
+    } finally {
+      if (started === revision) await refreshSession()
+    }
   }
 
   async function startTauriBridge(): Promise<(() => void) | void> {
     if (!isTauri()) return
 
-    const { startAuthBridge } = await import('../../runtimes/tauri/index')
-    const cleanup = await startAuthBridge(baseUrl, scheme, async (token) => {
-      await applySessionToken(token)
+    const { setupTauriListener, handleTauriDeepLink } = await import('../../runtimes/tauri/index')
+    const cleanup = await setupTauriListener(async (url) => {
+      const started = revision
+      await handleTauriDeepLink(url, baseUrl, scheme, (token) => {
+        if (started === revision) return applySessionToken(token)
+      })
     })
     return cleanup
   }
@@ -280,22 +326,22 @@ export function createAuthClient<const TAuth = unknown>({
   /**
    * Fetch wrapper that automatically handles authentication:
    * - Adds Authorization header if a token is stored (Tauri/mobile)
-   * - Falls back to credentials: 'include' for cookie-based auth (web)
+   * - Uses the configured credentials when no bearer token is stored
    * - Automatically stores refreshed tokens from X-Refreshed-Token header
    */
   async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
     const token = getSessionToken()
-    const headers = new Headers(init.headers)
+    const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined))
 
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
     const res = await globalThis.fetch(input, {
       ...init,
       headers,
-      ...(!token && { credentials: 'include' as RequestCredentials }),
+      credentials: token ? 'omit' : (init.credentials ?? credentials),
     })
 
-    handleRefreshedToken(res)
+    if (token && getSessionToken() === token) handleRefreshedToken(res)
 
     return res
   }
@@ -305,10 +351,22 @@ export function createAuthClient<const TAuth = unknown>({
     setSession(session: GauSession<ProviderIds<TAuth>>) {
       revision++
       currentSession = session
+      sessionLoaded = true
+      reportSessionError(null)
       notify()
     },
     get session() {
       return currentSession
+    },
+    get sessionError() {
+      return currentSessionError
+    },
+    get sessionLoaded() {
+      return sessionLoaded
+    },
+    onSessionError(listener: (error: unknown | null) => void) {
+      errorListeners.add(listener)
+      return () => errorListeners.delete(listener)
     },
     fetch: authFetch,
     fetchSession,
