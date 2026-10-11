@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-gau"
-version = "1.7.0"
+version = "1.7.1"
 description = "Native ChatGPT account connections for Gau and Tauri"
 edition = "2021"
 rust-version = "1.88"
