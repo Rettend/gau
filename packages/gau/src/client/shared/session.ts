@@ -46,15 +46,16 @@ function isSession(value: unknown): value is GauSession {
   )
 }
 
-export async function requestAuthJson(url: string, init: RequestInit): Promise<unknown> {
+async function requestAuthResponse(url: string, init: RequestInit): Promise<Response> {
   // Never include response bodies or fetch causes in client-visible diagnostics.
-  let response: Response
   try {
-    response = await fetch(url, init)
+    return await fetch(url, init)
   } catch {
     throw new AuthClientError('NETWORK_ERROR', url)
   }
-  if (!response.ok) throw new AuthClientError('HTTP_ERROR', url, response.status)
+}
+
+async function readAuthJson(url: string, response: Response): Promise<unknown> {
   if (!response.headers.get('content-type')?.toLowerCase().includes('application/json'))
     throw new AuthClientError('INVALID_RESPONSE', url, response.status)
   try {
@@ -64,11 +65,31 @@ export async function requestAuthJson(url: string, init: RequestInit): Promise<u
   }
 }
 
+export async function requestAuthJson(url: string, init: RequestInit): Promise<unknown> {
+  const response = await requestAuthResponse(url, init)
+  if (!response.ok) throw new AuthClientError('HTTP_ERROR', url, response.status)
+  return readAuthJson(url, response)
+}
+
 export async function requestSession<TProviders extends string>(
   url: string,
   init: RequestInit,
-): Promise<GauSession<TProviders>> {
-  const session = await requestAuthJson(url, init)
+): Promise<{ session: GauSession<TProviders>; rejected: boolean }> {
+  const response = await requestAuthResponse(url, init)
+  const rejected = response.status === 401
+  if (!response.ok && !rejected) throw new AuthClientError('HTTP_ERROR', url, response.status)
+  const session = await readAuthJson(url, response)
+  if (
+    rejected &&
+    !(
+      isSession(session) &&
+      session.user === null &&
+      session.session === null &&
+      (session.accounts == null || session.accounts.length === 0) &&
+      Array.isArray(session.providers)
+    )
+  )
+    throw new AuthClientError('HTTP_ERROR', url, response.status)
   if (!isSession(session)) throw new AuthClientError('INVALID_SESSION', url)
-  return session as GauSession<TProviders>
+  return { session: session as GauSession<TProviders>, rejected }
 }

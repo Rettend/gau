@@ -1,6 +1,8 @@
 import type { GauSession } from '../../src/core'
-import { describe, expect, it, vi } from 'vite-plus/test'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
+import * as token from '../../src/client/token'
 import { createClientAuth } from '../../src/client/shared/clientAuth'
+import { createAuthClient } from '../../src/client/vanilla'
 
 function createSession(id: string): GauSession {
   return { user: { id }, session: { sub: id }, accounts: [], providers: [] }
@@ -28,6 +30,11 @@ const webEnv = {
   href: () => 'https://app.test/current',
   navigate: vi.fn(),
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 describe('client auth controller', () => {
   it('uses browser redirect defaults and navigates web auth actions', async () => {
@@ -186,6 +193,64 @@ describe('client auth controller', () => {
     await Promise.resolve()
     expect(client.refreshSession).toHaveBeenCalledOnce()
     expect(setSession).toHaveBeenCalledWith(createSession('refresh'))
+    dispose()
+  })
+
+  it('recovers an expired hydrated Tauri session and clears the previous error in one request', async () => {
+    // Solid 2 delegates its external-session and Tauri mount path to this controller.
+    const baseUrl = 'https://auth.test/api/auth'
+    const expiredToken = 'expired-token'
+    const hydrated = { ...createSession('hydrated'), providers: ['github'] }
+    const guest = { user: null, session: null, accounts: null, providers: ['github'] }
+    let sessionToken: string | null = expiredToken
+    vi.spyOn(token, 'getSessionToken').mockImplementation(() => sessionToken)
+    vi.spyOn(token, 'clearSessionToken').mockImplementation(() => {
+      sessionToken = null
+    })
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response('unavailable', { status: 500 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = createAuthClient({ baseUrl, session: hydrated, credentials: 'omit' })
+    const previousError = await client.refreshSession().catch((error: unknown) => error)
+    expect(client.sessionError).toBe(previousError)
+    expect(client.session).toEqual(hydrated)
+
+    const notified = vi.fn()
+    const setSession = vi.fn()
+    const onSessionError = vi.fn()
+    const onReady = vi.fn()
+    client.onSessionChange(notified)
+    fetchMock.mockClear()
+    fetchMock.mockResolvedValueOnce(Response.json(guest, { status: 401 }))
+
+    const auth = createClientAuth({
+      client,
+      refreshOnMount: false,
+      setSession,
+      onSessionError,
+      onReady,
+      env: { ...webEnv, isTauri: () => true },
+    })
+    const dispose = auth.mount()
+    await vi.waitFor(() => {
+      expect(setSession).toHaveBeenCalledWith(guest)
+      expect(onReady).toHaveBeenCalledOnce()
+    })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledWith(`${baseUrl}/session`, {
+      credentials: 'omit',
+      headers: { Authorization: `Bearer ${expiredToken}` },
+    })
+    expect(sessionToken).toBeNull()
+    expect(client.session).toEqual(guest)
+    expect(client.sessionLoaded).toBe(true)
+    expect(client.sessionError).toBeNull()
+    expect(notified).toHaveBeenCalledOnce()
+    expect(notified).toHaveBeenCalledWith(guest)
+    expect(onSessionError).toHaveBeenNthCalledWith(1, previousError)
+    expect(onSessionError).toHaveBeenLastCalledWith(null)
+    expect(onReady).toHaveBeenCalledOnce()
     dispose()
   })
 

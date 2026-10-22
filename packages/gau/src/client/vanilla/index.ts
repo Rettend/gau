@@ -81,21 +81,27 @@ export function createAuthClient<const TAuth = unknown>({
 
   async function fetchSession(): Promise<GauSession<ProviderIds<TAuth>>> {
     const token = getSessionToken()
-    return requestSession<ProviderIds<TAuth>>(`${baseUrl}/session`, requestCredentials(token))
+    const { session } = await requestSession<ProviderIds<TAuth>>(`${baseUrl}/session`, requestCredentials(token))
+    return session
   }
 
   async function refreshSession(): Promise<GauSession<ProviderIds<TAuth>>> {
     const started = ++revision
+    const token = getSessionToken()
     try {
-      const next = await fetchSession()
-      if (started !== revision) return currentSession
+      const { session: next, rejected } = await requestSession<ProviderIds<TAuth>>(
+        `${baseUrl}/session`,
+        requestCredentials(token),
+      )
+      if (started !== revision || getSessionToken() !== token) return currentSession
+      if (rejected && token) clearSessionToken()
       currentSession = next
       sessionLoaded = true
       reportSessionError(null)
       notify()
       return next
     } catch (error) {
-      if (started === revision) reportSessionError(error)
+      if (started === revision && getSessionToken() === token) reportSessionError(error)
       throw error
     }
   }

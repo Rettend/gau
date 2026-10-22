@@ -1,5 +1,6 @@
 import type { MockInstance } from 'vite-plus/test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { requestAuthJson } from '../../src/client/shared/session'
 import * as token from '../../src/client/token'
 import { AuthClientError, createAuthClient } from '../../src/client/vanilla'
 import * as tauriHelpers from '../../src/runtimes/tauri/index'
@@ -23,9 +24,14 @@ describe('vanilla client', () => {
     new Response(JSON.stringify(data), { headers })
 
   const sessionPayload = (id: string) => ({ user: { id }, session: { sub: id }, accounts: [], providers: [] })
+  const guestPayload = { user: null, session: null, accounts: null, providers: ['github'] }
+  const rejectedSession = () => Response.json(guestPayload, { status: 401 })
 
   beforeEach(() => {
     sessionToken = null
+    mockGetSessionToken.mockClear()
+    mockStoreSessionToken.mockClear()
+    mockClearSessionToken.mockClear()
     mockHandleRefreshedToken.mockClear()
     fetchSpy = vi.spyOn(globalThis, 'fetch')
     vi.spyOn(token, 'getSessionToken').mockImplementation(mockGetSessionToken)
@@ -89,6 +95,293 @@ describe('vanilla client', () => {
     fetchSpy.mockResolvedValueOnce(makeJsonResponse(sessionPayload('u4')))
     await client.refreshSession()
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  describe('rejected sessions', () => {
+    it('clears an expired bearer token with one request and publishes the guest session and providers', async () => {
+      sessionToken = 'expired-token'
+      const client = createAuthClient({ baseUrl })
+      const listener = vi.fn()
+      const errors = vi.fn()
+      client.onSessionChange(listener)
+      client.onSessionError(errors)
+      fetchSpy.mockResolvedValueOnce(new Response('private error', { status: 500 }))
+      await expect(client.refreshSession()).rejects.toBeInstanceOf(AuthClientError)
+      expect(client.sessionLoaded).toBe(false)
+      expect(client.sessionError).not.toBeNull()
+      fetchSpy.mockClear()
+      fetchSpy.mockResolvedValueOnce(rejectedSession())
+
+      await expect(client.refreshSession()).resolves.toEqual(guestPayload)
+
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(`${baseUrl}/session`, {
+        credentials: 'omit',
+        headers: { Authorization: 'Bearer expired-token' },
+      })
+      expect(sessionToken).toBeNull()
+      expect(mockClearSessionToken).toHaveBeenCalledTimes(1)
+      expect(mockStoreSessionToken).not.toHaveBeenCalled()
+      expect(client.session).toEqual(guestPayload)
+      expect(client.sessionLoaded).toBe(true)
+      expect(client.sessionError).toBeNull()
+      expect(listener).toHaveBeenCalledExactlyOnceWith(guestPayload)
+      expect(errors).toHaveBeenLastCalledWith(null)
+    })
+
+    it.each([null, ''])('accepts a cookie session rejection without clearing stored token %s', async (savedToken) => {
+      sessionToken = savedToken
+      const guest = { ...guestPayload, accounts: [], providers: [] }
+      fetchSpy.mockResolvedValueOnce(Response.json(guest, { status: 401 }))
+      const client = createAuthClient({ baseUrl })
+
+      await expect(client.refreshSession()).resolves.toEqual(guest)
+
+      expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(`${baseUrl}/session`, { credentials: 'include' })
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(sessionToken).toBe(savedToken)
+      expect(client.session).toEqual(guest)
+      expect(client.sessionLoaded).toBe(true)
+      expect(client.sessionError).toBeNull()
+    })
+
+    it.each(['expired-token', null])('fetchSession remains a pure read for a 401 with token %s', async (savedToken) => {
+      sessionToken = savedToken
+      const client = createAuthClient({ baseUrl, session: sessionPayload('current') })
+      fetchSpy.mockResolvedValueOnce(new Response('private error', { status: 500 }))
+      await expect(client.refreshSession()).rejects.toBeInstanceOf(AuthClientError)
+      const previousError = client.sessionError
+      const listener = vi.fn()
+      const errors = vi.fn()
+      client.onSessionChange(listener)
+      client.onSessionError(errors)
+      fetchSpy.mockClear()
+      fetchSpy.mockResolvedValueOnce(rejectedSession())
+
+      await expect(client.fetchSession()).resolves.toEqual(guestPayload)
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(sessionToken).toBe(savedToken)
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(client.session).toEqual(sessionPayload('current'))
+      expect(client.sessionError).toBe(previousError)
+      expect(listener).not.toHaveBeenCalled()
+      expect(errors).not.toHaveBeenCalled()
+    })
+
+    it('fetchSession does not mark an unloaded client as loaded for a 401', async () => {
+      fetchSpy.mockResolvedValueOnce(rejectedSession())
+      const client = createAuthClient({ baseUrl })
+      await client.fetchSession()
+      expect(client.sessionLoaded).toBe(false)
+      expect(client.session.providers).toEqual([])
+    })
+
+    it.each([
+      ['signed-in session', sessionPayload('private-account')],
+      ['user without session', { ...guestPayload, user: { id: 'private-account' } }],
+      ['session without user', { ...guestPayload, session: { sub: 'private-account' } }],
+      ['missing user', { session: null, accounts: null, providers: [] }],
+      ['missing session', { user: null, accounts: null, providers: [] }],
+      ['missing providers', { user: null, session: null, accounts: null }],
+      ['null providers', { ...guestPayload, providers: null }],
+      ['non-array providers', { ...guestPayload, providers: 'github' }],
+      ['non-string provider', { ...guestPayload, providers: ['github', 123] }],
+      ['linked accounts', { ...guestPayload, accounts: [{ provider: 'github', providerAccountId: 'private-account' }] }],
+      ['invalid accounts', { ...guestPayload, accounts: {} }],
+      ['invalid account entries', { ...guestPayload, accounts: ['private-account'] }],
+      ['generic backend error', { error: 'private backend error', code: 'UNAUTHORIZED' }],
+      ['null JSON', null],
+      ['array JSON', []],
+    ])('rejects a 401 with %s without changing credentials or session', async (_name, body) => {
+      sessionToken = 'saved-token'
+      fetchSpy.mockResolvedValueOnce(Response.json(body, { status: 401 }))
+      const client = createAuthClient({ baseUrl, session: sessionPayload('current') })
+      const listener = vi.fn()
+      client.onSessionChange(listener)
+
+      await expect(client.refreshSession()).rejects.toMatchObject({ code: 'HTTP_ERROR', status: 401 })
+
+      expect(sessionToken).toBe('saved-token')
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(client.session).toEqual(sessionPayload('current'))
+      expect(client.sessionLoaded).toBe(true)
+      expect(listener).not.toHaveBeenCalled()
+      expect(String(client.sessionError)).not.toContain('private')
+    })
+
+    it.each([
+      ['non-JSON', () => new Response(JSON.stringify(guestPayload), { status: 401, headers: { 'Content-Type': 'text/plain' } })],
+      ['malformed JSON', () => new Response('{private', { status: 401, headers: { 'Content-Type': 'application/json' } })],
+    ])('rejects a %s 401 without clearing the token', async (_name, response) => {
+      sessionToken = 'saved-token'
+      fetchSpy.mockResolvedValueOnce(response())
+      const client = createAuthClient({ baseUrl, session: sessionPayload('current') })
+      await expect(client.refreshSession()).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 401 })
+      expect(sessionToken).toBe('saved-token')
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(client.session).toEqual(sessionPayload('current'))
+      expect(String(client.sessionError)).not.toContain('private')
+    })
+
+    it.each([403, 500])('does not treat a guest response with HTTP %s as expiration', async (status) => {
+      sessionToken = 'saved-token'
+      fetchSpy.mockResolvedValueOnce(Response.json(guestPayload, { status }))
+      const client = createAuthClient({ baseUrl, session: sessionPayload('current') })
+      await expect(client.refreshSession()).rejects.toMatchObject({ code: 'HTTP_ERROR', status })
+      expect(sessionToken).toBe('saved-token')
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(client.session).toEqual(sessionPayload('current'))
+    })
+
+    it('preserves credentials and session after a network failure', async () => {
+      sessionToken = 'saved-token'
+      fetchSpy.mockRejectedValueOnce(new Error('private network error'))
+      const client = createAuthClient({ baseUrl, session: sessionPayload('current') })
+      await expect(client.refreshSession()).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
+      expect(sessionToken).toBe('saved-token')
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(client.session).toEqual(sessionPayload('current'))
+      expect(String(client.sessionError)).not.toContain('private')
+    })
+
+    it('keeps the generic token JSON request strict even for a signed-out 401', async () => {
+      fetchSpy.mockResolvedValueOnce(rejectedSession())
+      await expect(requestAuthJson(`${baseUrl}/token`, {})).rejects.toMatchObject({ code: 'HTTP_ERROR', status: 401 })
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+    })
+
+    it.each(['new token', 'same token', 'setSession'])('ignores an old 401 after applying %s', async (action) => {
+      sessionToken = 'old-token'
+      const pending = Promise.withResolvers<Response>()
+      fetchSpy.mockReturnValueOnce(pending.promise)
+      const client = createAuthClient({ baseUrl, session: sessionPayload('old') })
+      const oldRefresh = client.refreshSession()
+      const next = sessionPayload('new')
+      if (action === 'setSession') client.setSession(next)
+      else {
+        fetchSpy.mockResolvedValueOnce(makeJsonResponse(next))
+        await client.applySessionToken(action === 'same token' ? 'old-token' : 'new-token')
+      }
+      const listener = vi.fn()
+      const errors = vi.fn()
+      client.onSessionChange(listener)
+      client.onSessionError(errors)
+      pending.resolve(rejectedSession())
+
+      await expect(oldRefresh).resolves.toBe(client.session)
+
+      expect(sessionToken).toBe(action === 'new token' ? 'new-token' : 'old-token')
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(client.session).toEqual(next)
+      expect(client.sessionError).toBeNull()
+      expect(listener).not.toHaveBeenCalled()
+      expect(errors).not.toHaveBeenCalled()
+    })
+
+    it.each(['signed in', 'signed out'])('keeps the latest concurrent refresh when it resolves %s first', async (latest) => {
+      sessionToken = 'saved-token'
+      const pending = Promise.withResolvers<Response>()
+      fetchSpy.mockReturnValueOnce(pending.promise)
+      const client = createAuthClient({ baseUrl })
+      const listener = vi.fn()
+      client.onSessionChange(listener)
+      const oldRefresh = client.refreshSession()
+      const next = latest === 'signed in' ? sessionPayload('new') : { ...guestPayload, providers: ['google'] }
+      fetchSpy.mockResolvedValueOnce(Response.json(next, { status: latest === 'signed in' ? 200 : 401 }))
+      await client.refreshSession()
+      pending.resolve(latest === 'signed in' ? rejectedSession() : makeJsonResponse(sessionPayload('old')))
+
+      await expect(oldRefresh).resolves.toBe(client.session)
+
+      expect(client.session).toEqual(next)
+      expect(sessionToken).toBe(latest === 'signed in' ? 'saved-token' : null)
+      expect(mockClearSessionToken).toHaveBeenCalledTimes(latest === 'signed in' ? 0 : 1)
+      expect(listener).toHaveBeenCalledExactlyOnceWith(next)
+    })
+
+    it('ignores an earlier 401 while the latest refresh is still pending', async () => {
+      sessionToken = 'saved-token'
+      const first = Promise.withResolvers<Response>()
+      const latest = Promise.withResolvers<Response>()
+      fetchSpy.mockReturnValueOnce(first.promise).mockReturnValueOnce(latest.promise)
+      const client = createAuthClient({ baseUrl, session: sessionPayload('current') })
+      const listener = vi.fn()
+      client.onSessionChange(listener)
+      const oldRefresh = client.refreshSession()
+      const latestRefresh = client.refreshSession()
+      first.resolve(rejectedSession())
+
+      await expect(oldRefresh).resolves.toEqual(sessionPayload('current'))
+
+      expect(sessionToken).toBe('saved-token')
+      expect(mockClearSessionToken).not.toHaveBeenCalled()
+      expect(listener).not.toHaveBeenCalled()
+      latest.resolve(rejectedSession())
+      await expect(latestRefresh).resolves.toEqual(guestPayload)
+      expect(sessionToken).toBeNull()
+      expect(mockClearSessionToken).toHaveBeenCalledTimes(1)
+      expect(listener).toHaveBeenCalledExactlyOnceWith(guestPayload)
+    })
+
+    it('ignores an old 401 immediately after signout begins', async () => {
+      sessionToken = 'old-token'
+      const pending = Promise.withResolvers<Response>()
+      const signout = Promise.withResolvers<Response>()
+      fetchSpy.mockReturnValueOnce(pending.promise).mockReturnValueOnce(signout.promise)
+      const client = createAuthClient({ baseUrl, session: sessionPayload('old') })
+      const oldRefresh = client.refreshSession()
+      const signingOut = client.signOut()
+      const listener = vi.fn()
+      client.onSessionChange(listener)
+      pending.resolve(rejectedSession())
+
+      await expect(oldRefresh).resolves.toBe(client.session)
+
+      expect(sessionToken).toBeNull()
+      expect(mockClearSessionToken).toHaveBeenCalledTimes(1)
+      expect(client.session.user).toBeNull()
+      expect(client.session.providers).toEqual([])
+      expect(listener).not.toHaveBeenCalled()
+      fetchSpy.mockResolvedValueOnce(makeJsonResponse(guestPayload))
+      signout.resolve(new Response())
+      await signingOut
+      expect(client.session).toEqual(guestPayload)
+    })
+
+    it.each(['rejected session', 'successful session', 'HTTP error', 'network error'])(
+      'ignores state effects from an old %s after an external token change without a revision',
+      async (responseKind) => {
+        sessionToken = 'old-token'
+        const client = createAuthClient({ baseUrl, session: sessionPayload('new-account') })
+        fetchSpy.mockResolvedValueOnce(new Response('previous private error', { status: 503 }))
+        await expect(client.refreshSession()).rejects.toBeInstanceOf(AuthClientError)
+        const previousError = client.sessionError
+        const listener = vi.fn()
+        const errors = vi.fn()
+        client.onSessionChange(listener)
+        client.onSessionError(errors)
+        const pending = Promise.withResolvers<Response>()
+        fetchSpy.mockReturnValueOnce(pending.promise)
+        const oldRefresh = client.refreshSession()
+        sessionToken = 'new-token'
+        if (responseKind === 'network error') pending.reject(new Error('private network error'))
+        else pending.resolve(responseKind === 'rejected session'
+          ? rejectedSession()
+          : responseKind === 'successful session'
+            ? makeJsonResponse(sessionPayload('old-account'))
+            : new Response('private backend error', { status: 500 }))
+
+        if (responseKind.endsWith('error')) await expect(oldRefresh).rejects.toBeInstanceOf(AuthClientError)
+        else await expect(oldRefresh).resolves.toBe(client.session)
+
+        expect(sessionToken).toBe('new-token')
+        expect(mockClearSessionToken).not.toHaveBeenCalled()
+        expect(client.session).toEqual(sessionPayload('new-account'))
+        expect(client.sessionError).toBe(previousError)
+        expect(listener).not.toHaveBeenCalled()
+        expect(errors).not.toHaveBeenCalled()
+      },
+    )
   })
 
   it('signIn returns provider URL with query params', async () => {
@@ -256,7 +549,7 @@ describe('vanilla client', () => {
     isTauriSpy.mockReturnValue(false)
   })
 
-  it.each(['refresh', 'signout', 'account change'])('handles a pending native exchange during %s', async (action) => {
+  it.each(['refresh', 'expiration', 'signout', 'account change'])('handles a pending native exchange during %s', async (action) => {
     vi.spyOn(tauriHelpers, 'isTauri').mockReturnValue(true)
     const setupListener = vi.spyOn(tauriHelpers, 'setupTauriListener').mockResolvedValue(() => {})
     const exchange = Promise.withResolvers<void>()
@@ -267,15 +560,18 @@ describe('vanilla client', () => {
     const client = createAuthClient({ baseUrl })
     await client.startTauriBridge()
     const completion = setupListener.mock.calls[0]![0]('gau://oauth/callback?code=old-code')
+    if (action === 'expiration') sessionToken = 'expired-token'
     fetchSpy.mockImplementation(async (url) => String(url).endsWith('/signout')
       ? new Response()
-      : makeJsonResponse(sessionToken ? sessionPayload(sessionToken) : { user: null, session: null }))
-    if (action === 'refresh') await client.refreshSession()
+      : sessionToken === 'expired-token'
+        ? rejectedSession()
+        : makeJsonResponse(sessionToken ? sessionPayload(sessionToken) : { user: null, session: null }))
+    if (action === 'refresh' || action === 'expiration') await client.refreshSession()
     else if (action === 'signout') await client.signOut()
     else await client.applySessionToken('newer-token')
     exchange.resolve()
     await completion
-    expect(sessionToken).toBe(action === 'refresh' ? 'old-token' : action === 'signout' ? null : 'newer-token')
+    expect(sessionToken).toBe(action === 'refresh' || action === 'expiration' ? 'old-token' : action === 'signout' ? null : 'newer-token')
   })
 
   it('handleRedirectCallback applies token, notifies listeners, and cleans URL with one refresh', async () => {
