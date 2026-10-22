@@ -1,0 +1,28 @@
+{
+  "$schema": "https://nimbus-docs.com/schema/nimbus.json",
+  "version": "0.7.13",
+  "lastReviewedNimbusVersion": "0.18.1",
+  "templatesTag": "templates-v0.7.13",
+  "variant": "empty",
+  "registry": "https://nimbus-docs.com/registry",
+  "install": {
+    "root": "src",
+    "aliases": {
+      "@/*": "src/*"
+    }
+  },
+  "components": [
+    {
+      "slug": "file-tree",
+      "type": "registry:ui",
+      "version": "0.18.1",
+      "source": "https://nimbus-docs.com/registry",
+      "hash": null,
+      "files": [
+        "src/components/ui/file-tree/FileTree.astro",
+        "src/components/ui/file-tree/file-tree.client.ts",
+        "src/components/ui/file-tree/index.ts"
+      ]
+    }
+  ]
+}

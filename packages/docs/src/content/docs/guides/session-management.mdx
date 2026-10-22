@@ -3,7 +3,7 @@ title: Session Management
 description: How gau handles user sessions in different environments.
 ---
 
-import { Steps } from '@astrojs/starlight/components'
+import { Steps } from '@/components'
 
 `gau`'s flexibility is achieved by supporting two primary session management strategies: **cookie-based** and **token-based** sessions.
 
@@ -46,7 +46,7 @@ The flow uses PKCE to securely pass the session token from your backend to the a
 
 This is entirely managed by `gau`. The client libraries automatically handle storing the token and including it in requests, while the backend is designed to render the necessary redirect page.
 
-See the [Tauri integration guide](/integrations/tauri) for a practical example.
+See the [Tauri integration guide](/runtimes/tauri) for a practical example.
 
 ## Session Strategy
 

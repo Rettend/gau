@@ -1,7 +1,13 @@
-import { docsLoader } from '@astrojs/starlight/loaders'
-import { docsSchema } from '@astrojs/starlight/schema'
+import { docsCollection } from '@cloudflare/nimbus-docs/content'
 import { defineCollection } from 'astro:content'
+import { z } from 'astro/zod'
 
 export const collections = {
-  docs: defineCollection({ loader: docsLoader(), schema: docsSchema() }),
+  docs: defineCollection(
+    docsCollection({
+      schemaFields: {
+        audience: z.literal('human').optional(),
+      },
+    }),
+  ),
 }

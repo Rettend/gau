@@ -10,6 +10,8 @@ const generatedFiles = [
   '**/.svelte-kit/**',
   '**/.astro/**',
   '**/.starlight-icons/**',
+  '**/.nimbus/**',
+  '**/.wrangler/**',
   '**/.vinxi/**',
   '**/.output/**',
   '**/public/client.js',

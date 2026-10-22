@@ -3,8 +3,7 @@ title: Framework Integrations
 description: How to integrate gau with your favorite framework.
 ---
 
-import IconLink from 'starlight-plugin-icons/components/IconLink.astro'
-import Aside from 'starlight-plugin-icons/components/Aside.astro'
+import { IconLink, IconLinkGroup, Aside } from '@/components'
 
 `gau` is designed to be framework-agnostic. It can run anywhere, but official support makes it easier.
 
@@ -12,25 +11,25 @@ It provides client-side components and hooks for frameworks. This section covers
 
 `gau` has support for full-stack frameworks:
 
-<div class="row">
-  <IconLink href="/integrations/sveltekit/" icon="i-material-icon-theme:svelte" title="SvelteKit" flat />
-  <IconLink href="/integrations/solidstart/" icon="i-devicon:solidjs" title="SolidStart" flat />
-  <IconLink href="/integrations/marko/" icon="i-material-icon-theme:markojs" title="Marko" flat />
-  <IconLink href="/integrations/astro/" icon="i-vscode-icons:file-type-astro light:i-vscode-icons:file-type-light-astro" title="Astro" flat />
-</div>
+<IconLinkGroup>
+  <IconLink href="/integrations/sveltekit/" icon="material-icon-theme:svelte" title="SvelteKit" />
+  <IconLink href="/integrations/solidstart/" icon="devicon:solidjs" title="SolidStart" />
+  <IconLink href="/integrations/marko/" icon="material-icon-theme:markojs" title="Marko" />
+  <IconLink href="/integrations/astro/" icon="vscode-icons:file-type-astro" title="Astro" />
+</IconLinkGroup>
 
 And backend-only frameworks:
 
-<div class="row">
-  <IconLink href="/integrations/bun-serve/" icon="i-logos:bun" title="Bun.serve" flat />
-  <IconLink href="/integrations/elysia/" icon="i-icons:elysia" title="Elysia" flat />
-</div>
+<IconLinkGroup>
+  <IconLink href="/integrations/bun-serve/" icon="logos:bun" title="Bun.serve" />
+  <IconLink href="/integrations/elysia/" icon="local:elysia" title="Elysia" />
+</IconLinkGroup>
 
 For backend-only setups, you can use the vanilla client on the frontend:
 
-<div class="row">
-  <IconLink href="/integrations/vanilla/" icon="i-material-icon-theme:typescript" title="Vanilla" flat />
-</div>
+<IconLinkGroup>
+  <IconLink href="/integrations/vanilla/" icon="material-icon-theme:typescript" title="Vanilla" />
+</IconLinkGroup>
 
 ## AuthProvider
 

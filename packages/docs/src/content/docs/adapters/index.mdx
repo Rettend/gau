@@ -3,15 +3,15 @@ title: Database Adapters
 description: How to use database adapters with gau.
 ---
 
-import IconLink from 'starlight-plugin-icons/components/IconLink.astro'
+import { IconLink, IconLinkGroup } from '@/components'
 
 `gau` can work with any database, though currently no databases are supported directly.
 
 It's adviced to use an ORM, which abstracts the database away. `gau` currently supports Drizzle with SQLite and PostgreSQL drivers.
 
-<div class="row">
-  <IconLink href="/adapters/drizzle/" icon="i-icons:drizzle" title="Drizzle" flat />
-</div> 
+<IconLinkGroup>
+  <IconLink href="/adapters/drizzle/" icon="local:drizzle" title="Drizzle" />
+</IconLinkGroup>
 
 The `createAuth` function not only sets up your authentication logic but also returns a set of database methods from your adapter, allowing you to interact with your user data directly.
 

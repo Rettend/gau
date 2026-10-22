@@ -3,9 +3,7 @@ title: Vanilla Client
 description: How to use gau's vanilla JavaScript client for any frontend framework or vanilla JS.
 ---
 
-import { Steps } from '@astrojs/starlight/components'
-import Aside from 'starlight-plugin-icons/components/Aside.astro'
-import IconLink from 'starlight-plugin-icons/components/IconLink.astro'
+import { Steps, Aside, IconLink, IconLinkGroup } from '@/components'
 
 The vanilla client can be used with any frontend setup. It's perfect for:
 
@@ -20,10 +18,10 @@ The vanilla client can be used with any frontend setup. It's perfect for:
 
     Follow one of the backend-only integration guides:
 
-    <div class="row">
-      <IconLink href="/integrations/bun-serve/" icon="i-logos:bun" title="Bun.serve" flat />
-      <IconLink href="/integrations/elysia/" icon="i-icons:elysia" title="Elysia" flat />
-    </div>
+    <IconLinkGroup>
+      <IconLink href="/integrations/bun-serve/" icon="logos:bun" title="Bun.serve" />
+      <IconLink href="/integrations/elysia/" icon="local:elysia" title="Elysia" />
+    </IconLinkGroup>
 
     Or use `createHandler` from `@rttnd/gau/core` with any framework that supports standard `Request`/`Response` objects.
 

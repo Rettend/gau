@@ -1,32 +1,55 @@
 ---
 title: gau
 description: Good OAuth library
-template: splash
-hero:
-  tagline: Good OAuth library
-  actions:
-    - text: Get Started
-      link: guides/getting-started/
-      icon: right-arrow
-    - text: View on GitHub
-      link: https://github.com/Rettend/gau
-      icon: external
-      variant: minimal
+sidebar: false
+tableOfContents: false
 ---
-import { CardGrid } from '@astrojs/starlight/components'
-import Card from 'starlight-plugin-icons/components/Card.astro'
 
-<CardGrid stagger>
-  <Card title="Flexible" icon="i-ph:puzzle-piece-duotone" bordered>
+import { Card, CardGrid, Tabs, TabItem } from '@/components'
+
+[Get Started](/guides/getting-started/) · [View on GitHub](https://github.com/Rettend/gau)
+
+## Install
+
+<Tabs syncKey="pkg">
+  <TabItem label="npm">
+    ```sh
+    npm i @rttnd/gau
+    ```
+  </TabItem>
+  <TabItem label="pnpm">
+    ```sh
+    pnpm add @rttnd/gau
+    ```
+  </TabItem>
+  <TabItem label="yarn">
+    ```sh
+    yarn add @rttnd/gau
+    ```
+  </TabItem>
+  <TabItem label="bun">
+    ```sh
+    bun add @rttnd/gau
+    ```
+  </TabItem>
+  <TabItem label="ni">
+    ```sh
+    ni @rttnd/gau
+    ```
+  </TabItem>
+</Tabs>
+
+<CardGrid>
+  <Card title="Flexible" icon="ph:puzzle-piece-duotone">
     Small and self-hostable, works with backend-only, full-stack, and native apps, and on different hosts.
   </Card>
-  <Card title="Framework Agnostic" icon="i-ph:toolbox-duotone" bordered>
+  <Card title="Framework Agnostic" icon="ph:toolbox-duotone">
     Core is framework-free and uses Web Crypto, with helpers for frameworks and runtimes.
   </Card>
-  <Card title="Runtime Agnostic" icon="i-ph:computer-tower-duotone" bordered>
+  <Card title="Runtime Agnostic" icon="ph:computer-tower-duotone">
     Runs on Bun, Node, Deno, Cloudflare Workers, and even Tauri.
   </Card>
-  <Card title="Database Agnostic" icon="i-ph:database-duotone" bordered>
+  <Card title="Database Agnostic" icon="ph:database-duotone">
     Can support any database via adapters.
   </Card>
 </CardGrid>

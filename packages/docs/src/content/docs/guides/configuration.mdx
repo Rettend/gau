@@ -3,8 +3,7 @@ title: Configuration
 description: A deep-dive into all the createAuth options.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components'
-import Aside from 'starlight-plugin-icons/components/Aside.astro'
+import { Tabs, TabItem, Aside } from '@/components'
 
 The core of `gau` is the `createAuth` function, which you use to configure your auth setup. This guide covers all the available options in detail.
 
@@ -245,7 +244,7 @@ By default, this is derived from `jwt.secret`.
 
 The time-to-live for session JWTs, in seconds. This determines how long a user stays logged in before needing to re-authenticate.
 
-<Aside icon="i-ph:lightbulb-bold" type="tip" title="Session Duration">
+<Aside type="tip" title="Session Duration">
   The default is 7 days, which works well for most apps. For apps where you want users to stay logged in longer, you can safely increase this to 30 days or more.
 </Aside>
 

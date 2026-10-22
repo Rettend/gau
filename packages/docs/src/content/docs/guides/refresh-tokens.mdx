@@ -3,8 +3,7 @@ title: Refresh Tokens
 description: Understanding provider refresh tokens and session duration in gau.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
-import Aside from 'starlight-plugin-icons/components/Aside.astro'
+import { Aside } from '@/components'
 
 This guide covers two distinct concepts: **provider refresh tokens** (for calling external APIs) and **session refresh tokens** (for extending user sessions).
 
@@ -49,7 +48,7 @@ Behavior:
 
 `gau` does not implement classic **refresh token pairs**. Sessions are managed using expiring JWTs, and not stored in the database.
 
-You can optionally do **sliding expiration** by refreshing the session JWT as the user keeps using the app. See the [Middleware](/guides/middleware) guide, or the [`refreshSession`](/guides/advanced#the-refreshsession-method) method.
+You can optionally do **sliding expiration** by refreshing the session JWT as the user keeps using the app. See the [Middleware](/guides/middleware) guide, or the [`refreshSession`](/advanced#the-refreshsession-method) method.
 
 **For longer sessions**, just increase [`jwt.ttl`](/guides/configuration#jwtttl) in your config. The default is 7 days; you can safely set it to 30 days or more for most apps.
 

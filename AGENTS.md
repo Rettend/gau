@@ -5,7 +5,7 @@
 - Use `bun` only. The repo pins `bun@1.4.2` and Node 24 in `.node-version`; CI installs with `bun install --frozen-lockfile`.
 - This is a Bun workspace, but root `build`, `check`, `check:test`, `test`, `test:pg`, and `dev` target `packages/gau`. Root `lint` runs Vite+ Oxlint across the repo without modifying files.
 - Vite+ 1.0 manages Vite, Vitest, Oxlint, Oxfmt, and library packaging. Use Bun scripts to invoke it. Astro 7 uses Vite 8 through Vite+; legacy SolidStart keeps Vite 6. The `vite@>=8` override only redirects compatible ranges to Vite+.
-- CI runs the fast and PostgreSQL Vitest projects, library typechecks, Oxlint, and the library build. If you change docs or example apps, run their relevant checks yourself.
+- CI runs the fast and PostgreSQL Vitest projects, library typechecks, Oxlint, the library build, and docs checks. If you change example apps, run their relevant checks yourself.
 
 ## Package Map
 
@@ -13,7 +13,7 @@
 - `packages/gau/src/core` is the framework-agnostic auth engine and HTTP handler.
 - `packages/gau/src/adapters` exports `drizzle` and `memory`; `oauth` holds providers; `client` holds vanilla/Svelte/Solid helpers; `sveltekit`, `solidstart`, and `runtimes/tauri` are integration layers.
 - `packages/gau/test` mirrors `packages/gau/src`.
-- `packages/docs` is the Astro/Starlight docs site.
+- `packages/docs` is the Astro/Nimbus docs site, with locally owned layouts and components.
 - `packages/tauri-plugin-gau` is the native Rust Tauri plugin for ChatGPT connections. Its TypeScript client lives in `packages/gau/src/runtimes/tauri/oauth` and is exported from `@rttnd/gau/runtimes/tauri`.
 - `packages/example-*` are standalone apps; root scripts do not verify them.
 
@@ -34,6 +34,7 @@
 - Single fast test file: `bun run test --run packages/gau/test/core/createAuth.test.ts`
 - PG adapter test file: `bun run test:pg --run packages/gau/test/adapters/drizzle/pg.test.ts`
 - Docs/examples use package-local scripts, e.g. `bun run --cwd packages/docs check` or `bun run --cwd packages/example-sveltekit check`.
+- Docs verification: run package-local `check`, `build`, then `lint:docs`, followed by root `bun run test:docs`. Nimbus link lint needs the route manifest from a successful build.
 - `bun run fmt -- <files>` formats selected files; `bun run fmt:check` checks the whole repo. Repository-wide formatting is deferred, so existing style differences are expected. Keep formatting changes focused.
 
 ## Repo Quirks

@@ -37,6 +37,30 @@ jobs:
       - name: Test PostgreSQL adapter
         run: bun run test:pg
 
+  docs:
+    name: Check documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Check documentation types
+        run: bun run --cwd packages/docs check
+      - name: Build documentation
+        run: bun run --cwd packages/docs build
+      - name: Check documentation links
+        run: bun run --cwd packages/docs lint:docs
+      - name: Verify published documentation
+        run: bun run test:docs
+
   tauri:
     name: Native Tauri (${{ matrix.os }})
     strategy:

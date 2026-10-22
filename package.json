@@ -25,6 +25,7 @@
     "clean": "bun --bun scripts/clean.ts",
     "release": "bun scripts/release.ts",
     "test:release": "bun test scripts/release.test.ts",
+    "test:docs": "bun test scripts/docs.test.ts",
     "release:cargo:check": "cargo publish --dry-run --locked --manifest-path packages/tauri-plugin-gau/Cargo.toml"
   },
   "devDependencies": {

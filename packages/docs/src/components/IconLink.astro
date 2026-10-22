@@ -1,0 +1,94 @@
+---
+import Icon from "@cloudflare/nimbus-docs/components/Icon.astro";
+import { cn } from "@/lib/cn";
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends HTMLAttributes<"a"> {
+  href: string;
+  title: string;
+  /** Iconify icon name or one of the local icons in `src/icons`. */
+  icon?: string;
+  /** Render as a plain text link instead of a bordered tile. */
+  flat?: boolean;
+}
+
+const {
+  href,
+  title,
+  icon,
+  flat = false,
+  class: className,
+  ...attrs
+} = Astro.props;
+
+---
+
+<a
+  href={href}
+  class={cn("icon-link", flat && "icon-link-flat", className)}
+  data-icon={icon}
+  {...attrs}
+>
+  {icon && (
+    <span class="icon-link-icon" aria-hidden="true">
+      <Icon name={icon} class="h-[1.125rem] w-[1.125rem]" />
+    </span>
+  )}
+  <span>{title}</span>
+</a>
+
+<style>
+  .icon-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--nb-border);
+    border-radius: 0.5rem;
+    background: var(--nb-card);
+    color: var(--nb-foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25;
+    text-decoration: none;
+    transition:
+      color 120ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+
+  .icon-link:hover {
+    border-color: color-mix(in oklab, var(--nb-primary) 45%, var(--nb-border));
+    background: var(--nb-accent);
+    color: var(--nb-foreground);
+    text-decoration: none;
+  }
+
+  .icon-link:focus-visible {
+    outline: 2px solid var(--nb-ring);
+    outline-offset: 2px;
+  }
+
+  .icon-link-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--nb-muted-foreground);
+    transition: color 120ms ease;
+  }
+
+  .icon-link:hover .icon-link-icon {
+    color: var(--nb-primary);
+  }
+
+  .icon-link-flat {
+    border-color: transparent;
+    background: transparent;
+    padding-inline: 0.25rem;
+  }
+
+  .icon-link-flat:hover {
+    border-color: transparent;
+    background: transparent;
+    color: var(--nb-primary);
+  }
+</style>

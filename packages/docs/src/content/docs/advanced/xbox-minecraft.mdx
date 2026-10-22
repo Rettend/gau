@@ -3,7 +3,7 @@ title: Xbox / Minecraft tokens
 description: Capture Microsoft tokens, exchange for Xbox and Minecraft tokens, and gate linking by entitlement.
 ---
 
-import Aside from 'starlight-plugin-icons/components/Aside.astro'
+import { Aside } from '@/components'
 
 This guide shows how to:
 
@@ -54,7 +54,7 @@ export const auth = createAuth({
 })
 ```
 
-<Aside type="tip" icon="i-ph:lightbulb-bold">Mark the `xbox` profile as `linkOnly: true` to ensure users can only link it to an existing account and not sign in directly with Microsoft using that profile.</Aside>
+<Aside type="tip">Mark the `xbox` profile as `linkOnly: true` to ensure users can only link it to an existing account and not sign in directly with Microsoft using that profile.</Aside>
 
 <Aside type="note">When you short-circuit with `onOAuthExchange`, gau clears temporary cookies (CSRF/PKCE/callbackUri) and returns your custom response.</Aside>
 

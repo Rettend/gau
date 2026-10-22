@@ -3,10 +3,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "@/*": ["./src/*"],
       "~/*": ["./src/*"],
-      "@rttnd/gau": [
-        "../gau"
-      ]
+      "@rttnd/gau": ["../gau"]
     }
   },
   "include": [".astro/types.d.ts", "**/*"],

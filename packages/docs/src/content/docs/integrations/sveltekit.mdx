@@ -3,9 +3,7 @@ title: SvelteKit
 description: How to integrate gau with SvelteKit.
 ---
 
-import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
-import FileTree from 'starlight-plugin-icons/components/FileTree.astro'
-import Aside from 'starlight-plugin-icons/components/Aside.astro'
+import { Steps, Tabs, TabItem, FileTree, Aside } from '@/components'
 
 This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite or PostgreSQL) and GitHub as examples.
 
@@ -162,7 +160,7 @@ This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite or
     ```
 
     <Aside type="note">
-      For better security, consider [server-side protection](#server-side-protection) using `+page.server.ts`. See the [Protected Routes](/integrations/#protected-routes) section for more details.
+      For better security, consider [server-side protection](/guides/protected-routes#server-side) using `+page.server.ts`. See the [Protected Routes](/guides/protected-routes) guide for more details.
     </Aside>
 
 5. ##### File Structure
@@ -189,7 +187,7 @@ This guide shows how to integrate `gau` with SvelteKit, using Drizzle (SQLite or
 
 6. ##### Next Steps
 
-    - Explore other [OAuth Providers](/oauth-providers).
-    - See [Deployment](/guides/deployment) for production tips.
+    - Explore other [OAuth Providers](/providers).
+    - See [Security](/guides/security) for production tips.
     - Learn about how `gau` works.
 </Steps>

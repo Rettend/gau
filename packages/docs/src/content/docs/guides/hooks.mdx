@@ -3,7 +3,7 @@ title: Hooks
 description: Extend and customize gau's OAuth flow using hooks.
 ---
 
-import Aside from 'starlight-plugin-icons/components/Aside.astro'
+import { Aside } from '@/components'
 
 `gau` exposes hooks to let you intercept and customize the OAuth flow. You can modify user profiles, block linking, or take over the response entirely.
 
@@ -138,4 +138,4 @@ onAfterLinkAccount: async ({ action, providerId, userId }) => {
 }
 ```
 
-<Aside type="tip" icon="i-ph:lightbulb-bold">See the Minecraft/Xbox cookbook for a real-world example that uses these hooks.</Aside>
+<Aside type="tip">See the Minecraft/Xbox cookbook for a real-world example that uses these hooks.</Aside>
